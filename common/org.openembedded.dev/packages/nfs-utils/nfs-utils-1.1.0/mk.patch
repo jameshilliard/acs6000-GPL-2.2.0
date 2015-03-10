@@ -1,0 +1,183 @@
+diff -r -u -N nfs-utils-1.1.0/configure nfs-utils-1.1.0.new/configure
+--- nfs-utils-1.1.0/configure	2007-05-10 23:43:34.000000000 -0400
++++ nfs-utils-1.1.0.new/configure	2007-06-11 15:32:38.000000000 -0400
+@@ -3313,7 +3313,8 @@
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: C compiler cannot create executables
+ See \`config.log' for more details." >&2;}
+-   { (exit 77); exit 77; }; }
++#   { (exit 77); exit 77; }; 
++}
+ fi
+ 
+ ac_exeext=$ac_cv_exeext
+@@ -3346,7 +3347,8 @@
+ echo "$as_me: error: cannot run C compiled programs.
+ If you meant to cross compile, use \`--host'.
+ See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+     fi
+   fi
+ fi
+@@ -3392,7 +3394,8 @@
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: cannot compute suffix of executables: cannot compile and link
+ See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ rm -f conftest$ac_cv_exeext
+@@ -3449,7 +3452,8 @@
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: cannot compute suffix of object files: cannot compile
+ See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ rm -f conftest.$ac_cv_objext conftest.$ac_ext
+@@ -3999,7 +4003,8 @@
+ 
+                 { { echo "$as_me:$LINENO: error: *** libwrap missing" >&5
+ echo "$as_me: error: *** libwrap missing" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ 
+ 
+ fi
+@@ -5847,7 +5852,8 @@
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: C preprocessor \"$CPP\" fails sanity check
+ See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ ac_ext=c
+@@ -7468,7 +7474,8 @@
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: C++ preprocessor \"$CXXCPP\" fails sanity check
+ See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ ac_ext=cpp
+@@ -21876,7 +21883,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libevent needed for nfsv4 support" >&5
+ echo "$as_me: error: libevent needed for nfsv4 support" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+     { echo "$as_me:$LINENO: checking for nfs4_init_name_mapping in -lnfsidmap" >&5
+@@ -21945,7 +21953,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libnfsidmap needed for nfsv4 support" >&5
+ echo "$as_me: error: libnfsidmap needed for nfsv4 support" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ 
+@@ -22092,7 +22101,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libevent needed for nfsv4 support" >&5
+ echo "$as_me: error: libevent needed for nfsv4 support" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ done
+@@ -22241,7 +22251,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libnfsidmap needed for nfsv4 support" >&5
+ echo "$as_me: error: libnfsidmap needed for nfsv4 support" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ done
+@@ -22430,13 +22441,15 @@
+ echo "${ECHO_T}no" >&6; }
+                 { { echo "$as_me:$LINENO: error: Unable to locate information required to use librpcsecgss.  If you have pkgconfig installed, you might try setting environment variable PKG_CONFIG_PATH to /usr/local/lib/pkgconfig" >&5
+ echo "$as_me: error: Unable to locate information required to use librpcsecgss.  If you have pkgconfig installed, you might try setting environment variable PKG_CONFIG_PATH to /usr/local/lib/pkgconfig" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ 
+ 
+ elif test $pkg_failed = untried; then
+ 	{ { echo "$as_me:$LINENO: error: Unable to locate information required to use librpcsecgss.  If you have pkgconfig installed, you might try setting environment variable PKG_CONFIG_PATH to /usr/local/lib/pkgconfig" >&5
+ echo "$as_me: error: Unable to locate information required to use librpcsecgss.  If you have pkgconfig installed, you might try setting environment variable PKG_CONFIG_PATH to /usr/local/lib/pkgconfig" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ 
+ 
+ else
+@@ -22695,7 +22708,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libblkid needed" >&5
+ echo "$as_me: error: libblkid needed" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+    if test "${ac_cv_header_blkid_blkid_h+set}" = set; then
+@@ -22833,7 +22847,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: Cannot find libblkid header file blkid/blkid.h" >&5
+ echo "$as_me: error: Cannot find libblkid header file blkid/blkid.h" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ 
+@@ -23071,7 +23086,8 @@
+ else
+   { { echo "$as_me:$LINENO: error: libnfsidmap needed for gss support" >&5
+ echo "$as_me: error: libnfsidmap needed for gss support" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+ 
+ done
+diff -r -u -N nfs-utils-1.1.0/utils/gssd/gssd_proc.c nfs-utils-1.1.0.new/utils/gssd/gssd_proc.c
+--- nfs-utils-1.1.0/utils/gssd/gssd_proc.c	2007-05-10 23:40:57.000000000 -0400
++++ nfs-utils-1.1.0.new/utils/gssd/gssd_proc.c	2007-06-11 15:06:07.000000000 -0400
+@@ -44,6 +44,7 @@
+ #include "config.h"
+ #include <sys/param.h>
+ #include <rpc/rpc.h>
++#include <rpc/auth_gss.h>
+ #include <sys/stat.h>
+ #include <sys/socket.h>
+ #include <arpa/inet.h>
+diff -r -u -N nfs-utils-1.1.0/utils/gssd/write_bytes.h nfs-utils-1.1.0.new/utils/gssd/write_bytes.h
+--- nfs-utils-1.1.0/utils/gssd/write_bytes.h	2007-06-11 15:26:13.000000000 -0400
++++ nfs-utils-1.1.0.new/utils/gssd/write_bytes.h	2007-06-11 15:26:29.000000000 -0400
+@@ -34,6 +34,7 @@
+ #include <stdlib.h>
+ #include <sys/types.h>
+ #include <netinet/in.h>		/* for ntohl */
++#include <gssapi/gssapi.h>
+ 
+ inline static int
+ write_bytes(char **ptr, const char *end, const void *arg, int arg_len)

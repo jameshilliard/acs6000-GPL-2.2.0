@@ -1,0 +1,87 @@
+#!/usr/bin/env python
+# @Task:check all package source code existence needed by a project
+# @Input:input Package file is placed deploy/ipk/
+# @Output:if be lack of source ,it will be record in log file
+# @Author:Lynn.lin Lynn.lin@avocent.com
+# @TODO  : cvs svn
+# @Runtime: O(M*N)
+
+import os,sys,optparse
+logfile = "log"
+svnuri  = "svn://sha-scm/avocent-gsp/sources/oe"
+svnlistcmd = 'svn list %s' %svnuri
+def checksource(fn):
+	try:
+		fh = open (fn, "r")
+	except OSError:
+		sys.stderr.write ( "cannot open %s\n" % fn)
+		sys.exit(1)
+	SourceName = ""
+	if os.access(logfile,os.F_OK):
+		while (True):
+			try:
+				answer = raw_input('are you sure to remove log file [yes or no] ? ' )
+			except Exception ,e:
+				answer = 'no'
+				break
+			if answer == 'y' or answer == 'yes':
+				os.remove(logfile)
+				break
+			elif answer =='n' or answer =='no':
+				print 'pls backup log file, remove it,then run this program'
+				sys.exit(1)
+			
+        flog = open(logfile,"w")
+        fp = os.popen(svnlistcmd)
+	svnSourceArray = []
+	lackSourceArray = []
+
+        for line in fp.readlines():
+                if line == "":
+                        continue
+                line = line.strip('\n')
+		if line not in svnSourceArray:
+			svnSourceArray.append(line) 
+
+ 	fp.close()
+
+        for line in fh.readlines ():
+                line = line.strip (' \n')
+                if line.startswith('Source'):
+                        source = line.split()[1]
+                        if source.startswith('http') or source.startswith('ftp') or source.startswith('https'):
+                                if source.find('md5sum') < 0 :
+                                        SourceName = os.path.basename(source)
+                                else:
+                                        SourceName = os.path.basename(source.split(';')[0])
+				if source.find('localpath') > 0 :
+					for item in source.split(';'):
+						if item.startswith('localpath'):
+							SourceName = os.path.basename(item)
+			else :
+				continue
+			if SourceName not in svnSourceArray and SourceName not in lackSourceArray:
+				lackSourceArray.append(SourceName)
+				print 'lack %s sources' % SourceName	
+				flog.write('lack '+SourceName+' sources'+'\n')
+			else :
+				continue
+	flog.close()		
+	del svnSourceArray
+	del lackSourceArray
+
+def main():
+	parser = optparse.OptionParser( version = "check source  version 0.1", usage = """%prog -P Packages """) 
+	parser.add_option( "-P", None, help = "Packages filelist",
+	action = "store", dest = "pname", default = None )
+
+	options, args = parser.parse_args(sys.argv)
+	if not options.pname:
+	        print "Package filelist name not specified"
+	        return 1
+
+	checksource(options.pname)
+
+
+if __name__ == '__main__':
+	main()

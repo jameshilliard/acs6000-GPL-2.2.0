@@ -1,0 +1,64 @@
+Index: linux-2.6.20/drivers/net/phy/marvell.c
+===================================================================
+--- linux-2.6.20.orig/drivers/net/phy/marvell.c	2008-03-04 12:39:08.000000000 -0800
++++ linux-2.6.20/drivers/net/phy/marvell.c	2008-03-04 12:52:49.000000000 -0800
+@@ -199,6 +199,17 @@
+ 	return 0;
+ }
+ 
++static int m88e1116_config_init(struct phy_device *phydev)
++{
++	phy_write(phydev, 22, 2);
++	phy_write(phydev, 21, 0x1070);
++	phy_write(phydev, 22, 0);
++	phy_write(phydev, 16, 0x6060);
++	phy_write(phydev, 22, 3);
++	phy_write(phydev, 16, 0x101e);
++	return 0;
++}
++
+ static struct phy_driver m88e1101_driver = {
+ 	.phy_id = 0x01410c60,
+ 	.phy_id_mask = 0xfffffff0,
+@@ -240,6 +251,18 @@
+ 	.driver = {.owner = THIS_MODULE,},
+ };
+ 
++static struct phy_driver m88e1116_driver = {
++	.phy_id = 0x01410e40,
++	.phy_id_mask = 0xfffffff0,
++	.name = "Marvell 88E1116",
++	.features = PHY_GBIT_FEATURES,
++	.flags = 0,
++	.config_init = &m88e1116_config_init,
++	.config_aneg = &genphy_config_aneg,
++	.read_status = &genphy_read_status,
++	.driver = {.owner = THIS_MODULE,},
++};
++
+ static int __init marvell_init(void)
+ {
+ 	int ret;
+@@ -256,8 +279,14 @@
+ 	if (ret)
+ 		goto err1145;
+ 
++	ret = phy_driver_register(&m88e1116_driver);
++	if (ret)
++		goto err1116;
++
+ 	return 0;
+ 
++      err1116:
++	phy_driver_unregister(&m88e1145_driver);
+       err1145:
+ 	phy_driver_unregister(&m88e1111s_driver);
+       err1111s:
+@@ -270,6 +299,7 @@
+ 	phy_driver_unregister(&m88e1101_driver);
+ 	phy_driver_unregister(&m88e1111s_driver);
+ 	phy_driver_unregister(&m88e1145_driver);
++	phy_driver_unregister(&m88e1116_driver);
+ }
+ 
+ module_init(marvell_init);

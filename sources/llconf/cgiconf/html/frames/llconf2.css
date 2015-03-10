@@ -1,0 +1,16 @@
+h1 { font-family:Tahoma,Helvetica,Arial,Sans-Serif }
+h2 { font-family:Tahoma,Helvetica,Arial,Sans-Serif }
+h3 { font-family:Tahoma,Helvetica,Arial,Sans-Serif }
+p { font-family:Tahoma,Helvetica,Arial,Sans-Serif;
+	font-size: 12pt;
+	margin-left:20px;
+	margin-right:20px;
+	}
+pre { margin-left:40px; }
+ul,ol { font-family:Tahoma,Helvetica,Arial,Sans-Serif;
+	font-size: 12pt; }
+ul.li { list-style-type:square; }
+p.neu { font-size:13pt; }
+a:hover { background: #ffa }
+th { font-family:Tahoma,Helvetica,Arial,Sans-Serif; font-size: 16pt }
+td { font-family:Tahoma,Helvetica,Arial,Sans-Serif; font-size: 16pt }

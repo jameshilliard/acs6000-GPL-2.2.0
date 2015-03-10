@@ -1,0 +1,60 @@
+--- ipsec-tools-0.5-rc1.orig/configure.ac
++++ ipsec-tools-0.5-rc1/configure.ac
+@@ -22,7 +22,7 @@
+ AC_SUBST(LEXLIB)
+ AC_PROG_EGREP
+
+-CFLAGS_ADD="$CFLAGS_ADD -Wall -Werror -Wno-unused"
++CFLAGS_ADD="$CFLAGS_ADD -Wall -Wno-unused"
+
+ case $host in
+ *netbsd*)
+@@ -118,7 +118,7 @@
+ # Check if printf accepts "%z" type modifier for size_t argument
+ AC_MSG_CHECKING(if printf accepts %z)
+ saved_CFLAGS=$CFLAGS
+-CFLAGS="$CFLAGS -Wall -Werror"
++CFLAGS="$CFLAGS -Wall "
+ AC_TRY_COMPILE([
+ #include <stdio.h>
+ ], [
+--- ipsec-tools-0.5-rc1.orig/src/libipsec/policy_parse.y
++++ ipsec-tools-0.5-rc1/src/libipsec/policy_parse.y
+@@ -507,7 +507,7 @@
+ 		__ipsec_errcode = EIPSEC_NO_BUFS;
+ 		return -1;
+ 	}
+-	pbuf = n;
++	pbuf = (u_int8_t *)n;
+ 	p = (struct sadb_x_ipsecrequest *)&pbuf[offset];
+ 	p->sadb_x_ipsecrequest_len = reqlen;
+ 	p->sadb_x_ipsecrequest_proto = p_protocol;
+@@ -591,7 +591,7 @@
+ 
+ 	__ipsec_errcode = EIPSEC_NO_ERROR;
+ 
+-	return pbuf;
++	return (caddr_t)pbuf;
+ }
+ 
+ caddr_t
+--- ipsec-tools-0.5-rc1.orig/src/racoon/crypto_openssl.c
++++ ipsec-tools-0.5-rc1/src/racoon/crypto_openssl.c
+@@ -71,12 +71,17 @@
+ #else
+ #include "crypto/rijndael/rijndael-api-fst.h"
+ #endif
++
+ #ifdef WITH_SHA2
++#if OPENSSL_VERSION_NUMBER < 0x0090800fL
+ #ifdef HAVE_OPENSSL_SHA2_H
+ #include <openssl/sha2.h>
+ #else
+ #include "crypto/sha2/sha2.h"
+ #endif
++#else
++typedef SHA512_CTX SHA384_CTX;
++#endif
+ #endif
+ 
+ /* 0.9.7 stuff? */

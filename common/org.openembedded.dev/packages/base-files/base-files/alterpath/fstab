@@ -1,0 +1,14 @@
+# stock fstab - you probably want to override this with a machine specific one
+
+rootfs               /               auto       defaults              1  1
+proc                 /proc           proc       defaults              0  0
+devpts               /dev/pts        devpts     mode=0620,gid=5       0  0
+tmp                  /tmp            tmpfs      defaults              0  0
+
+/dev/hda7            /media/hda7     auto       defaults              1  1
+etc                  /etc            unionfs    dirs=/media/hda7/etc:/etc=ro    1  1
+data                 /data           unionfs    dirs=/media/hda7/data:/data=ro    1  1
+
+# uncomment this if your device has a SD/MMC/Transflash slot
+#/dev/mmcblk0p1       /media/card          auto       defaults,sync,noauto  0  0
+

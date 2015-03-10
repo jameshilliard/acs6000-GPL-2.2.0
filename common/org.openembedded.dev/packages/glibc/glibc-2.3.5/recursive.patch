@@ -1,0 +1,56 @@
+--- glibc-2.3.5/sysdeps/generic/syslog.c	2005-02-16 19:00:08.000000000 +0800
++++ glibc-2.3.5/sysdeps/generic/syslog.c.new	2007-08-08 14:23:15.000000000 +0800
+@@ -69,7 +69,7 @@
+ extern char	*__progname;		/* Program name, from crt0. */
+ 
+ /* Define the lock.  */
+-__libc_lock_define_initialized (static, syslog_lock)
++__libc_lock_define_initialized_recursive (static, syslog_lock)
+ 
+ static void openlog_internal(const char *, int, int) internal_function;
+ static void closelog_internal(void);
+@@ -99,7 +99,7 @@
+ #endif
+ 
+   /* Free the lock.  */
+-  __libc_lock_unlock (syslog_lock);
++  __libc_lock_unlock_recursive (syslog_lock);
+ }
+ 
+ 
+@@ -254,7 +254,7 @@
+ 	clarg.buf = buf;
+ 	clarg.oldaction = NULL;
+ 	__libc_cleanup_push (cancel_handler, &clarg);
+-	__libc_lock_lock (syslog_lock);
++	__libc_lock_lock_recursive (syslog_lock);
+ 
+ #ifndef NO_SIGPIPE
+ 	/* Prepare for a broken connection.  */
+@@ -310,7 +310,7 @@
+ 
+ 	/* End of critical section.  */
+ 	__libc_cleanup_pop (0);
+-	__libc_lock_unlock (syslog_lock);
++	__libc_lock_unlock_recursive (syslog_lock);
+ 
+ 	if (buf != failbuf)
+ 		free (buf);
+@@ -374,7 +374,7 @@
+ {
+   /* Protect against multiple users and cancellation.  */
+   __libc_cleanup_push (cancel_handler, NULL);
+-  __libc_lock_lock (syslog_lock);
++  __libc_lock_lock_recursive (syslog_lock);
+ 
+   openlog_internal (ident, logstat, logfac);
+ 
+@@ -405,7 +405,7 @@
+ {
+   /* Protect against multiple users and cancellation.  */
+   __libc_cleanup_push (cancel_handler, NULL);
+-  __libc_lock_lock (syslog_lock);
++  __libc_lock_lock_recursive (syslog_lock);
+ 
+   closelog_internal ();
+   LogTag = NULL;

@@ -1,0 +1,207 @@
+From 5542df46938fca50d4e0dd6f72a08b0ecfdc4393 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Thu, 5 Jun 2008 21:49:42 +0800
+Subject: [PATCH] backport fixed-phy support and use it for vitesse switch on MPC8313ERDB
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts |    8 +---
+ arch/powerpc/sysdev/fsl_soc.c         |   79 ++++++++++++++++++++++++++-------
+ drivers/net/phy/Kconfig               |    8 ---
+ drivers/net/phy/fixed.c               |    2 +-
+ include/linux/phy.h                   |    6 +++
+ 5 files changed, 71 insertions(+), 32 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index a63928c..f0363da 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -98,12 +98,6 @@
+ 			reg = <24520 20>;
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+-			phy1: ethernet-phy@1 {
+-				interrupt-parent = < &ipic >;
+-				interrupts = <13 8>;
+-				reg = <1>;
+-				device_type = "ethernet-phy";
+-			};
+ 			phy4: ethernet-phy@4 {
+ 				interrupt-parent = < &ipic >;
+ 				interrupts = <14 8>;
+@@ -120,7 +114,7 @@
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupts = <20 8 21 8 22 8>;
+ 			interrupt-parent = < &ipic >;
+-			phy-handle = < &phy1 >;
++			fixed-link = <1 1 d#1000 0 0>;
+ 		};
+ 
+ 		ethernet@25000 {
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 1cf29c9..2a3eb32 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -3,6 +3,8 @@
+  *
+  * Maintained by Kumar Gala (see MAINTAINERS for contact information)
+  *
++ * Copyright (C) 2008 Freescale Semiconductor, Inc. All rights reserved.
++ *
+  * 2006 (c) MontaVista Software, Inc.
+  * Vitaly Bordug <vbordug@ru.mvista.com>
+  *
+@@ -24,6 +26,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/of_platform.h>
+ #include <linux/phy.h>
++#include <linux/phy_fixed.h>
+ #include <linux/fsl_devices.h>
+ #include <linux/fs_enet_pd.h>
+ #include <linux/fs_uart_pd.h>
+@@ -118,6 +121,37 @@ u32 get_baudrate(void)
+ EXPORT_SYMBOL(get_baudrate);
+ #endif /* CONFIG_CPM2 */
+ 
++#ifdef CONFIG_FIXED_PHY
++static int __init of_add_fixed_phys(void)
++{
++	int ret;
++	struct device_node *np;
++	u32 *fixed_link;
++	struct fixed_phy_status status = {};
++
++	for_each_node_by_name(np, "ethernet") {
++		fixed_link  = (u32 *)of_get_property(np, "fixed-link", NULL);
++		if (!fixed_link)
++			continue;
++
++		status.link = 1;
++		status.duplex = fixed_link[1];
++		status.speed = fixed_link[2];
++		status.pause = fixed_link[3];
++		status.asym_pause = fixed_link[4];
++
++		ret = fixed_phy_add(PHY_POLL, fixed_link[0], &status);
++		if (ret) {
++			of_node_put(np);
++			return ret;
++		}
++	}
++
++	return 0;
++}
++arch_initcall(of_add_fixed_phys);
++#endif /* CONFIG_FIXED_PHY */
++
+ static int __init gfar_mdio_of_init(void)
+ {
+ 	struct device_node *np;
+@@ -265,28 +299,41 @@ static int __init gfar_of_init(void)
+ 			gfar_data.interface = PHY_INTERFACE_MODE_MII;
+ 
+ 		ph = of_get_property(np, "phy-handle", NULL);
+-		phy = of_find_node_by_phandle(*ph);
++		if (ph == NULL) {
++			u32 *fixed_link;
+ 
+-		if (phy == NULL) {
+-			ret = -ENODEV;
+-			goto unreg;
+-		}
++			fixed_link = (u32 *)of_get_property(np, "fixed-link",
++							   NULL);
++			if (!fixed_link) {
++				ret = -ENODEV;
++				goto unreg;
++			}
+ 
+-		mdio = of_get_parent(phy);
++			gfar_data.bus_id = 0;
++			gfar_data.phy_id = fixed_link[0];
++		} else {
++			phy = of_find_node_by_phandle(*ph);
+ 
+-		id = of_get_property(phy, "reg", NULL);
+-		ret = of_address_to_resource(mdio, 0, &res);
+-		if (ret) {
++			if (phy == NULL) {
++				ret = -ENODEV;
++				goto unreg;
++			}
++
++			mdio = of_get_parent(phy);
++
++			id = of_get_property(phy, "reg", NULL);
++			ret = of_address_to_resource(mdio, 0, &res);
++			if (ret) {
++				of_node_put(phy);
++				of_node_put(mdio);
++				goto unreg;
++			}
++			gfar_data.phy_id = *id;
++			gfar_data.bus_id = res.start;
+ 			of_node_put(phy);
+ 			of_node_put(mdio);
+-			goto unreg;
+-		}
+-
+-		gfar_data.phy_id = *id;
+-		gfar_data.bus_id = res.start;
+ 
+-		of_node_put(phy);
+-		of_node_put(mdio);
++		}
+ 
+ 		ret =
+ 		    platform_device_add_data(gfar_dev, &gfar_data,
+diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
+index dd09011..e37288f 100644
+--- a/drivers/net/phy/Kconfig
++++ b/drivers/net/phy/Kconfig
+@@ -68,12 +68,4 @@ config FIXED_PHY
+ 	  speed/duplex parameters could be effectively handled in a user-specified function.
+ 	  Currently tested with mpc866ads.
+ 
+-config FIXED_MII_10_FDX
+-	bool "Emulation for 10M Fdx fixed PHY behavior"
+-	depends on FIXED_PHY
+-
+-config FIXED_MII_100_FDX
+-	bool "Emulation for 100M Fdx fixed PHY behavior"
+-	depends on FIXED_PHY
+-
+ endif # PHYLIB
+diff --git a/drivers/net/phy/fixed.c b/drivers/net/phy/fixed.c
+index 4e07956..ca9b040 100644
+--- a/drivers/net/phy/fixed.c
++++ b/drivers/net/phy/fixed.c
+@@ -213,7 +213,7 @@ static int __init fixed_mdio_bus_init(void)
+ 		goto err_pdev;
+ 	}
+ 
+-	snprintf(fmb->mii_bus.id, MII_BUS_ID_SIZE, "0");
++	fmb->mii_bus.id = 0;
+ 	fmb->mii_bus.name = "Fixed MDIO Bus";
+ 	fmb->mii_bus.dev = &pdev->dev;
+ 	fmb->mii_bus.read = &fixed_mdio_read;
+diff --git a/include/linux/phy.h b/include/linux/phy.h
+index 2a65978..6a6e4ab 100644
+--- a/include/linux/phy.h
++++ b/include/linux/phy.h
+@@ -72,6 +72,12 @@ typedef enum {
+ /* Used when trying to connect to a specific phy (mii bus id:phy device id) */
+ #define PHY_ID_FMT "%x:%02x"
+ 
++/*
++ * Need to be a little smaller than phydev->dev.bus_id to leave room
++ * for the ":%02x"
++ */
++#define MII_BUS_ID_SIZE	(BUS_ID_SIZE - 3)
++
+ /* The Bus class for PHYs.  Devices which provide access to
+  * PHYs should register using this structure */
+ struct mii_bus {
+-- 
+1.5.5.1.248.g4b17
+

@@ -1,0 +1,20 @@
+#! /bin/sh
+#
+# halt		Execute the halt command.
+#
+# Version:      @(#)halt  2.84-2  07-Jan-2002  miquels@cistron.nl
+#
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+# See if we need to cut the power.
+if test -x /etc/init.d/ups-monitor
+then
+	/etc/init.d/ups-monitor poweroff
+fi
+
+echo 1 > /proc/sys/avocent/board/led
+
+halt -d -f -i
+
+: exit 0

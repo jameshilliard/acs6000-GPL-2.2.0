@@ -1,0 +1,114 @@
+#!/bin/bash
+#
+# This program is for checking out source codes of a given module or all of acs.
+# Author: Ice Liu
+# History: Draft on Apr 9, 2007
+#          Modified for acs on Apr 26, 2007
+# Copyright: Avocent
+
+PROJECT=acs
+PACKAGES=""
+SRCREPS="generic thirdparty ${PROJECT}"
+SVNURL=https://fre-svn.corp.avocent.com/svn/avocent-gsp
+TAGOPT=trunk
+SRCDIR=${HOME}/sources
+ISCHECKALL=0
+USAGE="\
+Usage:\n\
+\t$0 <-a> <-l> <-r TAG|branch> modulename\n\
+\t\t -l list all modules\n\
+\t\t -a check out all modules\n\
+\t\t -r TAG|branch checkout the given module with given TAG|branch name, default is trunk\n\
+"
+
+SVNCMD="svn co "
+function checkDir () {
+        serverdir="$1"
+        workdir="$2"
+
+        if [ -d "$workdir" ]; then
+                echo "$workdir already exists."
+                echo -n "Do you want to remove it?[y/n]: "
+                read r
+                if [ "$r" = "y" ]; then
+                        echo "remove $workdir "
+                        rm -rf $workdir
+                        ${SVNCMD}$serverdir $workdir
+                else
+                        echo "keep $workdir"
+                fi
+        else
+                ${SVNCMD}$serverdir $workdir
+        fi
+}
+
+while getopts "hlr:a" opt; do
+    case $opt in
+        h)
+	    echo "Usage:"
+	    echo "    $0 <-h> <-a> <-l> <-r TAG|branch> <module|package>"
+	    echo "    -h ro print this information"
+	    echo "    -l list all modules"
+	    echo "    -a to check out all modules|packages for project ${PROJECT}"
+	    echo "    -r TAG checkout the given module with given TAG name, default is trunk"
+	    echo "    -b branch checkout the given module with given branch name, default is trunk"
+	    exit 0
+	    ;;
+	l)
+	    echo "To list all modules ..."
+	    for REP in ${SRCREPS}
+	    do
+	      echo "modules of ${REP}:"
+	      svn list ${SVNURL}/sources/${REP} | grep -v trunk  | sed s/$"\/"//
+	      echo
+	    done
+	    exit 0
+	    ;;
+	r)
+	    TAGOPT=tags/${OPTARG}
+	    ;;
+	b)
+	    TAGOPT=branches/${OPTARG}
+	    ;;
+	a)
+	    ISCHECKALL=1
+	    ;;
+        \?)
+	    echo "Usage:"
+	    echo "    $0 <-l> <-b branchname> modulename"
+	    echo "    -h ro print this information"
+	    echo "    -l list all modules"
+	    echo "    -a to check out all modules|packages for project ${PROJECT}"
+	    echo "    -r TAG checkout the given module with given TAG name, default is trunk"
+	    echo "    -b branch checkout the given module with given branch name, default is trunk"
+	    exit 0
+	    ;;
+    esac
+done
+
+shift $(($OPTIND - 1))
+
+function checkPackage () {
+    for REP in ${SRCREPS}
+    do
+      svn list ${SVNURL}/sources/${REP} 2>/dev/null | grep "$1" > /dev/null
+      if [ 0 = $? ]; then
+	  echo "There is a module|package $1 in ${REP}:"
+	  checkDir ${SVNURL}/sources/${REP}/$1/${TAGOPT} ${SRCDIR}/$1
+      else
+	  continue
+      fi
+    done
+}
+
+if [ 0 = ${ISCHECKALL} ]; then
+    checkPackage $1
+    exit 0
+else
+    echo "check all modules/packages of project ${PROJECT} ..."
+    for PACKAGE in ${PACKAGES}
+    do
+      checkPackage ${PACKAGE}
+    done
+    exit 0
+fi

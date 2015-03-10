@@ -1,0 +1,11 @@
+#
+# The PAM configuration file for the 'ldapdownlocal' service
+# If LDAP server is down, uses the local service
+#
+auth     requisite   pam_securetty.so
+auth     sufficient  pam_otk.so
+auth     optional    pam_shm.so
+auth     [ success=1 new_authtok_reqd=1 authinfo_unavail=ignore default=die ] pam_ldap.so
+auth     required    pam_redirect.so service=s_local
+account  required    pam_ldap.so
+session  required    pam_ldap.so

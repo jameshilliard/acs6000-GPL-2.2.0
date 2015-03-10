@@ -1,0 +1,4 @@
+# Seconds Between Time Checks
+ntpinterval=600
+# Upstream NTP Server Name
+ntpserver=pool.ntp.org

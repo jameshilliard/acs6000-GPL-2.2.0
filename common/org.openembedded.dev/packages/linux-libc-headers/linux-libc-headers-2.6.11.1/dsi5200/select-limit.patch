@@ -1,0 +1,13 @@
+Index: linux-libc-headers-2.6.12.0/include/linux/posix_types.h
+===================================================================
+--- linux-libc-headers-2.6.12.0.orig/include/linux/posix_types.h
++++ linux-libc-headers-2.6.12.0/include/linux/posix_types.h
+@@ -22,7 +22,7 @@
+ #define __NFDBITS	(8 * sizeof(unsigned long))
+ 
+ #undef __FD_SETSIZE
+-#define __FD_SETSIZE	1024
++#define __FD_SETSIZE	8192
+ 
+ #undef __FDSET_LONGS
+ #define __FDSET_LONGS	(__FD_SETSIZE/__NFDBITS)

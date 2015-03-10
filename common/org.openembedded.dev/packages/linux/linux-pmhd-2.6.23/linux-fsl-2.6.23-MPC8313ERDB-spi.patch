@@ -1,0 +1,306 @@
+From 08c8acdfb8fdbd6ef3d1173206c44383507c40de Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Mon, 2 Jun 2008 16:44:10 +0800
+Subject: [PATCH] SPI support on mpc813rdb platform
+
+this patch add spi device support for MPC8313RDB platform
+
+Signed-off-by: Chen Gong <g.chen@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |    5 +-
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |   72 +++++++++++++++
+ arch/powerpc/sysdev/fsl_soc.c             |  137 +++++++++++++++++++++++++++++
+ arch/powerpc/sysdev/fsl_soc.h             |    6 ++
+ 4 files changed, 218 insertions(+), 2 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index a9fed8f..1db8972 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -102,12 +102,13 @@
+ 		};
+ 
+ 		spi@7000 {
++			cell-index = <0>;
+ 			device_type = "spi";
+-			compatible = "mpc83xx_spi";
++			compatible = "fsl,spi";
+ 			reg = <7000 1000>;
+ 			interrupts = <10 8>;
+ 			interrupt-parent = < &ipic >;
+-			mode = <0>;
++			mode = "cpu";
+ 		};
+ 
+ 		/* phy type (ULPI, UTMI, UTMI_WIDE, SERIAL) */
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+index 0eadc2e..14a2826 100644
+--- a/arch/powerpc/platforms/83xx/mpc8313_rdb.c
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -14,6 +14,12 @@
+  */
+ 
+ #include <linux/pci.h>
++#include <linux/interrupt.h>
++#include <linux/spi/spi.h>
++#include <linux/spi/mmc_spi.h>
++#include <linux/mmc/host.h>
++#include <linux/of_platform.h>
++#include <sysdev/fsl_soc.h>
+ 
+ #include <linux/of_platform.h>
+ #include <asm/time.h>
+@@ -31,6 +37,72 @@
+ #define DBG(fmt...)
+ #endif
+ 
++struct gpio {
++	__be32 gpdir;
++	__be32 gpodr;
++	__be32 gpdat;
++	__be32 gpier;
++	__be32 gpimr;
++	__be32 gpicr;
++} __attribute__ ((packed));
++static struct gpio *gpio_regs;
++
++static void mpc83xx_spi_activate_cs(u8 cs, u8 polarity)
++{
++	pr_debug("%s %d %d\n", __func__, cs, polarity);
++	if (polarity)
++		setbits32(&gpio_regs->gpdat, 1 << (31 - 13));
++	else
++		clrbits32(&gpio_regs->gpdat, 1 << (31 - 13));
++}
++
++static void mpc83xx_spi_deactivate_cs(u8 cs, u8 polarity)
++{
++	pr_debug("%s %d %d\n", __func__, cs, polarity);
++	if (polarity)
++		clrbits32(&gpio_regs->gpdat, 1 << (31 - 13));
++	else
++		setbits32(&gpio_regs->gpdat, 1 << (31 - 13));
++}
++
++static struct mmc_spi_platform_data mpc8313_mmc_pdata = {
++	.ocr_mask = MMC_VDD_33_34,
++};
++
++static struct spi_board_info mpc8313_spi_boardinfo = {
++	.bus_num = 0x7000,
++	.chip_select = 0,
++	.max_speed_hz = 50000000,
++	.modalias = "mmc_spi",
++	.platform_data = &mpc8313_mmc_pdata,
++};
++
++static int __init mpc8313_spi_init(void)
++{
++	__be32 __iomem *psicrl;
++
++	/* System I/O Configuration Register Low */
++	psicrl = ioremap(get_immrbase() + MPC83XX_SICRL_OFFS, 0x4);
++	gpio_regs = ioremap(get_immrbase() + 0xc00, 0x20);
++	if (!psicrl || !gpio_regs)
++		return -ENOMEM;
++
++	clrbits32(psicrl, 0x03F00000);
++	setbits32(psicrl, 0x30000000);
++	iounmap(psicrl);
++
++	/* set GPIO13 as output */
++	setbits32(&gpio_regs->gpdir, 1 << (31 - 13));
++	clrbits32(&gpio_regs->gpodr, 1 << (31 - 13));
++	setbits32(&gpio_regs->gpdat, 1 << (31 - 13));
++
++	return fsl_spi_init(&mpc8313_spi_boardinfo, 1,
++			mpc83xx_spi_activate_cs,
++			mpc83xx_spi_deactivate_cs);
++}
++
++device_initcall(mpc8313_spi_init);
++
+ /* ************************************************************************
+  *
+  * Setup the architecture
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 2a3eb32..d3e9219 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -26,6 +26,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/of_platform.h>
+ #include <linux/phy.h>
++#include <linux/spi/spi.h>
+ #include <linux/phy_fixed.h>
+ #include <linux/fsl_devices.h>
+ #include <linux/fs_enet_pd.h>
+@@ -68,6 +69,33 @@ phys_addr_t get_immrbase(void)
+ 
+ EXPORT_SYMBOL(get_immrbase);
+ 
++static u32 sysfreq = -1;
++
++u32 fsl_get_sys_freq(void)
++{
++	struct device_node *soc;
++	const u32 *prop;
++	int size;
++
++	if (sysfreq != -1)
++		return sysfreq;
++
++	soc = of_find_node_by_type(NULL, "soc");
++	if (!soc)
++		return -1;
++
++	prop = of_get_property(soc, "clock-frequency", &size);
++	if (!prop || size != sizeof(*prop) || *prop == 0)
++		prop = of_get_property(soc, "bus-frequency", &size);
++
++	if (prop && size == sizeof(*prop))
++		sysfreq = *prop;
++
++	of_node_put(soc);
++	return sysfreq;
++}
++EXPORT_SYMBOL(fsl_get_sys_freq);
++
+ #if defined(CONFIG_CPM2) || defined(CONFIG_8xx)
+ 
+ static u32 brgfreq = -1;
+@@ -695,6 +723,115 @@ err:
+ 
+ arch_initcall(fsl_usb_of_init);
+ 
++static int __init of_fsl_spi_probe(char *type, char *compatible, u32 sysclk,
++				   struct spi_board_info *board_infos,
++				   unsigned int num_board_infos,
++				   void (*activate_cs)(u8 cs, u8 polarity),
++				   void (*deactivate_cs)(u8 cs, u8 polarity))
++{
++	struct device_node *np;
++	unsigned int i = 0;
++
++	for_each_compatible_node(np, type, compatible) {
++		int ret;
++		unsigned int j;
++		const void *prop;
++		struct resource res[2];
++		struct platform_device *pdev;
++		struct fsl_spi_platform_data pdata = {
++			.activate_cs = activate_cs,
++			.deactivate_cs = deactivate_cs,
++		};
++
++		memset(res, 0, sizeof(res));
++
++		pdata.sysclk = sysclk;
++
++		prop = of_get_property(np, "reg", NULL);
++		if (!prop)
++			goto err;
++		pdata.bus_num = *(u32 *)prop;
++
++		prop = of_get_property(np, "cell-index", NULL);
++		if (prop)
++			i = *(u32 *)prop;
++
++		prop = of_get_property(np, "mode", NULL);
++		if (prop)
++			pdata.qe_mode = strcasecmp(prop, "cpu");
++
++		for (j = 0; j < num_board_infos; j++) {
++			if (board_infos[j].bus_num == pdata.bus_num)
++				pdata.max_chipselect++;
++		}
++
++		if (!pdata.max_chipselect)
++			continue;
++
++		ret = of_address_to_resource(np, 0, &res[0]);
++		if (ret)
++			goto err;
++
++		ret = of_irq_to_resource(np, 0, &res[1]);
++		if (ret == NO_IRQ)
++			goto err;
++
++		pdev = platform_device_alloc("mpc83xx_spi", i);
++		if (!pdev)
++			goto err;
++
++		ret = platform_device_add_data(pdev, &pdata, sizeof(pdata));
++		if (ret)
++			goto unreg;
++
++		ret = platform_device_add_resources(pdev, res,
++						    ARRAY_SIZE(res));
++		if (ret)
++			goto unreg;
++
++		ret = platform_device_add(pdev);
++		if (ret)
++			goto unreg;
++
++		goto next;
++unreg:
++		platform_device_del(pdev);
++err:
++		printk(KERN_ERR"%s: registration failed\n", np->full_name);
++next:
++		i++;
++	}
++
++	return i;
++}
++
++int __init fsl_spi_init(struct spi_board_info *board_infos,
++			unsigned int num_board_infos,
++			void (*activate_cs)(u8 cs, u8 polarity),
++			void (*deactivate_cs)(u8 cs, u8 polarity))
++{
++	u32 sysclk = -1;
++	int ret;
++
++#ifdef CONFIG_QUICC_ENGINE
++	/* SPI controller is either clocked from QE or SoC clock */
++	sysclk = get_brgfreq();
++#endif
++	if (sysclk == -1) {
++		sysclk = fsl_get_sys_freq();
++		if (sysclk == -1)
++			return -ENODEV;
++	}
++
++	ret = of_fsl_spi_probe("spi", "fsl,spi", sysclk, board_infos,
++			       num_board_infos, activate_cs, deactivate_cs);
++	if (!ret)
++		of_fsl_spi_probe("spi", "fsl_spi", sysclk, board_infos,
++				 num_board_infos, activate_cs, deactivate_cs);
++
++	return spi_register_board_info(board_infos, num_board_infos);
++}
++
+ #ifdef CONFIG_CPM2
+ 
+ extern void init_scc_ioports(struct fs_uart_platform_info*);
+diff --git a/arch/powerpc/sysdev/fsl_soc.h b/arch/powerpc/sysdev/fsl_soc.h
+index 04e145b..824909c 100644
+--- a/arch/powerpc/sysdev/fsl_soc.h
++++ b/arch/powerpc/sysdev/fsl_soc.h
+@@ -8,5 +8,11 @@ extern phys_addr_t get_immrbase(void);
+ extern u32 get_brgfreq(void);
+ extern u32 get_baudrate(void);
+ 
++struct spi_board_info;
++
++extern int fsl_spi_init(struct spi_board_info *board_infos,
++		unsigned int num_board_infos,
++		void (*activate_cs)(u8 cs, u8 polarity),
++		void (*deactivate_cs)(u8 cs, u8 polarity));
+ #endif
+ #endif
+-- 
+1.5.5.1.248.g4b17
+

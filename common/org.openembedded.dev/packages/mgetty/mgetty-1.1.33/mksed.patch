@@ -1,0 +1,142 @@
+diff -u -r -N mgetty-1.1.33/fax/Makefile mgetty-1.1.33.new/fax/Makefile
+--- mgetty-1.1.33/fax/Makefile	2005-02-16 10:54:46.000000000 -0500
++++ mgetty-1.1.33.new/fax/Makefile	2007-06-06 18:58:27.000000000 -0400
+@@ -61,7 +61,6 @@
+ 	done
+ 	$(INSTALL) -m 755 faxrunqd $(SBINDIR)
+ 	$(INSTALL) faxq-helper $(LIBDIR)
+-	chown $(FAX_OUT_USER) $(LIBDIR)/faxq-helper
+ 	chmod 4711 $(LIBDIR)/faxq-helper
+ #
+ # data files
+diff -u -r -N mgetty-1.1.33/g3/Makefile mgetty-1.1.33.new/g3/Makefile
+--- mgetty-1.1.33/g3/Makefile	2005-02-27 14:02:16.000000000 -0500
++++ mgetty-1.1.33.new/g3/Makefile	2007-06-06 18:57:57.000000000 -0400
+@@ -40,7 +40,8 @@
+ # install programs
+ #
+ 	for f in $(G3_PROGRAMS) ; do \
+-		$(INSTALL) -s -m 755 $$f $(BINDIR) ; \
++		$(INSTALL) -m 755 $$f $(BINDIR) ; \
++		$(STRIP) $(BINDIR)/$$f ; \
+ 	done
+ #
+ # make symlink for "g3topbm" (so third-party fax viewers won't fail)
+diff -u -r -N mgetty-1.1.33/Makefile mgetty-1.1.33.new/Makefile
+--- mgetty-1.1.33/Makefile	2005-03-13 12:59:34.000000000 -0500
++++ mgetty-1.1.33.new/Makefile	2007-06-06 18:49:19.000000000 -0400
+@@ -4,7 +4,7 @@
+ #
+ # this is the C compiler to use (on SunOS, the standard "cc" does not
+ # grok my code, so please use gcc there. On ISC 4.0, use "icc".).
+-CC=gcc
++#CC=gcc
+ #CC=cc
+ #
+ #### C Compiler Flags ####
+@@ -164,7 +164,8 @@
+ #
+ # if your systems doesn't have one, use the shell script that I provide
+ # in "inst.sh" (taken from X11R5). Needed on IRIX5.2
+-INSTALL=install -c -o bin -g bin
++INSTALL=install
++#INSTALL=install -c -o bin -g bin
+ #INSTALL=install -c -o root -g wheel		# NeXT/BSD
+ #INSTALL=/usr/ucb/install -c -o bin -g bin	# AIX, Solaris 2.x
+ #INSTALL=installbsd -c -o bin -g bin		# OSF/1, AIX 4.1, 4.2
+@@ -176,7 +177,7 @@
+ #
+ # prefix for all the spool directories (usually /usr/spool or /var/spool)
+ #
+-spool=/var/spool
++spool=$(prefix)/var/spool
+ #
+ # where the mgetty + sendfax binaries live (used for "make install")
+ #
+@@ -315,7 +316,8 @@
+      faxlib.o faxsend.o faxrecp.o class1.o class1lib.o faxhng.o \
+      io.o tio.o getdisk.o config.o conf_sf.o goodies.o
+ 
+-all:	bin-all doc-all
++#all:	bin-all doc-all
++all:	bin-all 
+ 
+ bin-all: mgetty sendfax newslock sedscript subdirs call-back 
+ 
+@@ -418,7 +420,7 @@
+ 	$(MAKE) "CC=$(CC)" "CFLAGS=$(CFLAGS)" all
+ 
+ sedscript: mksed
+-	./mksed >sedscript
++	../mksed >sedscript
+ 	chmod 700 sedscript
+ 
+ mksed: mksed.c policy.h Makefile 
+@@ -583,7 +585,8 @@
+ 	cd bindist; gtar cvvfz mgetty$(MR).$(SR)-bin.tgz *
+ 
+ 
+-install: install.bin install.doc
++#install: install.bin install.doc
++install: install.bin
+ 
+ install.bin: mgetty sendfax newslock \
+ 		login.config mgetty.config sendfax.config 
+@@ -596,8 +599,10 @@
+ 	-test -d $(SBINDIR) || ( ./mkidirs $(SBINDIR) ; chmod 755 $(SBINDIR) )
+ 	-mv -f $(SBINDIR)/mgetty $(SBINDIR)/mgetty.old
+ 	-mv -f $(SBINDIR)/sendfax $(SBINDIR)/sendfax.old
+-	$(INSTALL) -s -m 700 mgetty $(SBINDIR)
+-	$(INSTALL) -s -m 755 sendfax $(SBINDIR)
++	$(INSTALL) -m 700 mgetty $(SBINDIR)
++	$(INSTALL) -m 755 sendfax $(SBINDIR)
++	$(STRIP) $(SBINDIR)/mgetty
++	$(STRIP) $(SBINDIR)/sendfax
+ #
+ # data files + directories
+ #
+@@ -606,15 +611,15 @@
+ 	test -d $(CONFDIR) || \
+ 		( ./mkidirs $(CONFDIR) && chmod 755 $(CONFDIR))
+ 	test -f $(CONFDIR)/login.config || \
+-		$(INSTALL) -o root -m 600 login.config $(CONFDIR)/
++		$(INSTALL) -m 600 login.config $(CONFDIR)/
+ 	test -f $(CONFDIR)/mgetty.config || \
+-		$(INSTALL) -o root -m 600 mgetty.config $(CONFDIR)/
++		$(INSTALL) -m 600 mgetty.config $(CONFDIR)/
+ 	test -f $(CONFDIR)/sendfax.config || \
+-		$(INSTALL) -o root -m 644 sendfax.config $(CONFDIR)/
++		$(INSTALL) -m 644 sendfax.config $(CONFDIR)/
+ 	test -f $(CONFDIR)/dialin.config || \
+-		$(INSTALL) -o root -m 600 dialin.config $(CONFDIR)/
++		$(INSTALL) -m 600 dialin.config $(CONFDIR)/
+ 	test -f $(CONFDIR)/faxrunq.config || \
+-		$(INSTALL) -o root -m 644 faxrunq.config $(CONFDIR)/
++		$(INSTALL) -m 644 faxrunq.config $(CONFDIR)/
+ #
+ # test for outdated stuff
+ #
+@@ -632,13 +637,11 @@
+ 		( mkdir $(spool) && chmod 755 $(spool) )
+ 	test -d $(FAX_SPOOL) || \
+ 		( mkdir $(FAX_SPOOL) && \
+-		  chown $(FAX_OUT_USER) $(FAX_SPOOL) && \
+ 		  chmod 755 $(FAX_SPOOL) )
+ 	test -d $(FAX_SPOOL_IN) || \
+ 		( mkdir $(FAX_SPOOL_IN) && chmod 755 $(FAX_SPOOL_IN) )
+ 	test -d $(FAX_SPOOL_OUT) || \
+ 		  mkdir $(FAX_SPOOL_OUT)
+-	chown $(FAX_OUT_USER) $(FAX_SPOOL_OUT)
+ 	chmod 755 $(FAX_SPOOL_OUT)
+ #
+ # g3 tool programs
+@@ -659,7 +662,8 @@
+ 	if [ ! -z "$(INSTALL_MECHO)" ] ; then \
+ 	    cd compat ; \
+ 	    $(CC) $(CFLAGS) -o mg.echo mg.echo.c && \
+-	    $(INSTALL) -s -m 755 mg.echo $(BINDIR) ; \
++	    $(INSTALL) -m 755 mg.echo $(BINDIR) ; \
++	    $(STRIP) $(BINDIR)/mg.echo; \
+ 	fi
+ 
+ #

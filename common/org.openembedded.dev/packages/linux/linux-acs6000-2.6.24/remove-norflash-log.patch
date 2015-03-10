@@ -1,0 +1,15 @@
+Index: linux-2.6.19/drivers/mtd/chips/cfi_cmdset_0002.c
+===================================================================
+--- linux-2.6.19.orig/drivers/mtd/chips/cfi_cmdset_0002.c	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/drivers/mtd/chips/cfi_cmdset_0002.c	2007-11-13 11:08:13.000000000 -0800
+@@ -417,10 +417,6 @@
+ 	}
+ #endif
+ 
+-	/* FIXME: erase-suspend-program is broken.  See
+-	   http://lists.infradead.org/pipermail/linux-mtd/2003-December/009001.html */
+-	printk(KERN_NOTICE "cfi_cmdset_0002: Disabling erase-suspend-program due to code brokenness.\n");
+-
+ 	__module_get(THIS_MODULE);
+ 	return mtd;
+ 

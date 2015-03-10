@@ -1,0 +1,9 @@
+#
+# The PAM configuration file for the 'ldap' service
+#
+auth     requisite   pam_securetty.so
+auth     sufficient  pam_otk.so
+auth     optional    pam_shm.so 
+auth     requisite   pam_ldap.so
+account  required    pam_ldap.so
+session  required    pam_ldap.so

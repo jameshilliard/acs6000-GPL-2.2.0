@@ -1,0 +1,119 @@
+Index: linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.c
+===================================================================
+--- linux-2.6.16.orig/arch/ppc/platforms/85xx/mpc85xx_cds_common.c	2007-06-08 17:47:15.000000000 -0400
++++ linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.c	2007-06-08 17:47:16.000000000 -0400
+@@ -890,7 +890,7 @@
+ #else
+ #define CYC_CF_FS '0'
+ #endif
+-
++/** Move bdinfo to proc_misc.c
+ static int bdinfo_read_proc(char *page, char **start, off_t off,
+ 		int count, int *eof, void *data)
+ {
+@@ -955,7 +955,7 @@
+ }
+ 
+ late_initcall(bdinfo_proc_init);
+-
++*/
+ #if defined(CONFIG_SENSORS_M41T00)
+ extern ulong	m41t00_get_rtc_time(void);
+ extern int	m41t00_set_rtc_time(ulong);
+Index: linux-2.6.16/fs/proc/proc_misc.c
+===================================================================
+--- linux-2.6.16.orig/fs/proc/proc_misc.c	2007-06-08 17:47:13.000000000 -0400
++++ linux-2.6.16/fs/proc/proc_misc.c	2007-06-08 18:11:51.000000000 -0400
+@@ -246,6 +246,82 @@
+ 	return proc_calc_metrics(page, start, off, count, eof, len);
+ }
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD
++#define CARD_NAME	"MGP"
++#define PROD_LINE	"MergePoint 5224/5240"
++#define PROD_NAME	"MergePoint"
++#define AVCT_NAME	"Avocent"
++#define AVCT_VERSION	"V_4.0.0"
++static int bdinfo_read_proc(char *page, char **start, off_t off,
++				 int count, int *eof, void *data)
++{
++	bd_t *bd = (bd_t *)__res;
++	int clock_freq, len;
++	unsigned char pmac[20];
++
++
++	clock_freq = bd->bi_intfreq / 1000000;
++	
++	sprintf(pmac,"%.2x%.2x%.2x%.2x%.2x%.2x",
++		bd->bi_enetaddr[0], bd->bi_enetaddr[1], 
++		bd->bi_enetaddr[2], bd->bi_enetaddr[3],
++		bd->bi_enetaddr[4], bd->bi_enetaddr[5]);
++
++	/* These values may change as new platforms are added */
++	/*
++	card_name = "MGP";
++	prod_line = PROD_LINE1;
++	prod_name = PROD_NAME1;
++
++	sprintf(page, "%s!%d!%s!%d!%s!%s!%s!%d!%s!%d!%d!%d!%s!%d!!!%s\n",
++		machine_txt[bd->board_type], bd->board_model, card_name, 
++		machine_txt[bd->board_type], bd->board_model, card_name, 
++		bd->board_type, CYCLADES_TXT, prod_line, prod_name, 
++		(bd->pci? 1:0), CYCLADES_VERSION,
++		clock_freq, (int)((bd->bi_memsize /1024)/1024),
++		(int)((bd->bi_flashsize/1024)/1024), bd->device_id,
++		bd->fpga_version, pmac);
++	*/	
++	sprintf(page, "%s!%d!%s!%d!%s!%s!%s!%d!%s!%d!%d!%d!!%d!%d!%d!%s\n",
++/*1:Machine Text*/
++	"MergePoint",
++/*2:Port Count*/	
++	( bd->board_model & 0x80 )? 24:40,	
++/*3:Card Name */
++	CARD_NAME, 
++/*4:Board Type*/
++	bd->board_type,
++/*5:Company Text*/	
++	AVCT_NAME, 
++/*6:Product Line*/	
++	PROD_LINE,
++/*7:Product Name*/	
++	PROD_NAME, 
++/*8:Whether is PCI*/	
++	(bd->pci? 1:0), 
++/*9:Version*/	
++	AVCT_VERSION,
++/*10:Clock Frequence MHZ*/	
++	clock_freq,
++/*11:Memory Size in MB*/
++	(int)((bd->bi_memsize /1024)/1024),
++/*12:Flash Size in MB*/
++	(int)((bd->bi_flashsize/1024)/1024), 
++/*13:Device ID	
++	bd->device_id,*/
++/*14:Field-Programmable Gate Array Version */
++	bd->fpga_version, 
++/*15:Board Version */
++	bd->board_ver_rev,
++/*16:Board model*/
++	bd->board_model,
++/*17:MAC*/
++	pmac);
++	len = strlen(page);
++	return proc_calc_metrics(page, start, off, count, eof, len);
++}
++#endif
++
+ #ifdef CONFIG_ALTERPATH_ONBOARD_V1
+ #include <asm/cpm2.h>
+ #include <asm/immap_cpm2.h>
+@@ -751,6 +827,9 @@
+ 		{"uptime",	uptime_read_proc},
+ 		{"meminfo",	meminfo_read_proc},
+ 		{"version",	version_read_proc},
++#ifdef CONFIG_ALTERPATH_ONBOARD
++		{"bdinfo",	bdinfo_read_proc},
++#endif
+ #ifdef CONFIG_ALTERPATH_ONBOARD_V1
+ 		{"powerstatus", pws_read_proc},
+ #endif

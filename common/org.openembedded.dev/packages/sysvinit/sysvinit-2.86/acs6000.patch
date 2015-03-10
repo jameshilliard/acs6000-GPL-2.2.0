@@ -1,0 +1,22 @@
+--- sysvinit-2.86-old/src/init.c
++++ sysvinit-2.86/src/init.c
+@@ -2425,6 +2425,19 @@
+ 	 */
+   	initlog(L_CO, bootmsg, "booting");
+ 
++	/* ACS 6000 - init process */
++	{
++		CHILD acsinit;
++		strcpy(acsinit.process,"/bin/init_acs6000.sh");
++		acsinit.action = SYSINIT;
++		acsinit.flags = 0; strcpy(acsinit.rlevel,"#");
++		initlog(L_CO, bootmsg, "ACS6000 init");
++		startup(&acsinit);
++		while ((rc = waitpid(acsinit.pid,&st,0)) != acsinit.pid) {
++			if ((rc < 0) && (errno == ECHILD)) break;
++		}
++	}
++
+   	/*
+ 	 *	See if we have to start an emergency shell.
+ 	 */

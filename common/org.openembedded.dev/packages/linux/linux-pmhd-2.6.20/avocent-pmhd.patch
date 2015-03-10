@@ -1,0 +1,3868 @@
+Index: linux-2.6.20/arch/powerpc/boot/dts/avocent-pmhd.dts
+===================================================================
+--- /dev/null
++++ linux-2.6.20/arch/powerpc/boot/dts/avocent-pmhd.dts
+@@ -0,0 +1,218 @@
++/*
++ * MPC8313E RDB Device Tree Source
++ *
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++/ {
++	model = "Avocent PMHD";
++	compatible = "mpc83xx";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	cpus {
++		#cpus = <1>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		PowerPC,8313@0 {
++			device_type = "cpu";
++			reg = <0>;
++			d-cache-line-size = <20>;	// 32 bytes
++			i-cache-line-size = <20>;	// 32 bytes
++			d-cache-size = <4000>;		// L1, 16K
++			i-cache-size = <4000>;		// L1, 16K
++			timebase-frequency = <0>;	// from bootloader
++			bus-frequency = <0>;		// from bootloader
++			clock-frequency = <0>;		// from bootloader
++			32-bit;
++		};
++	};
++
++	memory {
++		device_type = "memory";
++		reg = <00000000 08000000>;	// 128MB at 0
++	};
++
++	nand0 {
++		device_type = "nand";
++		compatible = "fsl-nand";
++		linux,phandle = <301>;
++		reg = <e2800000 2000>;
++	};
++
++	soc8313@e0000000 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		#interrupt-cells = <2>;
++		device_type = "soc";
++		ranges = <0 e0000000 00100000>;
++		reg = <e0000000 00000200>;
++		bus-frequency = <0>;
++
++		wdt@200 {
++			device_type = "watchdog";
++			compatible = "mpc83xx_wdt";
++			reg = <200 100>;
++		};
++
++		i2c@3000 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3000 100>;
++			interrupts = <e 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		i2c@3100 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3100 100>;
++			interrupts = <f 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		spi@7000 {
++			device_type = "spi";
++			compatible = "mpc83xx_spi";
++			reg = <7000 1000>;
++			interrupts = <10 8>;
++			interrupt-parent = <700>;
++			mode = <0>;
++		};
++
++		mdio@24520 {
++			device_type = "mdio";
++			compatible = "gianfar";
++			reg = <24520 20>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			linux,phandle = <24520>;
++			ethernet-phy@0 {
++				linux,phandle = <2452000>;
++				reg = <0>;
++				device_type = "ethernet-phy";
++			};
++		};
++
++		ethernet@24000 {
++			device_type = "network";
++			model = "eTSEC";
++			compatible = "gianfar";
++			reg = <24000 1000>;
++			address = [ 00 00 00 00 00 00 ];
++			local-mac-address = [ 00 00 00 00 00 00 ];
++			interrupts = <25 8 24 8 23 8>;
++			interrupt-parent = <700>;
++			phy-handle = <2452000>;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
++		};
++
++		serial@4500 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4500 100>;
++			clock-frequency = <0>;
++			interrupts = <9 8>;
++			interrupt-parent = <700>;
++		};
++
++		serial@4600 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4600 100>;
++			clock-frequency = <0>;
++			interrupts = <a 8>;
++			interrupt-parent = <700>;
++		};
++
++		/* IPIC
++		 * interrupts cell = <intr #, sense>
++		 * sense values match linux IORESOURCE_IRQ_* defines:
++		 * sense == 8: Level, low assertion
++		 * sense == 2: Edge, high-to-low change
++		 */
++		pic@700 {
++			linux,phandle = <700>;
++			interrupt-controller;
++			#address-cells = <0>;
++			#interrupt-cells = <2>;
++			reg = <700 100>;
++			built-in;
++			device_type = "ipic";
++		};
++
++		elbc@5000 {
++			linux,phandle = <5000>;
++			device_type = "elbc";
++			compatible = "fsl-elbc";
++			reg = <5000 1000>;
++			interrupts = <4d 8>;
++			interrupt-parent = <700>;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
++		};
++	};
++
++	serial@f0000000 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000000 8>;
++		clock-frequency = <0>;
++		interrupts = <30 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000008 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000008 8>;
++		clock-frequency = <0>;
++		interrupts = <11 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000010 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000010 8>;
++		clock-frequency = <0>;
++		interrupts = <12 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000018 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000018 8>;
++		clock-frequency = <0>;
++		interrupts = <13 2>;
++		interrupt-parent = <700>;
++	};
++};
++
+Index: linux-2.6.20/arch/powerpc/platforms/83xx/Kconfig
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/platforms/83xx/Kconfig
++++ linux-2.6.20/arch/powerpc/platforms/83xx/Kconfig
+@@ -11,6 +11,12 @@ config MPC8313_RDB
+ 	help
+ 	  This option enables support fro the MPC8313 RDB board.
+ 
++config AVOCENT_PMHD
++	bool "Avocent PMHD"
++	select AVOCENT_GSP
++	help
++	  This option enables support for the Avocent PMHD board.
++
+ config MPC832x_MDS
+ 	bool "Freescale MPC832x MDS"
+ 	select DEFAULT_UIMAGE
+@@ -52,7 +58,7 @@ config PPC_MPC831x
+ 	select PPC_UDBG_16550
+ 	select PPC_INDIRECT_PCI
+ 	select USB_EHCI_FSL
+-	default y if MPC8313_RDB
++	default y if MPC8313_RDB || AVOCENT_PMHD
+ 
+ config PPC_MPC832x
+ 	bool
+Index: linux-2.6.20/arch/powerpc/platforms/83xx/Makefile
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/platforms/83xx/Makefile
++++ linux-2.6.20/arch/powerpc/platforms/83xx/Makefile
+@@ -6,6 +6,7 @@ obj-$(CONFIG_PCI)		+= pci.o
+ obj-$(CONFIG_PM)		+= pm.o sleep.o
+ obj-$(CONFIG_MPC83xx_GTM)	+= timer.o
+ obj-$(CONFIG_MPC8313_RDB)	+= mpc8313_rdb.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent-pmhd.o
+ obj-$(CONFIG_MPC834x_SYS)	+= mpc834x_sys.o
+ obj-$(CONFIG_MPC834x_ITX)	+= mpc834x_itx.o
+ obj-$(CONFIG_MPC8360E_PB)	+= mpc8360e_pb.o
+Index: linux-2.6.20/arch/powerpc/platforms/83xx/avocent-pmhd.c
+===================================================================
+--- /dev/null
++++ linux-2.6.20/arch/powerpc/platforms/83xx/avocent-pmhd.c
+@@ -0,0 +1,396 @@
++/*
++ * arch/powerpc/platforms/83xx/avocent-pmhd.c
++ *
++ * Description: Avocent PMHD board specific routines. This file is based on mpc8313_rbd.c
++ * Author: Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Copyright (C) 2008 Avocent Corporation.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/errno.h>
++#include <linux/reboot.h>
++#include <linux/kdev_t.h>
++#include <linux/major.h>
++#include <linux/console.h>
++#include <linux/delay.h>
++#include <linux/seq_file.h>
++#include <linux/root_dev.h>
++#include <linux/fsl_devices.h>
++#include <linux/serial.h>
++#include <linux/serial_8250.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/partitions.h>
++#include <linux/mtd/map.h>
++#include <linux/m41t00.h>
++#include <linux/rtc.h>
++#include <linux/spi/spi.h>
++
++#include <asm/system.h>
++#include <asm/atomic.h>
++#include <asm/time.h>
++#include <asm/io.h>
++#include <asm/machdep.h>
++#include <asm/ipic.h>
++#include <asm/bootinfo.h>
++#include <asm/irq.h>
++#include <asm/prom.h>
++#include <asm/udbg.h>
++#include <asm/of_platform.h>
++#include <sysdev/fsl_soc.h>
++
++#include "mpc83xx.h"
++
++#ifdef CONFIG_GFAR_PTP_VCO
++#define MPC8313_SICRH_1588_EXT_CLK	0x00000040
++#endif
++
++__be32 __iomem *gpio_regs;
++
++/* ************************************************************************
++ *
++ * Setup the architecture
++ *
++ */
++static void __init avocent_pmhd_setup_arch(void)
++{
++	struct device_node *np;
++#ifdef CONFIG_GFAR_PTP_VCO
++	void __iomem *immap;
++	unsigned long sicrh;
++#endif
++
++	if (ppc_md.progress)
++		ppc_md.progress("avocent_pmhd_setup_arch()", 0);
++
++	np = of_find_node_by_type(NULL, "cpu");
++	if (np != 0) {
++		const unsigned int *fp =
++			get_property(np, "clock-frequency", NULL);
++		if (fp != 0)
++			loops_per_jiffy = *fp / HZ;
++		else
++			loops_per_jiffy = 50000000 / HZ;
++		of_node_put(np);
++	}
++
++#ifdef CONFIG_GFAR_PTP_VCO
++	immap = ioremap(get_immrbase(), 0x1000);
++	sicrh = in_be32(immap + MPC83XX_SICRH_OFFS);
++	sicrh |= MPC8313_SICRH_1588_EXT_CLK;
++	out_be32(immap + MPC83XX_SICRH_OFFS, sicrh);
++#endif
++
++	gpio_regs = ioremap(get_immrbase() + 0xc00, 0x18);
++}
++
++void __init avocent_pmhd_init_IRQ(void)
++{
++	struct device_node *np;
++
++	np = of_find_node_by_type(NULL, "ipic");
++	if (!np)
++		return;
++
++	ipic_init(np, 0);
++
++	/* Initialize the default interrupt mapping priorities,
++	 * in case the boot rom changed something on us.
++	 */
++	ipic_set_default_priority();
++}
++
++/*
++ * Called very early, MMU is off, device-tree isn't unflattened
++ */
++static int __init avocent_pmhd_probe(void)
++{
++	/* We always match for now, eventually we should look at the flat
++	   dev tree to ensure this is the board we are suppose to run on
++	*/
++	return 1;
++}
++
++static struct of_device_id mpc831x_soc_ids[] = {
++	{ .type = "soc", },
++	{},
++};
++
++static int __init mpc831x_declare_of_platform_devices(void)
++{
++	if (!machine_is(avocent_pmhd))
++		return 0;
++
++	of_platform_bus_probe(NULL, mpc831x_soc_ids, NULL);
++		return 0;
++}
++device_initcall(mpc831x_declare_of_platform_devices);
++
++#define AVOCENT_PMHD_NOR_FLASH_ADDR	0xFFF80000
++#define AVOCENT_PMHD_NOR_FLASH_SIZE	0x00080000
++
++static struct mtd_partition avocent_pmd_nor_partition_info[]={
++	{
++		.name		= "U-Boot",
++		.offset 	= 0,
++		.size		= AVOCENT_PMHD_NOR_FLASH_SIZE - 0x3000
++	},
++	{
++		.name		= "Config",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x02000
++	},
++	{
++		.name		= "SerialNb",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x01000,
++    	},
++};
++#define AVOCENT_PMHD_NOR_PARTITIONS (sizeof(avocent_pmd_nor_partition_info)/sizeof(struct mtd_partition))
++
++struct map_info avocent_pmhd_nor_map = {
++	.name		= "Avocent PMHD NOR Flash Map Info",
++	.size		= AVOCENT_PMHD_NOR_FLASH_SIZE,
++	.phys		= AVOCENT_PMHD_NOR_FLASH_ADDR,
++	.bankwidth	= 1,
++};
++
++static struct mtd_info *avocent_pmhd_mtd;
++
++static int __init avocent_pmhd_init_nor_flash(void)
++{
++
++	printk(KERN_NOTICE"Avocent PMHD NOR flash device: %x at %x Partition number %d\n",
++			AVOCENT_PMHD_NOR_FLASH_SIZE, AVOCENT_PMHD_NOR_FLASH_ADDR,
++			AVOCENT_PMHD_NOR_PARTITIONS);
++	avocent_pmhd_nor_map.virt = ioremap(AVOCENT_PMHD_NOR_FLASH_ADDR, AVOCENT_PMHD_NOR_FLASH_SIZE);
++
++	if (!avocent_pmhd_nor_map.virt) {
++		printk("Failed to ioremap\n");
++		return -EIO;
++	}
++	simple_map_init(&avocent_pmhd_nor_map);
++
++	avocent_pmhd_mtd = do_map_probe("jedec_probe", &avocent_pmhd_nor_map);
++	if (avocent_pmhd_mtd) {
++		avocent_pmhd_mtd->owner = THIS_MODULE;
++                add_mtd_partitions(avocent_pmhd_mtd, avocent_pmd_nor_partition_info,
++			AVOCENT_PMHD_NOR_PARTITIONS);
++		printk(KERN_NOTICE "Avocent PMHD flash device (%s) initialized\n",
++			avocent_pmhd_mtd->name);
++		return 0;
++	}
++
++	iounmap((void *)avocent_pmhd_nor_map.virt);
++	return -ENXIO;
++}
++late_initcall(avocent_pmhd_init_nor_flash);
++
++#if defined(CONFIG_SENSORS_M41T00)
++static struct m41t00_platform_data avocent_pmhd_rtc_data = {
++	.type = M41T00_TYPE_M41T00,
++	.i2c_addr = 0x68,
++};
++
++static struct platform_device avocent_pmhd_rtc_device = {
++	.name = M41T00_DRV_NAME,
++	.dev = {
++		.platform_data = &avocent_pmhd_rtc_data,
++	},
++};
++
++static void powerpc_m41t00_get_rtc_time(struct rtc_time *tm)
++{
++	unsigned long time = m41t00_get_rtc_time();
++	rtc_time_to_tm(time, tm);
++}
++
++static int powerpc_m41t00_set_rtc_time(struct rtc_time *tm)
++{
++	unsigned long time;
++	rtc_tm_to_time(tm, &time);
++	return m41t00_set_rtc_time(time);
++}
++
++static int __init
++avocent_pmhd_rtc_init(void)
++{
++	platform_device_register(&avocent_pmhd_rtc_device);
++
++	ppc_md.get_rtc_time = powerpc_m41t00_get_rtc_time;
++	ppc_md.set_rtc_time = powerpc_m41t00_set_rtc_time;
++}
++arch_initcall(avocent_pmhd_rtc_init);
++
++static int __init
++avocent_pmhd_rtc_hookup(void)
++{
++	struct rtc_time tm;
++	struct timespec tv;
++
++	ppc_md.get_rtc_time(&tm);
++	tv.tv_nsec = 0;
++	tv.tv_sec = mktime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
++			tm.tm_hour, tm.tm_min, tm.tm_sec);
++	printk("Current time is %02d/%02d/%04d %02d:%02d:%02d\n",
++		tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900,
++		tm.tm_hour, tm.tm_min, tm.tm_sec);
++	do_settimeofday(&tv);
++	return 0;
++}
++late_initcall(avocent_pmhd_rtc_hookup);
++#endif
++
++void avocent_pmhd_spi_activate_cs (unsigned char cs, unsigned char polarity)
++{
++	u32 data;
++	data = in_be32(gpio_regs + 2);
++	switch(cs) {
++	case 0:
++		out_be32(gpio_regs + 2, (data & ~0x04000000L) | 0x18000000L);
++		break;
++	case 1:
++		out_be32(gpio_regs + 2, (data & ~0x5c000000L) | 0x20000000L);
++		break;
++	case 2:
++		out_be32(gpio_regs + 2, (data & ~0x54000000L) | 0x28000000L);
++		break;
++	case 3:
++		out_be32(gpio_regs + 2, (data & ~0x3c000000L) | 0x40000000L);
++		break;
++	case 4:
++		out_be32(gpio_regs + 2, (data & ~0x34000000L) | 0x48000000L);
++		break;
++	case 5:
++		out_be32(gpio_regs + 2, (data & ~0x1c000000L) | 0x60000000L);
++		break;
++	case 6:
++		out_be32(gpio_regs + 2, (data & ~0x14000000L) | 0x68000000L);
++		break;
++	}
++}
++
++void avocent_pmhd_spi_deactivate_cs (unsigned char cs, unsigned char polarity)
++{
++	u32 data;
++	data = in_be32(gpio_regs + 2);
++	out_be32(gpio_regs + 2, (data | 0x04000000L));
++}
++
++static int __init mpc83xx_spi_init(void)
++{
++	struct device_node *np;
++	unsigned int i;
++	struct platform_device *spi_dev;
++	int ret;
++
++	for (np = NULL, i = 0;
++	     (np = of_find_compatible_node(np, "spi", "mpc83xx_spi")) != NULL;
++	     i++) {
++		struct resource r[2];
++		struct fsl_spi_platform_data spi_data;
++		const u32 *mode = NULL;
++
++		memset(&r, 0, sizeof(r));
++		memset(&spi_data, 0, sizeof(spi_data));
++
++		ret = of_address_to_resource(np, 0, &r[0]);
++		if (ret)
++			goto err;
++
++		of_irq_to_resource(np, 0, &r[1]);
++
++		spi_dev = platform_device_register_simple("mpc83xx_spi", i, r, 2);
++		if (IS_ERR(spi_dev)) {
++			ret = PTR_ERR(spi_dev);
++			goto err;
++		}
++
++		mode = get_property(np, "mode", NULL);
++		spi_data.activate_cs = avocent_pmhd_spi_activate_cs;
++		spi_data.deactivate_cs = avocent_pmhd_spi_deactivate_cs;
++		spi_data.max_chipselect = 7;
++		spi_data.initial_spmode = *mode;
++		spi_data.sysclk = fsl_get_sys_freq();
++		ret =
++		    platform_device_add_data(spi_dev, &spi_data,
++					     sizeof(struct
++						    fsl_spi_platform_data));
++		if (ret)
++			goto unreg;
++	}
++
++	return 0;
++
++unreg:
++	platform_device_unregister(spi_dev);
++err:
++	return ret;
++}
++
++static struct spi_board_info avocent_pmhd_spi_board_info[] __initdata = {
++{
++	.modalias	= "max6950",
++	.max_speed_hz	= 2000000,
++	.chip_select	= 0,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 115000,
++	.chip_select	= 1,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 115000,
++	.chip_select	= 2,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 115000,
++	.chip_select	= 3,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 115000,
++	.chip_select	= 4,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 115000,
++	.chip_select	= 5,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 115000,
++	.chip_select	= 6,
++},
++};
++
++static int __init
++avocent_pmhd_spi_info(void)
++{
++	mpc83xx_spi_init();
++	out_be32(gpio_regs, in_be32(gpio_regs) | 0x7c000000L);
++	spi_register_board_info(avocent_pmhd_spi_board_info,
++		ARRAY_SIZE(avocent_pmhd_spi_board_info));
++}
++
++arch_initcall(avocent_pmhd_spi_info);
++
++define_machine(avocent_pmhd) {
++	.name			= "Avocent PM",
++	.probe			= avocent_pmhd_probe,
++	.setup_arch		= avocent_pmhd_setup_arch,
++	.init_IRQ		= avocent_pmhd_init_IRQ,
++	.get_irq		= ipic_get_irq,
++	.restart		= mpc83xx_restart,
++	.time_init		= mpc83xx_time_init,
++	.calibrate_decr		= generic_calibrate_decr,
++};
+Index: linux-2.6.20/arch/powerpc/platforms/83xx/avocent-pmhd.h
+===================================================================
+--- /dev/null
++++ linux-2.6.20/arch/powerpc/platforms/83xx/avocent-pmhd.h
+@@ -0,0 +1,22 @@
++/*
++ * arch/powerpc/platforms/83xx/avocent-pmhd.h
++ *
++ * Description: Avocent PMHD board definitions. This file is based on mpc8313_rbd.h
++ * Author: Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Copyright (C) 2008 Avocent Corporation.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ *
++ */
++#ifndef	__MACH_AVOCENT_PMHD_H__
++#define	__MACH_AVOCENT_PMHD_H__
++
++#define CONFIG_AVOCENT_ETHPORTS 1
++#define CFG_AVOCENT_FAMILY_CODE	43
++#define CFG_AVOCENT_SERIAL	1
++#endif				/* __MACH_AVOCENT_PMHD_H__ */
++
+Index: linux-2.6.20/arch/powerpc/kernel/setup_32.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/setup_32.c
++++ linux-2.6.20/arch/powerpc/kernel/setup_32.c
+@@ -49,6 +49,10 @@
+ #include <asm/kgdb.h>
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
+ extern void bootx_init(unsigned long r4, unsigned long phys);
+ 
+ struct ide_machdep_calls ppc_ide_md;
+Index: linux-2.6.20/drivers/net/gianfar.c
+===================================================================
+--- linux-2.6.20.orig/drivers/net/gianfar.c
++++ linux-2.6.20/drivers/net/gianfar.c
+@@ -98,6 +98,10 @@
+ #include "gianfar.h"
+ #include "gianfar_mii.h"
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
+ #define TX_TIMEOUT      (1*HZ)
+ #define SKB_ALLOC_TIMEOUT 1000000
+ #undef BRIEF_GFAR_ERRORS
+@@ -1596,7 +1600,9 @@ static irqreturn_t gfar_transmit(int irq
+ 	gfar_write(&priv->regs->ievent, IEVENT_TX_MASK);
+ 
+ 	/* Lock priv */
++#ifndef CONFIG_GFAR_SKBUFF_RECYCLING
+ 	spin_lock(&priv->txlock);
++#endif
+ 	bdp = priv->dirty_tx;
+ 	while ((bdp->status & TXBD_READY) == 0) {
+ 		/* If dirty_tx and cur_tx are the same, then either the */
+Index: linux-2.6.20/drivers/char/Makefile
+===================================================================
+--- linux-2.6.20.orig/drivers/char/Makefile
++++ linux-2.6.20/drivers/char/Makefile
+@@ -90,6 +90,8 @@ obj-$(CONFIG_CS5535_GPIO)	+= cs5535_gpio
+ obj-$(CONFIG_GPIO_VR41XX)	+= vr41xx_giu.o
+ obj-$(CONFIG_TANBAC_TB0219)	+= tb0219.o
+ obj-$(CONFIG_TELCLOCK)		+= tlclk.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent_pmhd_display.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent_pmhd_outlet.o
+ 
+ obj-$(CONFIG_WATCHDOG)		+= watchdog/
+ obj-$(CONFIG_MWAVE)		+= mwave/
+Index: linux-2.6.20/drivers/serial/8250.c
+===================================================================
+--- linux-2.6.20.orig/drivers/serial/8250.c
++++ linux-2.6.20/drivers/serial/8250.c
+@@ -46,6 +46,9 @@
+ 
+ #include "8250.h"
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <sysdev/fsl_soc.h>
++#endif
+ /*
+  * Configuration:
+  *   share_irqs - whether we pass IRQF_SHARED to request_irq().  This option
+@@ -116,6 +119,10 @@ static unsigned long probe_rsa[PORT_RSA_
+ static unsigned int probe_rsa_count;
+ #endif /* CONFIG_SERIAL_8250_RSA  */
+ 
++#ifdef CONFIG_PPC_83xx
++extern unsigned long wdt_base;
++#endif
++
+ struct uart_8250_port {
+ 	struct uart_port	port;
+ 	struct timer_list	timer;		/* "no irq" timer */
+@@ -130,7 +137,9 @@ struct uart_8250_port {
+ 	unsigned char		mcr_mask;	/* mask of user bits */
+ 	unsigned char		mcr_force;	/* mask of forced bits */
+ 	unsigned char		lsr_break_flag;
+-
++#ifdef CONFIG_AVOCENT_PMHD
++	unsigned char		mstatus;
++#endif
+ 	/*
+ 	 * We provide a per-port pm hook.
+ 	 */
+@@ -138,6 +147,12 @@ struct uart_8250_port {
+ 				      unsigned int state, unsigned int old);
+ };
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++static	unsigned int	gpio_irq = 0;
++static	unsigned int	gpio_registered = 0; //it actually counts the number of open ports
++static  spinlock_t		gpio_lock;           //exclusive GPIO resource
++#endif
++
+ struct irq_info {
+ 	spinlock_t		lock;
+ 	struct list_head	*head;
+@@ -145,6 +160,9 @@ struct irq_info {
+ 
+ static struct irq_info irq_lists[NR_IRQS];
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++extern __be32 __iomem *gpio_regs;
++#endif
+ /*
+  * Here we define the default xmit fifo size used for each type of UART.
+  */
+@@ -1330,6 +1348,32 @@ static unsigned int check_modem_status(s
+ {
+ 	unsigned int status = serial_in(up, UART_MSR);
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++	if (up->port.line == 0 || up->port.line == 1) {
++		u32 data = in_be32(gpio_regs + 2);
++		status &= ~(UART_MSR_DCD | UART_MSR_RI | UART_MSR_DSR | UART_MSR_DDCD);
++		if (up->port.line == 0) {
++			if ((data & 0x10000L) == 0) {
++				status |= UART_MSR_DCD;
++			}
++			if ((data & 0x08000L) == 0) {
++				status |= UART_MSR_DSR;
++			}
++		} else {
++			if ((data & 0x02000L) == 0) {
++				status |= UART_MSR_DCD;
++			}
++			if ((data & 0x01000L) == 0) {
++				status |= UART_MSR_DSR;
++			}
++		}
++		if (((up->mstatus & UART_MSR_DCD) && (status & UART_MSR_DCD) == 0) ||
++			((up->mstatus & UART_MSR_DCD) == 0 && (status & UART_MSR_DCD))) {
++			status |= UART_MSR_DDCD;
++		}
++		up->mstatus = status;
++	}
++#endif
+ 	if (status & UART_MSR_ANY_DELTA && up->ier & UART_IER_MSI) {
+ 		if (status & UART_MSR_TERI)
+ 			up->port.icount.rng++;
+@@ -1414,8 +1458,7 @@ static irqreturn_t serial8250_interrupt(
+ 
+ 		if (l == i->head && pass_counter++ > PASS_LIMIT) {
+ 			/* If we hit this, we're dead. */
+-			printk(KERN_ERR "serial8250: too much work for "
+-				"irq%d\n", irq);
++			printk(KERN_ERR "serial8250: too much work for irq %d\n", irq);
+ 			break;
+ 		}
+ 	} while (l != end);
+@@ -1427,6 +1470,35 @@ static irqreturn_t serial8250_interrupt(
+ 	return IRQ_RETVAL(handled);
+ }
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++static irqreturn_t serial8250_gpio_interrupt(int irq, void *dev_id)
++{
++	struct irq_info *i = dev_id;
++	struct list_head *l;
++	struct uart_8250_port *up;
++
++	spin_lock(&gpio_lock);
++
++	if (in_be32(gpio_regs + 3) & 0x18000) { //Check only console signals
++
++		l = i->head;
++
++		up = list_entry(l, struct uart_8250_port, list);
++		printk(KERN_DEBUG "gpio int %d\n", up->port.line);
++
++		if (up && up->port.line == 0) {	//Only console.
++			check_modem_status(up);
++		}
++
++		out_be32(gpio_regs + 3, 0x18000);
++	}
++
++	spin_unlock(&gpio_lock);
++
++	return IRQ_HANDLED;
++}
++#endif
++
+ /*
+  * To support ISA shared interrupts, we need to have one interrupt
+  * handler that ensures that the IRQ line has been deasserted
+@@ -1468,9 +1540,23 @@ static int serial_link_irq_chain(struct 
+ 		spin_unlock_irq(&i->lock);
+ 
+ 		ret = request_irq(up->port.irq, serial8250_interrupt,
+-				  irq_flags, "serial", i);
++						  irq_flags, "serial", i);
+ 		if (ret < 0)
+ 			serial_do_unlink(i, up);
++#ifdef CONFIG_AVOCENT_PMHD
++		else if (gpio_irq && up->port.line == 0) {	//Only for console signals.
++			if (!gpio_registered) {
++				ret = request_irq(gpio_irq, serial8250_gpio_interrupt,
++								  IRQF_SHARED, "serial", i);
++				if (ret >= 0) {
++					gpio_registered = 1;
++					out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x18000);
++				}
++			} else {
++				gpio_registered++;
++			}
++		}
++#endif
+ 	}
+ 
+ 	return ret;
+@@ -1482,8 +1568,15 @@ static void serial_unlink_irq_chain(stru
+ 
+ 	BUG_ON(i->head == NULL);
+ 
+-	if (list_empty(i->head))
++	if (list_empty(i->head)) {
+ 		free_irq(up->port.irq, i);
++#ifdef CONFIG_AVOCENT_PMHD
++		if (up->port.line == 0 && !--gpio_registered) {
++			free_irq(gpio_irq, i);
++			out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x1b000);
++		}
++#endif
++	}
+ 
+ 	serial_do_unlink(i, up);
+ }
+@@ -1578,6 +1671,26 @@ static void serial8250_set_mctrl(struct 
+ 	up->mcr = (mcr & up->mcr_mask) | up->mcr_force;
+ 
+ 	serial_out(up, UART_MCR, up->mcr);
++#ifdef CONFIG_AVOCENT_PMHD
++	if (up->port.line == 0 || up->port.line == 1) {
++		u32 data;
++		data = in_be32(gpio_regs + 2);
++		if (up->port.line == 0) {
++			if (mcr & UART_MCR_DTR) {
++				data &= ~0x4000L;
++			} else {
++				data |= 0x4000L;
++			}
++		} else {
++			if (mcr & UART_MCR_DTR) {
++				data &= ~0x0800;
++			} else {
++				data |= 0x0800;
++			}
++		}
++		out_be32(gpio_regs + 2, data);
++	}
++#endif
+ }
+ 
+ static void serial8250_break_ctl(struct uart_port *port, int break_state)
+@@ -1750,6 +1863,13 @@ static int serial8250_startup(struct uar
+ 	(void) serial_inp(up, UART_IIR);
+ 	(void) serial_inp(up, UART_MSR);
+ 
++	// Enable DCD/DRS interrupts
++#ifdef CONFIG_AVOCENT_PMHD
++	if (gpio_irq && gpio_registered==1) {
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x18000);
++	}
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -2160,6 +2280,12 @@ static void serial8250_config_port(struc
+ 		serial8250_release_rsa_resource(up);
+ 	if (up->port.type == PORT_UNKNOWN)
+ 		serial8250_release_std_resource(up);
++#ifdef CONFIG_AVOCENT_PMHD
++	if (!gpio_irq) {
++		if (!(gpio_irq = irq_find_mapping(NULL, 74)))
++			gpio_irq = irq_create_mapping(NULL, 74);
++	}
++#endif
+ }
+ 
+ static int
+@@ -2300,7 +2426,15 @@ static inline void wait_for_xmitr(struct
+ static void serial8250_console_putchar(struct uart_port *port, int ch)
+ {
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
++#ifdef CONFIG_PPC_83xx
++        static int ctr = 0;
++        if(++ctr >= 10 ) {
++                out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++                out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
+ 
++                ctr = 0;
++        }
++#endif
+ 	wait_for_xmitr(up, UART_LSR_THRE);
+ 	serial_out(up, UART_TX, ch);
+ }
+@@ -2706,6 +2840,15 @@ static int __init serial8250_init(void)
+ 		"%d ports, IRQ sharing %sabled\n", nr_uarts,
+ 		share_irqs ? "en" : "dis");
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++		out_be32(gpio_regs, (in_be32(gpio_regs) & ~0x1b000) | 0x04800);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x1b000);
++		out_be32(gpio_regs + 3, 0x1b000);
++		out_be32(gpio_regs + 5, in_be32(gpio_regs + 5) & ~0x1b000);
++
++		spin_lock_init(&gpio_lock);
++#endif
++
+ 	for (i = 0; i < NR_IRQS; i++)
+ 		spin_lock_init(&irq_lists[i].lock);
+ 
+Index: linux-2.6.20/include/linux/miscdevice.h
+===================================================================
+--- linux-2.6.20.orig/include/linux/miscdevice.h
++++ linux-2.6.20/include/linux/miscdevice.h
+@@ -31,6 +31,9 @@
+ #define TUN_MINOR	     200
+ #define	HPET_MINOR	     228
+ 
++#define AVOCENT_PMHD_OUTLET_MINOR	100
++#define AVOCENT_PMHD_DISPLAY_MINOR	101
++
+ struct device;
+ 
+ struct miscdevice  {
+Index: linux-2.6.20/arch/powerpc/kernel/legacy_serial.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/legacy_serial.c
++++ linux-2.6.20/arch/powerpc/kernel/legacy_serial.c
+@@ -473,6 +473,18 @@ static int __init serial_dev_init(void)
+ 			fixup_port_mmio(i, np, port);
+ 	}
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++	for (i = 0; i < 4; i ++) {
++		static char irq[4] = {48, 17, 18, 19};
++		legacy_serial_ports[legacy_serial_count].mapbase = 0xf0000000L + i * 8;
++		legacy_serial_ports[legacy_serial_count].irq = irq_create_mapping(NULL, irq[i]);
++		legacy_serial_ports[legacy_serial_count].uartclk = 7372800;
++		legacy_serial_ports[legacy_serial_count].iotype = UPIO_MEM;
++		legacy_serial_ports[legacy_serial_count].flags = UPF_BOOT_AUTOCONF | UPF_LEGACY_RTS;
++		legacy_serial_ports[legacy_serial_count].membase = ioremap(0xf0000000L + i * 8, 8);
++		legacy_serial_count ++;
++	}
++#endif
+ 	DBG("Registering platform serial ports\n");
+ 
+ 	return platform_device_register(&serial_device);
+Index: linux-2.6.20/drivers/i2c/busses/i2c-mpc.c
+===================================================================
+--- linux-2.6.20.orig/drivers/i2c/busses/i2c-mpc.c
++++ linux-2.6.20/drivers/i2c/busses/i2c-mpc.c
+@@ -25,6 +25,9 @@
+ #include <linux/i2c.h>
+ #include <linux/interrupt.h>
+ #include <linux/delay.h>
++#ifdef CONFIG_AVOCENT_PMHD
++#include <sysdev/fsl_soc.h>
++#endif
+ 
+ #define MPC_I2C_ADDR  0x00
+ #define MPC_I2C_FDR 	0x04
+@@ -335,6 +338,15 @@ static int fsl_i2c_probe(struct platform
+ 		goto fail_add;
+ 	}
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++	{
++		u32 dir;
++		__be32 __iomem *reg = ioremap(get_immrbase() + 0xc00, 0x18);
++		dir = in_be32(reg);
++		out_be32(reg, dir & ~0x00060000);
++		iounmap(reg);
++	}
++#endif
+ 	return result;
+ 
+       fail_add:
+Index: linux-2.6.20/drivers/char/avocent_pmhd_display.c
+===================================================================
+--- /dev/null
++++ linux-2.6.20/drivers/char/avocent_pmhd_display.c
+@@ -0,0 +1,351 @@
++/*
++ * avocent_pmhd_display.c
++ *
++ * The CS5463 is a voltage/current sensor from Cirrus Logic.
++ * Copyright (C) 2008 Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/spi/spi.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/poll.h>
++#include <linux/interrupt.h>
++#include <linux/irq.h>
++#include <linux/delay.h>
++#include <linux/miscdevice.h>
++#include <asm/io.h>
++#include <sysdev/fsl_soc.h>
++#include <linux/avocent_pmhd_display.h>
++
++#define MAX6950_REGISTER_DECODE		1
++#define MAX6950_REGISTER_INTENSITY	2
++#define	MAX6950_REGISTER_SCANLIMIT	3
++#define	MAX6950_REGISTER_CONFIG		4
++#define	MAX6950_REGISTER_DISPLAYTEST	7
++#define	MAX6950_REGISTER_P0		0x20
++#define	MAX6950_REGISTER_P1		0x40
++#define	MAX6950_REGISTER_P0_1		0x60
++
++#define	MAX6950_CONFIG_GLOBALBLINK	0x08
++#define	MAX6950_CONFIG_FASTBLINK	0x04
++#define	MAX6950_CONFIG_UP		0x01
++
++struct max6950_data {
++	struct spi_device *spi;
++	int irq;
++	char display_open;
++	char key;
++};
++
++static struct max6950_data max6950;
++
++extern __be32 __iomem *gpio_regs;
++
++static DECLARE_WAIT_QUEUE_HEAD(display_wait);
++
++static void start_max6950(void)
++{
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	int i;
++	/* Initialize display */
++	txbuf[0] = MAX6950_REGISTER_DISPLAYTEST;
++	txbuf[1] = 0;	/* normal */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_DECODE;
++	txbuf[1] = 0;	/* no decode */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_INTENSITY;
++	txbuf[1] = 8;	/* middle intensity */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_SCANLIMIT;
++	txbuf[1] = 5;	/* 5 displays */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = 0;	/* display off */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	for (i = 0; i < 5; i ++) {
++		txbuf[0] = MAX6950_REGISTER_P0_1 + i;
++		txbuf[1] = 0;	/* display off */
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++}
++
++static void stop_max6950(void)
++{
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	/* Turn off display */
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = 0;	/* display off */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++}
++
++static irqreturn_t switch_handler(int irq, void *dev_id)
++{
++	u32 intr;
++
++	intr = in_be32(gpio_regs + 3);
++	if (intr & 0x60) {
++		max6950.key = 1;
++		wake_up(&display_wait);
++	}
++	out_be32(gpio_regs + 3, intr & 0x60);
++	return IRQ_HANDLED;
++}
++
++static int display_open(struct inode *inode, struct file *file)
++{
++	int ret;
++	if (! max6950.display_open) {
++		start_max6950();
++		/* Initialize GPIOs */
++		out_be32(gpio_regs, (in_be32(gpio_regs) & ~0x60) | 0x780);
++		out_be32(gpio_regs + 2, in_be32(gpio_regs + 2) & ~0x780);
++		out_be32(gpio_regs + 3, 0x60);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x60);
++		out_be32(gpio_regs + 5, in_be32(gpio_regs + 5) & ~0x60);
++		ret = request_irq (max6950.irq, switch_handler, IRQF_SHARED,
++			"switch", &max6950);
++		if (ret) {
++			printk (KERN_WARNING "display switch: request_irq "
++				"error.\n");
++			return ret;
++		}
++	}
++	max6950.display_open ++;
++	return 0;
++}
++
++static int display_release(struct inode *inode, struct file *file)
++{
++	if (! max6950.display_open) {
++		return 0;
++	}
++	max6950.display_open --;
++	if (! max6950.display_open) {
++		stop_max6950();
++		free_irq(max6950.irq, &max6950);
++		out_be32(gpio_regs, in_be32(gpio_regs) & ~0x780);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x60);
++	}
++	return 0;
++}
++
++static ssize_t display_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
++{
++	/* The buffer should have the format "[+|-][D1][D2][D3][T1][T2]"
++	(e.g. "+13.4b1"). '+'/'-' - blinks between what is in '+' and '-' */
++	u8 blink = 0, set = 0;
++	u32 led = 0, data;
++	u8 digit[5];
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	int i, j;
++	static u8 ledmap[] = {
++		0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70,
++		0x7f, 0x7b, 0x77, 0x1f, 0x4e, 0x3d, 0x4f, 0x47
++	};
++
++	j = 0;
++
++	for (i = 0; i < 5; i ++) {
++		digit[i] = 0;
++	}
++	if ((j < count) && (buf[j] == '+' || buf[j] == '-')) {
++		blink = MAX6950_CONFIG_GLOBALBLINK;
++		if (buf[j] == '-') {
++			set = 1;
++		}
++		j ++;
++	}
++	for (i = 0; i < 5 && j < count; i ++, j ++) {
++		if (buf[j] >= '0' && buf[j] <= '9') {
++			digit[i] = ledmap[buf[j] - '0'];
++		} else if (buf[j] >= 'A' && buf[j] <= 'F') {
++			digit[i] = ledmap[buf[j] - 'A' + 0x0a];
++		} else if (buf[j] >= 'a' && buf[j] <= 'f') {
++			digit[i] = ledmap[buf[j] - 'a' + 0x0a];
++		} else if (buf[j] == 'p' || buf[j] == 'P') {
++			digit[i] = 0x67;
++		} else if (buf[j] == 'o' || buf[j] == 'O') {
++			digit[i] = 0x63;
++		} else {
++			digit[i] = 0;
++		}
++		if (set == 0 && i == 3) {
++			if (buf[j] == 'A' || buf[j] == 'a') {
++				led = 0x400;
++			} else if (buf[j] == 'B' || buf[j] == 'b' ||
++				buf[j] == 'P' || buf[j] == 'p') {
++				led = 0x200;
++			} else if (buf[j] >= '0' && buf[j] <= '9') {
++				led = 0x100;
++			} else if (buf[j] == 'o' || buf[j] == 'O') {
++				led = 0x080;
++			}
++		}
++		if (j < count - 1 && buf[j + 1] == '.') {
++			digit[i] |= 0x80;
++			j ++;
++		}
++	}
++	if (i < 5) {
++		return 0;
++	}
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = MAX6950_CONFIG_UP | MAX6950_CONFIG_FASTBLINK | blink;
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	for (i = 0; i < 5; i ++) {
++		txbuf[0] = ((set)?MAX6950_REGISTER_P1:MAX6950_REGISTER_P0) + i;
++		txbuf[1] = digit[i];
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++	/* turn on leds */
++	if (! set) {
++		data = in_be32(gpio_regs + 2);
++		out_be32(gpio_regs + 2, (data & ~0x780L) | led);
++	}
++
++	return j;
++}
++
++static int read_key(int *key)
++{
++	u32 data = in_be32(gpio_regs + 2);
++	*key = ((data & 0x40) ? 0 : SWITCH_FUNCTION_1) | ((data & 0x20) ? 0 : SWITCH_FUNCTION_2);
++	return 0;
++}
++
++static int display_ioctl(struct inode *inode, struct file *file,
++	unsigned int cmd, unsigned long arg)
++{
++	switch(cmd) {
++	case IOCTL_READKEY:
++		return read_key ((int *)arg);
++
++	default:
++		return -EINVAL;
++	}
++}
++
++static unsigned int display_poll(struct file *file, poll_table *wait)
++{
++	unsigned int ret = 0;
++	if (max6950.key) {
++		ret = POLLIN | POLLRDNORM;
++		max6950.key = 0;
++	}
++	poll_wait(file, &display_wait, wait);
++	return ret;
++}
++
++static const struct file_operations display_fops = {
++	.owner		= THIS_MODULE,
++	.open		= display_open,
++	.release	= display_release,
++	.write		= display_write,
++	.ioctl		= display_ioctl,
++	.poll		= display_poll,
++};
++
++static struct miscdevice display_misc_device = {
++	AVOCENT_PMHD_DISPLAY_MINOR,
++	"display",
++	&display_fops,
++};
++
++static int __devinit max6950_probe(struct spi_device *spi)
++{
++	int ret, ix;
++	u8 txbuf[2];
++
++	/* sysfs hook */
++	dev_set_drvdata(&spi->dev, &max6950);
++	max6950.spi = spi;
++
++	ret = misc_register (&display_misc_device);
++	if (ret) {
++		goto spi_register_display_misc;
++	}
++
++	printk ("PM Display probe.\n");
++	start_max6950();
++
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = MAX6950_CONFIG_UP | MAX6950_CONFIG_FASTBLINK | MAX6950_CONFIG_GLOBALBLINK;
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++
++	for (ix = 0; ix < 5; ix++) {
++		txbuf[0] = MAX6950_REGISTER_P0 + ix;
++		txbuf[1] = 0x01;
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++		txbuf[0] = MAX6950_REGISTER_P1 + ix;
++		txbuf[1] = 0x00;
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++	return 0;
++
++spi_register_display_misc:
++	dev_set_drvdata(&spi->dev, NULL);
++	return ret;
++}
++
++static int __exit max6950_remove(struct spi_device *spi)
++{
++	misc_deregister (&display_misc_device);
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver max6950_driver = {
++	.driver = {
++		.name	= "max6950",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= max6950_probe,
++	.remove	= __devexit_p(max6950_remove),
++};
++
++static int __init init_max6950(void)
++{
++	printk ("PM High Density display driver.\n");
++	memset(&max6950, 0, sizeof(struct max6950_data));
++	if (!(max6950.irq = irq_find_mapping(NULL, 74))) {
++			max6950.irq = irq_create_mapping(NULL, 74);
++	}
++	return spi_register_driver(&max6950_driver);
++}
++
++static void __exit cleanup_max6950(void)
++{
++	spi_unregister_driver(&max6950_driver);
++//mp: we may be using it in serial/8250.c !!!
++//	irq_dispose_mapping(max6950.irq);
++}
++
++module_init(init_max6950);
++module_exit(cleanup_max6950);
++
++MODULE_AUTHOR("Helio Fujimoto");
++MODULE_DESCRIPTION("MAX6950 Linux driver for Avocent PMHD");
++MODULE_LICENSE("GPL");
+Index: linux-2.6.20/drivers/char/avocent_pmhd_outlet.c
+===================================================================
+--- /dev/null
++++ linux-2.6.20/drivers/char/avocent_pmhd_outlet.c
+@@ -0,0 +1,1985 @@
++/*
++ * avocent_pmhd_outlet.c
++ *
++ * The CS5463 is a voltage/current sensor from Cirrus Logic.
++ * Copyright (C) 2008 Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/spi/spi.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/poll.h>
++#include <linux/interrupt.h>
++#include <linux/irq.h>
++#include <linux/delay.h>
++#include <linux/miscdevice.h>
++#include <linux/completion.h>
++#include <asm/io.h>
++#include <sysdev/fsl_soc.h>
++#include <linux/avocent_pmhd_outlet.h>
++
++#define PMHD_FPGA_REGISTER_WRITE	0x40
++#define PMHD_FPGA_SYS_INFO		0
++#define PMHD_FPGA_SYS_ID		1
++#define PMHD_FPGA_INT_STATUS		2
++#define PMHD_FPGA_INT_OUTLET_STATUS1	3
++#define PMHD_FPGA_INT_OUTLET_STATUS2	4
++#define PMHD_FPGA_MISC_CONTROL		5
++#define PMHD_FPGA_RELAY_CONTROL1	6
++#define PMHD_FPGA_RELAY_CONTROL2	7
++#define PMHD_FPGA_LED_CONTROL1		8
++#define PMHD_FPGA_LED_CONTROL2		9
++#define PMHD_FPGA_LED_CONTROL3		10
++#define PMHD_FPGA_LED_CONTROL4		11
++#define PMHD_FPGA_MUX_CONTROL1		12
++#define PMHD_FPGA_MUX_CONTROL2		13
++#define PMHD_FPGA_HARDWIRED_OPTIONS	14
++#define PMHD_FPGA_VERSION		15
++
++#define CS5463_COMMAND_START_CONVERSION	0xE0
++#define CS5463_COMMAND_CONTINUOUS_CONV	0xE8
++#define CS5463_COMMAND_POWERUP		0xA0
++#define CS5463_COMMAND_SWRESET		0x80
++#define CS5463_COMMAND_POWERDOWN	0x88
++#define CS5463_COMMAND_SLEEP		0x90
++#define CS5463_COMMAND_REGISTER_WRITE	0x40
++#define CS5463_REGISTER_CONFIG		0
++#define CS5463_REGISTER_IDCOFF		1
++#define CS5463_REGISTER_IGN		2
++#define CS5463_REGISTER_VDCOFF		3
++#define CS5463_REGISTER_VGN		4
++#define CS5463_REGISTER_CYCLECOUNT	5
++#define CS5463_REGISTER_PULSERATEE	6
++#define CS5463_REGISTER_I		7
++#define CS5463_REGISTER_V		8
++#define CS5463_REGISTER_P		9
++#define CS5463_REGISTER_PACTIVE		10
++#define CS5463_REGISTER_IRMS		11
++#define CS5463_REGISTER_VRMS		12
++#define CS5463_REGISTER_EPSILON		13
++#define CS5463_REGISTER_POFF		14
++#define CS5463_REGISTER_STATUS		15
++#define CS5463_REGISTER_IACOFF		16
++#define CS5463_REGISTER_VACOFF		17
++#define CS5463_REGISTER_MODE		18
++#define CS5463_REGISTER_T		19
++#define CS5463_REGISTER_QAVG		20
++#define CS5463_REGISTER_Q		21
++#define CS5463_REGISTER_IPEAK		22
++#define CS5463_REGISTER_VPEAK		23
++#define CS5463_REGISTER_QTRIG		24
++#define CS5463_REGISTER_PFACTOR		25
++#define CS5463_REGISTER_MASK		26
++#define CS5463_REGISTER_S		27
++#define CS5463_REGISTER_CTRL		28
++#define CS5463_REGISTER_PH		29
++#define CS5463_REGISTER_PF		30
++#define CS5463_REGISTER_QF		31
++
++//Print debug info aquired from HW.
++//Run sysctl -w kernel.printk="8" see logs in console.
++#define DEBUG_ENABLE 0
++
++#if DEBUG_ENABLE
++#define printkbug(a, b...) printk(KERN_DEBUG a, ##b)
++#else
++#define printkbug(a, b...) while(0)
++#endif
++
++//Conversions from what is read from HW and effective values
++
++#define singleA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define singleA_PM10i_PM20i(x) (((x / 0x100 * 500 / 493 * 6000) + 5) / 10 / 0x10000)
++#define singleV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define singleW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define singleP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define outletA(x) (((x / 0x100 * 500 / 493 * 3000) + 5) / 10 / 0x10000)
++#define outletV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define outletW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 300 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define outletP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define phaseA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define phaseV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define phaseW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define phaseP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define bankA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define bankV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define bankW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define bankP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++//subtracting 65 below accounts for -6.5 oC offset determined in Lab experiment
++#define tempC(x) ((((long)(x * 0x100)) / 0x100 * 10 / 0x10000L) - 65)
++
++
++extern char avocent_pmhd_model[];
++extern int avocent_pmhd_input_type;
++extern char avocent_pmhd_input[];
++extern int avocent_pmhd_switched;
++
++#define MAX_INPUT_DESC 32	// <ust be less than MAX_BDINFO_STR
++static char *board_input_desc[] = {
++"3-Phase Wye 16A",
++"3-Phase Wye 32A",
++"Invalid",
++"Invalid",
++"Invalid",
++"Single Phase, 30A",
++"Single Phase, 50A",
++"Single Phase, 60A",
++"3-Phase Delta 20A",
++"3-Phase Delta 30A",
++"3-Phase Delta 50A",
++"3-Phase Delta 60A",
++"Invalid",
++"Invalid",
++"Invalid",
++"Invalid",
++NULL
++};
++
++
++struct pmhd_inlet_info {
++	char imux;
++	char vmux;
++	char type;
++	char type_number;
++	char board;
++	char ready;
++	char overcurrent;
++	unsigned long rms_current;
++	unsigned long rms_voltage;
++	unsigned long real_power;
++	unsigned long power_factor;
++};
++
++struct pmhd_outlet_info {
++	char imux;
++	char vmux;
++	char number;
++	char board;
++	char ready;
++	char overcurrent;
++	char relay;
++	char led;
++	char type;
++	unsigned long rms_current;
++	unsigned long rms_voltage;
++	unsigned long real_power;
++	unsigned long power_factor;
++};
++
++struct pmhd_board_info {
++	char number;
++	char detected;
++	char num_outlets;
++	char num_phases;
++	char num_banks;
++	char num_singles;
++	char input;
++	char fuse_c19;
++	char fuse_c13;
++	char switched;
++	char outlet_per_fuse;
++	char cord;
++	char type;
++	char fpga;
++	char cur_outlet_inlet;
++	char ready;
++	char newoc;
++	char is_basic_model;
++	char is_pm10i_Pm20i;
++	char region;
++	unsigned char overcurrent;
++	unsigned char oc_mask;
++	unsigned char ooc_mask[2];
++	unsigned long temperature;
++	char outlet_multiplier;
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *phase;
++	struct pmhd_inlet_info *bank;
++	struct pmhd_inlet_info *single;
++	struct spi_device *fpga_spi;
++	struct spi_device *cs5463_spi;
++};
++
++struct pmhd_spi_data {
++	char init;
++	char outlet_open;
++	char prev_num_boards;
++	char num_boards;
++	int irq;
++	struct pmhd_board_info board[4];
++	char converted;
++	struct work_struct queue;
++};
++
++static struct pmhd_spi_data outlet_data;
++
++static DECLARE_WAIT_QUEUE_HEAD(outlet_wait);
++
++static int spi_write_then_read_flag = 0;
++static int outlet_handler_flag = 0;
++static int outlet_ioctl_flag = 0;
++static void *ioctl_completion = NULL;
++atomic_t chk_spi_flag = ATOMIC_INIT(0);
++
++static int map_outlets(int outlet, char board_type)
++{
++	int outlet_num = outlet;
++	if (board_type == OUTLET_BOARD_TYPE_STONEHENGE_BASIC) {
++		if (outlet_num == 1) {
++			outlet_num = 1;
++		} else if (outlet_num >=2 && outlet_num <=8) {
++			outlet_num = 2;
++		} else if (outlet_num == 9) {
++			outlet_num = 3;
++		} else if (outlet_num >=10 && outlet_num <=16) {
++			outlet_num = 4;
++		} else if (outlet_num == 17) {
++			outlet_num = 5;
++		} else if (outlet_num >=18 && outlet_num <=24) {
++			outlet_num = 6;
++		}
++	}
++	return outlet_num;
++}
++
++
++static int my_spi_write_then_read(struct spi_device *spi,
++        const u8 *txbuf, unsigned n_tx,
++        u8 *rxbuf, unsigned n_rx)
++{
++	int ret = -1;
++	int count = 0;
++	int ctr = 0;
++ 
++	spi_write_then_read_flag  = atomic_read(&chk_spi_flag);
++
++	while(spi_write_then_read_flag) {
++		count++;
++		if(count > 10) {
++			printkbug("SPI Reschedule %d: %s\n", spi_write_then_read_flag, spi->dev.driver->name);
++			break;
++		}
++		printkbug("going to retry to write on SPI bus %s\n",spi->dev.driver->name);
++		msleep(5); 
++	}
++	
++	if(count < 10) {
++		atomic_set(&chk_spi_flag,1);
++		ret = spi_write_then_read(spi, txbuf, n_tx, rxbuf, n_rx);
++		do {
++			ret = spi_write_then_read(spi, txbuf, n_tx, rxbuf, n_rx);
++			ctr++;
++			if((ret != 0)&&(ctr >= 5 )) {
++				printk(KERN_ERR"SPI Read-Write Fail\n");
++				break;
++			}
++			if(ret != 0 ) {
++				msleep(2); 	
++			}
++		}while( ret != 0 ); 
++		atomic_set(&chk_spi_flag,0);
++	}
++	return ret;
++}
++
++static void start_cs5463(struct pmhd_board_info *board)
++{
++	u8 txbuf[4], rxbuf[3];
++	/* Software reset */
++	txbuf[0] = CS5463_COMMAND_SWRESET;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++	do {
++		msleep(100);
++		txbuf[0] = CS5463_REGISTER_STATUS * 2;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	} while ((rxbuf[0] & 0x80) == 0);
++
++	/* Power up */
++	txbuf[0] = CS5463_COMMAND_POWERUP;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++
++	/* Set configuration register */
++	txbuf[0] = CS5463_REGISTER_CONFIG * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x11;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Set mode register */
++	txbuf[0] = CS5463_REGISTER_MODE * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x60;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Clear interrupts */
++	txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0xff;
++	txbuf[2] = 0xff;
++	txbuf[3] = 0xff;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Reset interrupt mask */
++	txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x00;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	if(board->is_basic_model == PMHD_BASIC_MODEL) {
++        	/* Set cycle count register to "0x001f40" = 8000 (1f40h) cycles */
++        	txbuf[0] = CS5463_REGISTER_CYCLECOUNT * 2 + CS5463_COMMAND_REGISTER_WRITE;
++        	txbuf[1] = 0x00;
++        	txbuf[2] = 0x1f;
++        	txbuf[3] = 0x40;
++        	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	}
++}
++
++static int start_conversion (void)
++{
++	int i, j;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	u8 txbuf[4];
++	unsigned char mux1, mux2;
++	if (outlet_data.converted == CONVERSION_IN_PROGRESS_POWER ||
++		outlet_data.converted == CONVERSION_IN_PROGRESS_TEMPERATURE) {
++		printk(KERN_WARNING"Restarting conversion again..\n");
++		//return 0;
++	}
++	outlet_data.converted = CONVERSION_IN_PROGRESS_POWER;
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		board = outlet_data.board + i;
++		for (j = 0; j < board->num_outlets; j ++) {
++			outlet = board->outlet + j;
++			outlet->ready = 0;
++		}
++		for (j = 0; j < board->num_phases; j ++) {
++			inlet = board->phase + j;
++			inlet->ready = 0;
++		}
++		for (j = 0; j < board->num_banks; j ++) {
++			inlet = board->bank + j;
++			inlet->ready = 0;
++		}
++		for (j = 0; j < board->num_singles; j ++) {
++			inlet = board->single + j;
++			inlet->ready = 0;
++		}
++		board->ready = 0;
++		if( board->is_basic_model == PMHD_BASIC_MODEL) { // If basic model,skip outlet measurement
++			if(board->num_phases) {
++				board->cur_outlet_inlet = 0x40;
++				inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++			}
++			else if(board->num_banks)
++			{
++				board->cur_outlet_inlet = 0x80;
++				inlet = board->bank + (board->cur_outlet_inlet & 0x3f);
++			}
++                        else{
++                                board->cur_outlet_inlet = 0xc0;
++                                inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++                        }
++
++			mux1 = inlet->imux;
++			mux2 = inlet->vmux;
++		}
++		else
++		{
++			board->cur_outlet_inlet = 0;
++			outlet = board->outlet;
++			mux1 = outlet->imux;
++			mux2 = outlet->vmux;
++		}
++		txbuf[0] = PMHD_FPGA_MUX_CONTROL1 * 2 + PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = mux1;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		if (mux2) {
++			txbuf[0] = PMHD_FPGA_MUX_CONTROL2 * 2 + PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = mux2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		}
++
++		/* Clear interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0xff;
++		txbuf[2] = 0xff;
++		txbuf[3] = 0xff;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++		/* Set interrupt mask (data ready) */
++		txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0x80;
++		txbuf[2] = 0x00;
++		txbuf[3] = 0x00;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++		// Set up a delay before starting next conversion
++		msleep(100);
++		txbuf[0] = CS5463_COMMAND_START_CONVERSION;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++	}
++	return 0;
++}
++
++static void next_conversion (struct pmhd_board_info *board)
++{
++	u8 txbuf[2];
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	unsigned char mux1, mux2;
++	int i;
++
++	board->cur_outlet_inlet ++;
++printkbug("Next Conversion %x: b %d, o %d, p %d, c %d, s %d\n", board->cur_outlet_inlet, board->number+1, board->num_outlets, board->num_phases, board->num_banks, board->num_singles);
++	if ((board->cur_outlet_inlet & 0xc0) == 0 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_outlets) {
++		/* Once all outlets are measured, start with inlets */
++		board->cur_outlet_inlet = 0x40;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0x40 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_phases) {
++		board->cur_outlet_inlet = 0x80;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0x80 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_banks) { //mp: it was num_phases
++		board->cur_outlet_inlet = 0xc0;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0xc0 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_singles) {
++		board->ready = 1;
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board2;
++			board2 = outlet_data.board + i;
++			if (! board2->ready) {
++				return;
++			}
++		}
++
++		outlet_data.converted = CONVERSION_IN_PROGRESS_TEMPERATURE;
++
++		/* Set interrupt mask (temperature) */
++		txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0x00;
++		txbuf[2] = 0x00;
++		txbuf[3] = 0x80;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++		/* Continuous conversions */
++		txbuf[0] = CS5463_COMMAND_CONTINUOUS_CONV;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++		return;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0xc0) {
++		inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x80) {
++		inlet = board->bank + (board->cur_outlet_inlet & 0x3f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x40) {
++		inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else {
++		outlet = board->outlet + board->cur_outlet_inlet;
++		mux1 = outlet->imux;
++		mux2 = outlet->vmux;
++	}
++	txbuf[0] = PMHD_FPGA_MUX_CONTROL1 * 2 + PMHD_FPGA_REGISTER_WRITE;
++	txbuf[1] = mux1;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	if (mux2) {
++		txbuf[0] = PMHD_FPGA_MUX_CONTROL2 * 2 + PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = mux2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	}
++	// Set up a delay before starting next conversion
++	msleep(100);
++	txbuf[0] = CS5463_COMMAND_START_CONVERSION;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++}
++
++static void outlet_get_info(struct pmhd_board_info *board)
++{
++	u8 txbuf[1], rxbuf[3];
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	unsigned long rms_current, rms_voltage, real_power, power_factor;
++
++	txbuf[0] = CS5463_REGISTER_IRMS * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	rms_current = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_VRMS * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	rms_voltage = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_PACTIVE * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	real_power = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_PFACTOR * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	power_factor = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	if ((board->cur_outlet_inlet & 0xc0) == 0xc0) {
++		inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, single %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x3f)+1, singleA(rms_current), singleV(rms_voltage), singleW(real_power), singleP(power_factor));
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x80) {
++		inlet = board->bank + (board->cur_outlet_inlet & 0x3f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, bank %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x3f)+1, bankA(rms_current), bankV(rms_voltage), bankW(real_power), bankP(power_factor));
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x40) {
++		inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, phase %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x3f)+1, phaseA(rms_current), phaseV(rms_voltage), phaseW(real_power), phaseP(power_factor));
++	} else {
++		outlet = board->outlet + board->cur_outlet_inlet;
++		outlet->rms_current = rms_current;
++		outlet->rms_voltage = rms_voltage;
++		outlet->real_power = real_power;
++		outlet->power_factor = power_factor;
++		outlet->ready = 1;
++printkbug("PMHD board %d, outlet %d: %ldA %ldV %ldW %ld\n", board->number +1, board->cur_outlet_inlet +1, outletA(rms_current), outletV(rms_voltage), outletW(real_power), outletP(power_factor));
++	}
++}
++
++static void check_fpga_int(struct pmhd_board_info *board, u8 status)
++{
++	int i;
++	u8 txbuf[4], rxbuf[3], rxbuf2[3];
++
++	rxbuf[0] = status;
++	if (rxbuf[0] & 0x20) {
++		/* FPGA */
++		struct pmhd_inlet_info *inlet;
++		board->overcurrent = rxbuf[0] & (board->num_singles ? 0x03 : (board->num_phases ? 0x1d : 0x01));
++
++printkbug("PMHD board %d, overcurrent (0x%x): %s%s%s%s%s\n", board->number +1, rxbuf[0], (rxbuf[0] & BOARD_OVERLOAD_X)?"X ":"", (rxbuf[0] & BOARD_OVERLOAD_Y)?"Y ":"", (rxbuf[0] & BOARD_OVERLOAD_Z)?"Z ":"", (rxbuf[0] & BOARD_OVERLOAD_S)?"S ":"", (rxbuf[0] & BOARD_OVERLOAD_O)?"O ":"");
++
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_X && board->num_phases >= 1) {
++			inlet = board->phase;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_Y && board->num_phases >= 2) {
++			inlet = board->phase + 1;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_Z && board->num_phases >= 3) {
++			inlet = board->phase + 2;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_S && board->num_singles == 1) {
++			inlet = board->single;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if (board->overcurrent & BOARD_OVERLOAD_O) {
++			/* Outlet */
++			txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS2 * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf2, 1);
++			if (board->num_outlets > 8) {
++				txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS1 * 2;
++				my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf2 + 1, 1);
++			}
++
++printkbug("PMHD board %d, outlet overcurrent (0x%x%x): %s%s%s%s%s%s%s%s\n", board->number +1, rxbuf2[1], rxbuf2[0], (rxbuf2[0] & 0x01)?"1 ":"", (rxbuf2[0] & 0x02)?"2 ":"", (rxbuf2[0] & 0x04)?"3 ":"", (rxbuf2[0] & 0x08)?"4 ":"", (rxbuf2[0] & 0x10)?"5 ":"", (rxbuf2[0] & 0x20)?"6 ":"", (rxbuf2[0] & 0x40)?"7 ":"", (rxbuf2[0] & 0x80)?"8 ":"");
++
++			for (i = 0; i < board->num_outlets; i ++) {
++				struct pmhd_outlet_info *outlet;
++				outlet = board->outlet + i;
++				if (board->type == OUTLET_BOARD_TYPE_NAZCA && board->num_outlets == 3) {
++					if ((rxbuf2[0] & ~board->ooc_mask[0]) & (1 << (2*i+1))) {
++						outlet->overcurrent = 1;
++						board->newoc = 1;
++					}
++				} else {
++					if ((rxbuf2[i/8] & ~board->ooc_mask[i/8]) & (1 << (i%8))) {
++						outlet->overcurrent = 1;
++						board->newoc = 1;
++					}
++				}
++			}
++			board->ooc_mask[0] = rxbuf2[0];
++			board->ooc_mask[1] = rxbuf2[1];
++		}
++		board->oc_mask = rxbuf[0] & 0x1e;
++		wake_up(&outlet_wait);
++	}
++}
++
++static void check_cs5463_int(struct pmhd_board_info *board, u8 status)
++{
++	u8 txbuf[4], rxbuf[3], rxbuf2[3];
++
++	rxbuf[0] = status;
++	if (rxbuf[0] & 0x40) {
++		/* CS5463 */
++		/* read interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++
++		if (outlet_data.converted == CONVERSION_IN_PROGRESS_POWER &&
++			(rxbuf[0] & 0x80)) {
++			outlet_get_info(board);
++			next_conversion(board);
++		} else if (outlet_data.converted == CONVERSION_IN_PROGRESS_TEMPERATURE &&
++			rxbuf[2] & 0x80) {
++			txbuf[0] = CS5463_REGISTER_T * 2;
++			my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf2, 3);
++			if (rxbuf2[0] != 0x80 || rxbuf2[1] != 0 || rxbuf2[2] != 0) {
++				board->temperature = rxbuf2[0] * 0x10000 + rxbuf2[1] * 0x100 + rxbuf2[2];
++
++printkbug("PMHD board %d, temperature: %ldoC\n", board->number +1, tempC(board->temperature));
++				/* Halt conversions */
++				txbuf[0] = CS5463_COMMAND_POWERUP;
++				my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++				/* conversion complete */
++				outlet_data.converted = CONVERSION_DONE;
++				wake_up(&outlet_wait);
++			}
++		}
++		/* clear interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = rxbuf[0];
++		txbuf[2] = rxbuf[1];
++		txbuf[3] = rxbuf[2];
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	}
++}
++
++#define MAX_OUTLET_BOARDS 32
++static void check_interrupt(void)
++{
++	int i, ix;
++	struct pmhd_board_info *board;
++	u8 txbuf[4], rxbuf[3];
++	int fpga_mask = 0;
++	int cs5463_mask = 0;
++	u8 status[MAX_OUTLET_BOARDS];
++	int change = 0;
++
++	memset(status, 0, MAX_OUTLET_BOARDS);
++
++// Read FPGAs (all boards) up to 10 times.
++	for (ix = 0; ix < 10; ix++) {
++		change = 0;
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			board = outlet_data.board + i;
++			txbuf[0] = PMHD_FPGA_INT_STATUS * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++// Check for change in the measurement chip bit
++			if ((rxbuf[0] & 0x40) && !(cs5463_mask & (1 << i)) ) {
++				cs5463_mask |= 1 << i; //set change in the board's chip
++				status[i] |= rxbuf[0]; //save register reading
++				change++;
++			}
++// Check for change in the fpga bit
++			if ((rxbuf[0] & 0x20) && !(fpga_mask & (1 << i)) ) {
++				fpga_mask |= 1 << i;   //set change in the board's fpga
++				status[i] |= rxbuf[0]; //save register reading
++				change++;
++			}
++		}
++// Nothing changed, stop loop
++		if (!change) {
++			break;
++		}
++	}
++printkbug("FPGA/CS5563 interrupt loop %d times\n", ix);
++
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		board = outlet_data.board + i;
++		if (fpga_mask & (1 << i)) {
++			check_fpga_int(board, status[i]);
++		}
++		if (cs5463_mask & (1 << i)) {
++			check_cs5463_int(board, status[i]);
++		}
++	}
++}
++
++static void outlet_handle_irq(struct work_struct *queue)
++{
++	if (!outlet_handler_flag && !outlet_ioctl_flag) {
++		outlet_handler_flag = 1;
++		check_interrupt();
++		outlet_handler_flag = 0;
++//Release ioctl
++		if (ioctl_completion) {
++			complete(ioctl_completion);
++		}
++	} else {
++		msleep(100);
++printkbug("IRQ Rescheduled %d %d\n", outlet_handler_flag, outlet_ioctl_flag);
++		if (outlet_handler_flag)
++			outlet_handler_flag++;
++		schedule_work(&outlet_data.queue);
++		return;
++	}
++}
++
++static irqreturn_t outlet_handler(int irq, void *dev_id)
++{
++	schedule_work(&outlet_data.queue);
++	return IRQ_HANDLED;
++}
++
++static int detect_board(struct pmhd_board_info *board)
++{
++	int ret;
++	u8 txbuf[1];
++	u8 txbuf2[2];
++	u8 rxbuf[1];
++	char *name;
++
++	//mp: added as in Fuji's working directory...
++	txbuf[0] = PMHD_FPGA_VERSION * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	///////////////
++
++	/* disable current overload protection */
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 1, rxbuf, 1);
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2 + PMHD_FPGA_REGISTER_WRITE;
++	txbuf2[1] = rxbuf[0] | 0x80;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 2, NULL, 0);
++
++	/* read FPGA interrupt status registers (to reset HW interrupt) */
++	txbuf[0] = PMHD_FPGA_INT_STATUS * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS1 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS2 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++	/* enable current overload protection */
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 1, rxbuf, 1);
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2 + PMHD_FPGA_REGISTER_WRITE;
++	txbuf2[1] = rxbuf[0] & ~0x80;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 2, NULL, 0);
++
++	txbuf[0] = PMHD_FPGA_SYS_ID * 2;
++	ret = my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	if (ret) {
++		return 0;
++	}
++	board->is_basic_model = 0;
++	board->is_pm10i_Pm20i = 0;
++	board->outlet_multiplier = 1;
++
++	board->type = rxbuf[0];
++	switch (board->type) {
++	case OUTLET_BOARD_TYPE_NAZCA:
++		name="Nazca";
++		txbuf[0] = PMHD_FPGA_HARDWIRED_OPTIONS * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++		board->outlet_per_fuse = (rxbuf[0]&2)?1:2;
++		board->num_outlets = (rxbuf[0]&1)?6:3;
++		break;
++	case OUTLET_BOARD_TYPE_STONEHENGE:
++		name="Stonehenge";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 8;
++		break;
++	case OUTLET_BOARD_TYPE_PM10NG:
++		name="PM10NG";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 10;
++		board->is_pm10i_Pm20i = 1;
++		break;
++	case OUTLET_BOARD_TYPE_PM20NG:
++		name="PM20NG";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 10;
++		board->is_pm10i_Pm20i = 1;
++		break;
++	case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++		name="StonehengeBasic";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 6; //Per FPGA
++ 		// for user space it should be multiplied to show the actual no of outlets
++		board->outlet_multiplier = 4;
++		board->is_basic_model = PMHD_BASIC_MODEL;
++		break;
++	case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		name="PM10NGBasic";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 10;
++		board->is_basic_model = PMHD_BASIC_MODEL;
++		board->is_pm10i_Pm20i = 1;
++		break;
++	case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++		name="PM20NGBasic";
++		board->outlet_per_fuse = 0;
++		board->num_outlets = 10;
++		board->is_basic_model = PMHD_BASIC_MODEL;
++		board->is_pm10i_Pm20i = 1;
++		break;
++	default:
++		printk("pmhd_fpga: board %d not detected [%02x]\n",
++			board->number + 1, board->type);
++		return 0;
++	}
++	txbuf[0] = PMHD_FPGA_SYS_INFO * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	board->input = rxbuf[0] >> 4;
++//	printk(KERN_ALERT"@@@@@@@@@@@@@@ board#%d SysInfo:%02x @@@@@@@@@@@@@@\n", board->number, rxbuf[0]);
++	if(board->is_pm10i_Pm20i == 1 ) {
++                board->fuse_c19 = 20;
++                board->fuse_c13 = 20;
++                if(rxbuf[0]& 0x02) {
++                        board->cord = INPUT_CORD_FIXED;
++                }
++                else {
++                        board->cord = INPUT_CORD_DETACHABLE;
++                }
++
++                if(rxbuf[0]& 0x04) {
++                        board->region = REGION_US;
++                }
++                else {
++                        board->region = REGION_INTERNATIONAL;
++                }
++
++        }
++        else {
++                board->fuse_c19 = (rxbuf[0]&8)?20:15;
++                board->fuse_c13 = (rxbuf[0]&4)?20:15;
++                board->cord = INPUT_CORD_DETACHABLE;
++                board->region = REGION_US;
++        }
++
++	board->switched = rxbuf[0]&1;
++	if( board->is_basic_model == PMHD_BASIC_MODEL) {
++		board->switched = 0; // IF basic model, force fixed
++	}
++
++	txbuf[0] = PMHD_FPGA_VERSION * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	board->fpga = rxbuf[0];
++        if ((board->type == OUTLET_BOARD_TYPE_NAZCA) && (board->fpga <= 6)) {
++                // Cannot read current on phases/banks/single
++                board->num_phases = 0;
++                board->num_banks = 0;
++                //printk(KERN_ALERT" >>>>>> numsingles 2, board %d\n",board->number);
++                board->num_singles = 0;
++        } else {
++                if (board->number != 0) {
++                        board->num_phases = 0;
++                        //printk(KERN_ALERT" >>>>>> numsingles 3, board %d\n",board->number);
++                        board->num_singles = 0;
++                        board->num_banks = 0;
++                } else {
++                        board->num_banks = 3;
++			switch(board->input) {
++			case 0:
++			case 1:
++			case 8:
++			case 9:
++			case 10:
++			case 11:
++				board->num_phases = 3;
++				board->num_singles = 0;
++				break;
++			case 5:
++			case 6:
++			case 7:
++				board->num_phases = 0;
++				board->num_singles = 1;
++				break;
++			default:
++				board->num_phases = 0;
++				board->num_singles = 1;  //to return something useful (INPUT_TYPE_NORTHAMERICA_1_PHASE)
++				break;
++			}
++		}
++	}
++	if(board->is_pm10i_Pm20i == 1 ) {
++		board->num_phases = 0;
++		board->num_banks = 0;
++		board->num_singles = 1;
++	}
++	printk("pmhd_fpga: board %d detected - Input:%d "
++			"Outlets:%d Type:%s\n",
++			board->number + 1, board->input,
++			board->num_outlets, name);
++	return 1;
++}
++
++static void load_outlets(struct pmhd_board_info *board)
++{
++	int i;
++	u8 txbuf[1];
++	u8 rxbuf[6];
++
++	txbuf[0] = PMHD_FPGA_RELAY_CONTROL2 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	if (board->num_outlets > 8) {
++		txbuf[0] = PMHD_FPGA_RELAY_CONTROL1 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 1, 1);
++	}
++	txbuf[0] = PMHD_FPGA_LED_CONTROL4 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 2, 1);
++	txbuf[0] = PMHD_FPGA_LED_CONTROL3 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 3, 1);
++	if (board->num_outlets > 8) {
++		txbuf[0] = PMHD_FPGA_LED_CONTROL2 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 4, 1);
++		txbuf[0] = PMHD_FPGA_LED_CONTROL1 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 5, 1);
++	}
++	for (i = 0; i < board->num_outlets; i ++) {
++		struct pmhd_outlet_info *outlet = board->outlet + i;
++		if (board->type == OUTLET_BOARD_TYPE_NAZCA &&
++			board->num_outlets == 3) {
++			outlet->number = 2 * i + 1;
++		} else {
++			outlet->number = i;
++		}
++		outlet->imux = 0x80 + outlet->number;
++		if (board->type == OUTLET_BOARD_TYPE_NAZCA) { /* Nazca */
++			outlet->vmux = (outlet->number / 2) + 1;
++		} else {
++			outlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++		}
++		if (board->type == OUTLET_BOARD_TYPE_NAZCA ||
++			(board->type == OUTLET_BOARD_TYPE_STONEHENGE && i == 0)) {
++			outlet->type = OUTLET_TYPE_C19;
++		} else {
++			outlet->type = OUTLET_TYPE_C13;
++		}
++		outlet->relay = (rxbuf[outlet->number/8] & (1 << (outlet->number%8))) ? 1 : 0;
++		outlet->led = (rxbuf[outlet->number/4+2] >> ((outlet->number%4)*2)) & 3;
++	}
++}
++
++static void load_phases(struct pmhd_board_info *board)
++{
++	int i;
++	for (i = 0; i < board->num_phases; i ++) {
++		struct pmhd_inlet_info *inlet = board->phase + i;
++		if (board->input < 2) {
++			//3-phase Wye
++			inlet->imux = (0x01 + i);
++		} else {
++			//3-phase Delta
++			inlet->imux = (0x05 + i);
++		}
++		if (board->type != OUTLET_BOARD_TYPE_STONEHENGE) {
++			inlet->vmux = i + 1;
++		} else {
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++		}
++	}
++}
++
++static void load_banks(struct pmhd_board_info *board)
++{
++	int i;
++	for (i = 0; i < board->num_banks; i ++) {
++		struct pmhd_inlet_info *inlet = board->bank + i;
++		inlet->imux = (0x01 + i);
++		if (board->type != OUTLET_BOARD_TYPE_STONEHENGE) {
++			inlet->vmux = i + 1;
++		} else {
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++		}
++	}
++}
++
++static void load_singles(struct pmhd_board_info *board)
++{
++	int i;
++	for (i = 0; i < board->num_singles; i ++) {
++		struct pmhd_inlet_info *inlet = board->single + i;
++		inlet->imux = 0x00;
++		if (board->type != OUTLET_BOARD_TYPE_STONEHENGE) {
++			inlet->vmux = 1;
++		} else {
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++		}
++	}
++}
++
++static int outlet_open(struct inode *inode, struct file *file)
++{
++	int i, ret;
++
++// To define the product model and input cable
++	int total_outlets = 0;
++	int total_switched = 0;
++	char model_str[64] = {0};
++	int basic_model = 0;
++	int multiplier = 1;
++	int board_type = -1;
++
++	if (outlet_data.outlet_open) {
++		outlet_data.outlet_open ++;
++		return 0;
++	}
++	outlet_data.converted = CONVERSION_IDLE;
++	for (i = 0; i < outlet_data.prev_num_boards; i ++) {
++		struct pmhd_board_info *board = outlet_data.board + i;
++		if (! detect_board(board)) {
++			break;
++		}
++		board->newoc = 0;
++		board->oc_mask = board->ooc_mask[0] = board->ooc_mask[1] = 0;
++
++		if (board->num_outlets) {
++			board->outlet = kzalloc(sizeof (struct pmhd_outlet_info) * board->num_outlets, GFP_KERNEL);
++			if (board->outlet) {
++				load_outlets(board);
++			} else {
++				board->num_outlets = 0;
++			}
++		}
++
++		if (board->num_phases) {
++			board->phase = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_phases, GFP_KERNEL);
++			if (board->phase) {
++				load_phases(board);
++			} else {
++				board->num_phases = 0;
++			}
++		}
++
++		if (board->num_banks) {
++			board->bank = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_banks, GFP_KERNEL);
++			if (board->bank) {
++				load_banks(board);
++			} else {
++				board->num_banks = 0;
++			}
++		}
++
++		if (board->num_singles) {
++			board->single = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_singles, GFP_KERNEL);
++			if (board->single) {
++				load_singles(board);
++			} else {
++				board->num_singles = 0;
++			}
++		}
++
++		if (board->is_basic_model) {
++			basic_model = 1;
++			multiplier = board->outlet_multiplier;
++		}
++		start_cs5463(board);
++
++		total_outlets += board->num_outlets;
++		total_switched += board->switched;
++		board_type = board->type;
++
++		if ((board->type == OUTLET_BOARD_TYPE_NAZCA)|| (board->type == OUTLET_BOARD_TYPE_STONEHENGE_BASIC)||(board->type == OUTLET_BOARD_TYPE_PM10NG_BASIC)||(board->type == OUTLET_BOARD_TYPE_PM20NG_BASIC)) {
++			/* As Nazca FPGA listens to all combinations of
++			LA1/LA2, we should not check for other boards */
++			i ++;
++			break;
++		}
++	}
++	check_interrupt();
++
++	outlet_data.num_boards = i;
++
++	if(!basic_model) {
++		//For more than one outlet card appliance,even if one or more card 
++		//are not detected or present model string should show the same model number
++		if(board_type == OUTLET_BOARD_TYPE_STONEHENGE) {
++                	total_outlets = 24;
++		}
++		else if (board_type == OUTLET_BOARD_TYPE_PM20NG) {
++                	total_outlets = 20;
++		}
++		sprintf(model_str, "PM%d0%02d",
++					(total_switched == outlet_data.num_boards)?3:2,
++					total_outlets);
++	} else {
++
++		sprintf(model_str, "PM10%02d", total_outlets * multiplier);
++	}
++
++	strncpy(avocent_pmhd_model, model_str, 1+strlen(model_str));
++	printk("avocent_pmhd_model set to %s\n", avocent_pmhd_model);
++
++//[LC]??? Using the first entry... Is it OK?
++	avocent_pmhd_input_type = outlet_data.board[0].input;
++	strncpy(avocent_pmhd_input, board_input_desc[(outlet_data.board[0].input & 0x00ff)], MAX_INPUT_DESC);
++	printk("avocent_pmhd_input (%d) set to %s\n", avocent_pmhd_input_type, avocent_pmhd_input);
++
++	avocent_pmhd_switched = (total_switched == outlet_data.num_boards)?1:0;
++
++	INIT_WORK(&outlet_data.queue, outlet_handle_irq);
++	ret = request_irq (outlet_data.irq, outlet_handler, 0, "pmhd_fpga", &outlet_data);
++	if (ret) {
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board = outlet_data.board + i;
++			kfree(board->outlet);
++		}
++		printk (KERN_WARNING "pmhd_fpga: request_irq error.\n");
++		return ret;
++	}
++	outlet_data.outlet_open ++;
++	return 0;
++}
++
++static int outlet_release(struct inode *inode, struct file *file)
++{
++	int i;
++	if (! outlet_data.outlet_open) {
++		return 0;
++	}
++	outlet_data.outlet_open --;
++	if (! outlet_data.outlet_open) {
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board = outlet_data.board + i;
++			kfree(board->outlet);
++		}
++		free_irq(outlet_data.irq, &outlet_data);
++	}
++	return 0;
++}
++
++static int read_numboards(unsigned long arg)
++{
++	int num_boards = outlet_data.num_boards;
++	copy_to_user((int __user *)arg, &num_boards, sizeof(int));
++	return 0;
++}
++
++static int read_board_info (unsigned long arg)
++{
++	char board_num;
++	struct outlet_board_info info;
++	struct pmhd_board_info *board;
++
++	copy_from_user(&info, (struct outlet_board_info __user *)arg, sizeof(struct outlet_board_info));
++
++	board_num = info.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	switch (board->input) {
++	case 0:
++		info.input_type = INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE;
++		info.max_current = 16;
++		break;
++	case 1:
++		info.input_type = INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE;
++		info.max_current = 32;
++		break;
++        case 4:
++                info.input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++		if((board->is_pm10i_Pm20i)&& (board->region == REGION_INTERNATIONAL)) {
++			info.max_current = 16;
++		}
++		else {
++			info.max_current = 20;
++		}
++                break;
++	case 5:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++		if((board->is_pm10i_Pm20i)&& (board->region == REGION_INTERNATIONAL)) {
++			info.max_current = 32;
++		}
++		else {
++			info.max_current = 30;
++		}
++		break;
++	case 6:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++		info.max_current = 50;
++		break;
++	case 7:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++		info.max_current = 60;
++		break;
++	case 8:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++		info.max_current = 20;
++		break;
++	case 9:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++		info.max_current = 30;
++		break;
++	case 10:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++		info.max_current = 50;
++		break;
++	case 11:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++		info.max_current = 60;
++		break;
++	default:
++		info.input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++		info.max_current = 30;
++		break;
++	}
++	info.fuse_c19 = board->fuse_c19;
++	if (board->type == OUTLET_BOARD_TYPE_STONEHENGE)
++		info.fuse_c13 = board->fuse_c13;
++	info.outlets = board->num_outlets * board->outlet_multiplier;
++	info.phases = board->num_phases;
++	info.banks = board->num_banks;
++	info.single = board->num_singles;
++	info.outlet_per_fuse = board->outlet_per_fuse;
++	info.cord = board->cord;
++	info.board_type = board->type;
++	info.fpga = board->fpga;
++	info.switched = board->switched;
++
++	copy_to_user((struct outlet_board_info __user *)arg, &info, sizeof(struct outlet_board_info));
++	return 0;
++}
++
++static int read_board_status (unsigned long arg)
++{
++	char board_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct outlet_board_status status;
++	int signal;
++
++	copy_from_user(&status, (struct outlet_board_status __user *)arg, sizeof(struct outlet_board_status));
++	board_num = status.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	status.overload = board->overcurrent;
++	//subtracting 65 below accounts for -6.5 oC offset determined after Lab experiment
++	status.temperature = tempC(board->temperature);
++	if (board->num_singles) {
++		inlet = board->single;
++		status.overcurrent = inlet->overcurrent;
++		status.voltage = singleV(inlet->rms_voltage);
++	
++		if((board->is_pm10i_Pm20i)&&(board->is_basic_model != PMHD_BASIC_MODEL)) {
++			//correction apply only on Giza2000/3000 and Tulum2000/3000
++			status.current = singleA_PM10i_PM20i(inlet->rms_current);
++		}
++		else {
++			status.current = singleA(inlet->rms_current);
++		}
++		if (status.current <= 1/*100mA*/) {
++			status.power_factor = status.power = status.current = 0;
++		} else {
++			(((long)(inlet->real_power * 0x100)) < 0)? (signal=-1):(signal=1);
++			status.power = singleW(inlet->real_power) * signal;
++			status.power_factor = singleP(inlet->power_factor);
++		}
++	}
++
++	copy_to_user((struct outlet_board_status __user *)arg, &status, sizeof(struct outlet_board_status));
++	return 0;
++}
++
++
++// Reset overcurrent requires to be applied to all boards: BTS 50765 comment #9
++//
++static int reset_overcurrent(void)
++{
++	int ix, iy, i;
++	struct pmhd_board_info *board;
++	u8 txbuf[2], rxbuf[1];
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++
++// Read FPGA register
++		txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++// Reset OC bit
++		txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = rxbuf[0] | 0x80;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	}
++
++// Wait before re-enable overcurrrent
++	mdelay(100);	//Do not use sleep here to avoid disrupting the reset
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++
++		for (iy = 0; iy < 3; iy++) {	//Make sure bit is reset
++// Read FPGA register
++			txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++			if (rxbuf[0] & 0x80) {
++				txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++//Reenable overcurrent
++				txbuf[1] = rxbuf[0] & 0x7f;
++printkbug("Resetting overcurrent on board %d (%d retry)\n", board->number+1, iy);
++				my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			} else {
++				break;	//Bit already reset.
++			}
++		}
++		if (iy >= 3) {	//Could not reset, what to do?
++			printk(KERN_ERR "Fail to reset overcurrent on board %d. HW Overcurrent protection disabled.\n", board->number+1);
++		}
++	}
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++		/* Reset overcurrent variables */
++		board->overcurrent = board->newoc = 0;
++		board->oc_mask = board->ooc_mask[0] = board->ooc_mask[1] = 0;
++		for (i = 0; i < board->num_outlets; i ++) {
++			struct pmhd_outlet_info *outlet = board->outlet + i;
++			outlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_phases; i ++) {
++			struct pmhd_inlet_info *inlet = board->phase + i;
++			inlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_banks; i ++) {
++			struct pmhd_inlet_info *inlet = board->bank + i;
++			inlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_singles; i ++) {
++			struct pmhd_inlet_info *inlet = board->single + i;
++			inlet->overcurrent = 0;
++		}
++	}
++	return 0;
++}
++
++static int handle_board_control (unsigned long arg)
++{
++	char board_num;
++	struct pmhd_board_info *board;
++	u8 txbuf[2], rxbuf[1];
++	int set;
++	unsigned char mask;
++	int ret;
++	struct outlet_board_control control;
++
++	copy_from_user(&control, (struct outlet_board_control __user *)arg, sizeof(struct outlet_board_control));
++	board_num = control.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++
++	board = outlet_data.board + board_num;
++
++	switch (control.control) {
++	case OUTLET_BOARD_OVERCURRENT_RESET:
++		reset_overcurrent();
++		return 0;
++	case OUTLET_BOARD_PROBE_RESET:
++		mask = 0x40;
++		set = 2;
++		break;
++	case OUTLET_BOARD_BUZZER_ON:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x20;
++		set = 1;
++		break;
++	case OUTLET_BOARD_BUZZER_OFF:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x20;
++		set = 0;
++		break;
++	case OUTLET_BOARD_INPUT_PROTECTION_ON:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x02;
++		set = 1;
++		break;
++	case OUTLET_BOARD_INPUT_PROTECTION_OFF:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x02;
++		set = 0;
++		break;
++	case OUTLET_BOARD_OUTPUT_PROTECTION_ON:
++		mask = 0x01;
++		set = 1;
++		break;
++	case OUTLET_BOARD_OUTPUT_PROTECTION_OFF:
++		mask = 0x01;
++		set = 0;
++		break;
++	default :
++		return -EINVAL;
++	}
++	txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	ret = my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	if (ret < 0) {
++		return ret;
++	}
++	txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++	if (set == 0) {
++		txbuf[1] = rxbuf[0] & ~mask;
++	} else {
++		txbuf[1] = rxbuf[0] | mask;
++	}
++	ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	if (ret < 0) {
++		return ret;
++	}
++	if (set == 2) {
++		msleep(100);
++		txbuf[1] = rxbuf[0] & ~mask;
++		ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		if (ret < 0) {
++			return ret;
++		}
++	}
++	if (control.control == OUTLET_BOARD_PROBE_RESET) {
++		start_cs5463(board);
++	}
++	return 0;
++}
++
++static int read_outlet_info (unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct outlet_data_info info;
++
++	copy_from_user(&info, (struct outlet_data_info __user *)arg, sizeof(struct outlet_data_info));
++	board_num = info.board;
++	outlet_num = info.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++	if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++		return -EINVAL;
++	}
++	outlet_num --;
++	outlet = board->outlet + outlet_num;
++	info.type = outlet->type;
++	if (outlet->type == OUTLET_TYPE_C19) {
++		info.max_current = board->fuse_c19;
++	} else {
++		info.max_current = board->fuse_c13;
++	}
++
++	copy_to_user((struct outlet_data_info __user *)arg, &info, sizeof(struct outlet_data_info));
++	return 0;
++}
++
++static int read_outlet_status (unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct outlet_status_info info;
++	int i, signal;
++
++	copy_from_user(&info, (struct outlet_status_info __user *)arg, sizeof(struct outlet_status_info));
++	board_num = info.board;
++	outlet_num = info.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++	if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++		return -EINVAL;
++	}
++	outlet_num --;
++	outlet = board->outlet + outlet_num;
++	info.overcurrent = outlet->overcurrent;
++	info.power_factor = info.power = info.current = 0;
++	info.voltage = outletV(outlet->rms_voltage);
++	if (outlet->relay) {
++		info.current = outletA(outlet->rms_current);
++		if (info.current <= 1/*100mA*/) {
++			info.current = 0;
++		} else {
++			(((long)(outlet->real_power * 0x100)) < 0) ? (signal=-1) : (signal=1);
++			info.power = outletW(outlet->real_power) * signal;
++			info.power_factor = outletP(outlet->power_factor);
++		}
++	}
++	info.relay = (outlet->relay)?OUTLET_RELAY_ON:OUTLET_RELAY_OFF;
++	info.led = outlet->led;
++	info.ocp = 0;
++
++        /* reference board 1(master) for phase/singles information */
++        board = outlet_data.board;
++
++	for (i = 0; i < board->num_phases; i ++) {
++		struct pmhd_inlet_info *phase = board->phase + i;
++		if (phase->overcurrent) {
++			info.ocp = 1;
++			break;
++		}
++	}
++
++	for (i = 0; i < board->num_singles; i ++) {
++		struct pmhd_inlet_info *single = board->single + i;
++		if (single->overcurrent) {
++			info.ocp = 1;
++			break;
++		}
++	}
++	if (outlet->overcurrent) {
++		info.ocp = 1;
++	}
++
++	copy_to_user((struct outlet_status_info __user *)arg, &info, sizeof(struct outlet_status_info));
++	return 0;
++}
++
++static int handle_outlet_control(unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet, *outlet2;
++	u8 txbuf[2];
++	int ret;
++	int i;
++	struct outlet_control control;
++
++	copy_from_user(&control, (struct outlet_control __user *)arg, sizeof(struct outlet_control));
++	board_num = control.board;
++	outlet_num = control.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++		if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++			return -EINVAL;
++		}
++		outlet_num --;
++		outlet = board->outlet + outlet_num;
++
++		switch (control.command) {
++		case OUTLET_CONTROL_COMMAND_RELAY:
++			if(!board->switched) { //   check for switched unit
++				return -EINVAL;
++			}
++			// Fall Through
++		case OUTLET_CONTROL_COMMAND_RELAY_FORCE:
++			if (control.value != OUTLET_RELAY_ON &&
++				control.value != OUTLET_RELAY_OFF) {
++				return -EINVAL;
++			}
++			if (control.value == OUTLET_RELAY_ON) {
++				outlet->relay = 1;
++			} else {
++				outlet->relay = 0;
++			}
++			txbuf[0] = (PMHD_FPGA_RELAY_CONTROL2 - (outlet->number)/8) * 2 + PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = 0;
++			for (i = 0; i < board->num_outlets; i ++) {
++				outlet2 = board->outlet + i;
++				if (((outlet2->number)/8) == ((outlet->number)/8)) {
++					txbuf[1] |= outlet2->relay << ((outlet2->number)%8);
++				}
++			}
++			ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			if (ret < 0) {
++				return ret;
++			}
++			break;
++
++		case OUTLET_CONTROL_COMMAND_LED:
++			if (control.value & ~3) {
++				return -EINVAL;
++			}
++			outlet->led = control.value;
++			txbuf[0] = (PMHD_FPGA_LED_CONTROL4 - (outlet->number)/4) * 2 | PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = 0;
++			for (i = 0; i < board->num_outlets; i ++) {
++				outlet2 = board->outlet + i;
++				if (((outlet2->number)/4) == ((outlet->number)/4)) {
++					int pos = 2 * (outlet2->number%4);
++					txbuf[1] |= outlet2->led << pos;
++				}
++			}
++			ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			if (ret < 0) {
++				return ret;
++			}
++			break;
++
++		default:
++			return -EINVAL;
++		}
++
++	return 0;
++}
++
++static int read_conversion_status(unsigned long arg)
++{
++	int status = outlet_data.converted;
++	copy_to_user((int __user *)arg, &status, sizeof(int));
++	return 0;
++}
++
++static int read_phase_status (unsigned long arg)
++{
++	char board_num, phase_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct phase_status_info info;
++	int signal;
++
++	copy_from_user(&info, (struct phase_status_info __user *)arg, sizeof(struct phase_status_info));
++	board_num = info.board;
++	phase_num = info.phase;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	if (phase_num <= 0 || phase_num > board->num_phases) {
++		return -EINVAL;
++	}
++	phase_num --;
++	inlet = board->phase + phase_num;
++	info.overcurrent = inlet->overcurrent;
++	info.voltage = phaseV(inlet->rms_voltage);
++	info.current = phaseA(inlet->rms_current);
++	if (info.current <= 1/*100mA*/) {
++		info.power_factor = info.power = info.current = 0;
++	} else {
++		(((long)(inlet->real_power * 0x100)) < 0) ? (signal=-1) : (signal=1);
++		info.power = phaseW(inlet->real_power) * signal;
++		info.power_factor = phaseP(inlet->power_factor);
++	}
++
++	copy_to_user((struct phase_status_info __user *)arg, &info, sizeof(struct phase_status_info));
++	return 0;
++}
++
++static int read_bank_status (unsigned long arg)
++{
++	char board_num, bank_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct bank_status_info info;
++	int signal;
++
++	copy_from_user(&info, (struct bank_status_info __user *)arg, sizeof(struct bank_status_info));
++	board_num = info.board;
++	bank_num = info.bank;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	if (bank_num <= 0 || bank_num > board->num_banks) {
++		return -EINVAL;
++	}
++	bank_num --;
++	inlet = board->bank + bank_num;
++	info.overcurrent = inlet->overcurrent;
++	info.voltage = bankV(inlet->rms_voltage);
++	info.current = bankA(inlet->rms_current);
++	if (info.current <= 1/*100mA*/) {
++		info.power_factor = info.power = info.current = 0;
++	} else {
++		(((long)(inlet->real_power * 0x100)) < 0) ? (signal=-1) : (signal=1);
++		info.power = bankW(inlet->real_power) * signal;
++		info.power_factor = bankP(inlet->power_factor);
++	}
++
++	copy_to_user((struct bank_status_info __user *)arg, &info, sizeof(struct bank_status_info));
++	return 0;
++}
++
++static int outlet_ioctl(struct inode *inode, struct file *file,
++	unsigned int cmd, unsigned long arg)
++{
++	int ret = -EINVAL;
++	DECLARE_COMPLETION_ONSTACK(conversion);
++
++	if (outlet_handler_flag) {
++printkbug("Ioctl %d while conversion in course, wait...\n", cmd);
++		ioctl_completion = (void *)&conversion;
++		wait_for_completion(&conversion);
++		ioctl_completion = NULL;
++printkbug("Ioctl %d resuming\n", cmd);
++	}
++
++	outlet_ioctl_flag = 1;
++	switch(cmd) {
++	case IOCTL_GET_NUMBOARDS:
++		ret = read_numboards(arg);
++		break;
++
++	case IOCTL_BOARD_INFO:
++		ret = read_board_info (arg);
++		break;
++
++	case IOCTL_BOARD_STATUS:
++		ret = read_board_status (arg);
++		break;
++
++	case IOCTL_BOARD_CONTROL:
++		ret = handle_board_control(arg);
++		break;
++
++	case IOCTL_OUTLET_INFO:
++		ret = read_outlet_info (arg);
++		break;
++
++	case IOCTL_OUTLET_STATUS:
++		ret = read_outlet_status (arg);
++		break;
++
++	case IOCTL_OUTLET_CONTROL:
++		ret = handle_outlet_control(arg);
++		break;
++
++	case IOCTL_CONVERSION_START:
++		ret = start_conversion ();
++		break;
++
++	case IOCTL_CONVERSION_STATUS:
++		ret = read_conversion_status(arg);
++		break;
++
++	case IOCTL_PHASE_STATUS:
++		ret = read_phase_status (arg);
++		break;
++
++	case IOCTL_BANK_STATUS:
++		ret = read_bank_status(arg);
++		break;
++	}
++	outlet_ioctl_flag = 0;
++
++	return (ret);
++}
++
++static unsigned int outlet_poll(struct file *file, poll_table *wait)
++{
++	unsigned int ret = 0;
++	int i;
++
++	if (outlet_data.converted == CONVERSION_DONE) {
++		ret |= POLLIN | POLLRDNORM;
++		outlet_data.converted = CONVERSION_IDLE;
++	}
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		struct pmhd_board_info *board;
++		board = outlet_data.board + i;
++		if (board->newoc) {
++			ret |= POLLIN | POLLRDNORM;
++			board->newoc = 0;
++		}
++	}
++	poll_wait(file, &outlet_wait, wait);
++	return ret;
++}
++
++static const struct file_operations outlet_fops = {
++	.owner		= THIS_MODULE,
++	.open		= outlet_open,
++	.release	= outlet_release,
++	.ioctl		= outlet_ioctl,
++	.poll		= outlet_poll,
++};
++
++static struct miscdevice outlet_misc_device = {
++	AVOCENT_PMHD_OUTLET_MINOR,
++	"outlet",
++	&outlet_fops,
++};
++
++/* FPGA driver */
++
++static int __devinit pmhd_fpga_probe(struct spi_device *spi)
++{
++	int ret = 0;
++	struct pmhd_board_info *board;
++	int board_num = (spi->chip_select - 1) / 2;
++
++	board = outlet_data.board + board_num;
++	dev_set_drvdata(&spi->dev, board);
++	board->number = board_num;
++	board->fpga_spi = spi;
++	//mp: commented out for spin 2
++	//spi->mode = SPI_CPHA;
++
++	if (outlet_data.prev_num_boards == 0) {
++		/* misc device should be registered only once */
++		ret = misc_register (&outlet_misc_device);
++		if (ret) {
++			goto spi_register_outlet_misc;
++		}
++	}
++
++	outlet_data.prev_num_boards ++;
++	return 0;
++
++spi_register_outlet_misc:
++	dev_set_drvdata(&spi->dev, NULL);
++	return ret;
++}
++
++static int __exit pmhd_fpga_remove(struct spi_device *spi)
++{
++	struct pmhd_board_info *board = dev_get_drvdata(&spi->dev);
++	outlet_data.prev_num_boards --;
++	if (outlet_data.prev_num_boards == 0) {
++		misc_deregister (&outlet_misc_device);
++	}
++	board->detected = 0;
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver pmhd_fpga_driver = {
++	.driver = {
++		.name	= "pmhd-fpga",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= pmhd_fpga_probe,
++	.remove	= __devexit_p(pmhd_fpga_remove),
++};
++
++/* CS5463 driver */
++
++static int __devinit cs5463_probe(struct spi_device *spi)
++{
++	struct pmhd_board_info *board;
++	int board_num = (spi->chip_select - 1) / 2;
++	board = outlet_data.board + board_num;
++	dev_set_drvdata(&spi->dev, board);
++	board->cs5463_spi = spi;
++
++	return 0;
++}
++
++static int __exit cs5463_remove(struct spi_device *spi)
++{
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver cs5463_driver = {
++	.driver = {
++		.name	= "cs5463",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= cs5463_probe,
++	.remove	= __devexit_p(cs5463_remove),
++};
++
++static int __init init_pmhd_outlet(void)
++{
++	int ret;
++	printk ("PM High Density outlet driver.\n");
++	memset(&outlet_data, 0, sizeof(struct pmhd_spi_data));
++	outlet_data.irq = irq_create_mapping(NULL, 20);
++	set_irq_type(outlet_data.irq, IRQ_TYPE_EDGE_FALLING);
++	ret = spi_register_driver(&pmhd_fpga_driver);
++	if (ret) {
++		return ret;
++	}
++	ret = spi_register_driver(&cs5463_driver);
++	if (ret) {
++		spi_unregister_driver(&pmhd_fpga_driver);
++		return ret;
++	}
++	return 0;
++}
++
++
++static void __exit cleanup_pmhd_outlet(void)
++{
++	spi_unregister_driver(&cs5463_driver);
++	spi_unregister_driver(&pmhd_fpga_driver);
++	irq_dispose_mapping(outlet_data.irq);
++}
++
++module_init(init_pmhd_outlet);
++module_exit(cleanup_pmhd_outlet);
++
++MODULE_AUTHOR("Helio Fujimoto");
++MODULE_DESCRIPTION("Avocent PMHD SPI Linux driver");
++MODULE_LICENSE("GPL");
+Index: linux-2.6.20/include/linux/avocent_pmhd_display.h
+===================================================================
+--- /dev/null
++++ linux-2.6.20/include/linux/avocent_pmhd_display.h
+@@ -0,0 +1,7 @@
++// IOCTL defines
++#define	IOCTL_READKEY		8
++
++// Masks for the display switch (IOCTL_READKEY). The argument is a pointer to an integer
++#define SWITCH_FUNCTION_1	1
++#define SWITCH_FUNCTION_2	2
++
+Index: linux-2.6.20/include/linux/avocent_pmhd_outlet.h
+===================================================================
+--- /dev/null
++++ linux-2.6.20/include/linux/avocent_pmhd_outlet.h
+@@ -0,0 +1,184 @@
++// IOCTL defines
++#define IOCTL_GET_NUMBOARDS		1
++#define IOCTL_BOARD_INFO		2
++#define	IOCTL_BOARD_STATUS		3
++#define	IOCTL_BOARD_CONTROL		4
++#define	IOCTL_OUTLET_INFO		5
++#define	IOCTL_OUTLET_STATUS		6
++#define	IOCTL_OUTLET_CONTROL		7
++#define	IOCTL_CONVERSION_START		8
++#define IOCTL_CONVERSION_STATUS		9
++#define	IOCTL_PHASE_STATUS		10
++#define	IOCTL_BANK_STATUS		11
++
++// Values for 'input_type' field (outlet_board_info)
++enum {
++	INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE,
++	INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA,
++	INPUT_TYPE_INTERNATIONAL_1_PHASE,
++	INPUT_TYPE_NORTHAMERICA_1_PHASE,
++};
++
++// Values for 'cord' field (outlet_board_info)
++enum {
++	INPUT_CORD_FIXED,
++	INPUT_CORD_DETACHABLE,
++};
++ // Values for 'Regin internation/usa (outlet_board_info)
++enum {
++       REGION_INTERNATIONAL,
++       REGION_US,
++};
++
++// Values for 'board_type' field (outlet_board_info)
++#define OUTLET_BOARD_TYPE_NAZCA                 0
++#define OUTLET_BOARD_TYPE_STONEHENGE            1
++#define OUTLET_BOARD_TYPE_PM10NG                2
++#define OUTLET_BOARD_TYPE_PM20NG                3
++#define OUTLET_BOARD_TYPE_STONEHENGE_BASIC      4
++#define OUTLET_BOARD_TYPE_PM10NG_BASIC          5
++#define OUTLET_BOARD_TYPE_PM20NG_BASIC          6
++
++// Mask for 'overload' field (outlet_board_status)
++#define BOARD_OVERLOAD_X		0x10
++#define BOARD_OVERLOAD_Y		8
++#define BOARD_OVERLOAD_Z		4
++#define BOARD_OVERLOAD_S		2
++#define BOARD_OVERLOAD_O		1
++
++#define PMHD_BASIC_MODEL		1
++// Values for 'control' field (outlet_board_control)
++enum {
++	OUTLET_BOARD_OVERCURRENT_RESET,
++	OUTLET_BOARD_PROBE_RESET,
++	OUTLET_BOARD_BUZZER_ON,
++	OUTLET_BOARD_BUZZER_OFF,
++	OUTLET_BOARD_INPUT_PROTECTION_ON,
++	OUTLET_BOARD_INPUT_PROTECTION_OFF,
++	OUTLET_BOARD_OUTPUT_PROTECTION_ON,
++	OUTLET_BOARD_OUTPUT_PROTECTION_OFF,
++};
++
++// Values for outlet control commands
++enum {
++	OUTLET_CONTROL_COMMAND_RELAY,
++	OUTLET_CONTROL_COMMAND_LED,
++	OUTLET_CONTROL_COMMAND_OFFSET,
++	OUTLET_CONTROL_COMMAND_RELAY_FORCE,
++};
++
++// Values for 'relay' field (outlet_status_info) and for RELAY control command
++enum {
++	OUTLET_RELAY_ON,
++	OUTLET_RELAY_OFF,
++};
++
++// Values for 'led' field (outlet_status_info) and for LED control command
++enum {
++	OUTLET_LED_OFF,
++	OUTLET_LED_GREEN,
++	OUTLET_LED_YELLOW,
++	OUTLET_LED_RELAY,
++};
++
++// Values for conversion status
++enum {
++	CONVERSION_IDLE,
++	CONVERSION_IN_PROGRESS_POWER,
++	CONVERSION_IN_PROGRESS_TEMPERATURE,
++	CONVERSION_DONE,
++};
++
++// Values for 'outlet type' field (outlet_data_info)
++enum {
++	OUTLET_TYPE_C13,
++	OUTLET_TYPE_C19,
++};
++
++// Structure for IOCTL_BOARD_INFO
++struct outlet_board_info {
++	char board;
++	char input_type;
++	char max_current;
++	char fuse_c19;
++	char fuse_c13;
++	char outlets;
++	char phases;
++	char banks;
++	char single;
++	char cord;
++	char board_type;
++	char switched;
++	char fpga;
++	char outlet_per_fuse;
++};
++
++// Structure for IOCTL_BOARD_STATUS
++struct outlet_board_status {
++	char board;
++	unsigned char overload; // for Nazca 1st spin
++	char overcurrent;
++	long temperature;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++// Structure for IOCTL_BOARD_CONTROL
++struct outlet_board_control {
++	char board;
++	unsigned char control;
++};
++
++// Structure for IOCTL_OUTLET_INFO
++struct outlet_data_info {
++	char board;
++	char outlet;
++	char type;
++	char max_current;
++};
++
++// Structure for IOCTL_OUTLET_STATUS
++struct outlet_status_info {
++	char board;
++	char outlet;
++	char relay;
++	char led;
++	char overcurrent;
++	char ocp;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++// Structure for IOCTL_OUTLET_CONTROL
++struct outlet_control {
++	char board;
++	char outlet;
++	char command;
++	char value;
++};
++
++// Structure for IOCTL_PHASE_STATUS
++struct phase_status_info {
++	char board;
++	char phase;
++	char overcurrent;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++// Structure for IOCTL_BANK_STATUS
++struct bank_status_info {
++	char board;
++	char bank;
++	char overcurrent;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
+Index: linux-2.6.20/drivers/spi/spi_mpc83xx.c
+===================================================================
+--- linux-2.6.20.orig/drivers/spi/spi_mpc83xx.c
++++ linux-2.6.20/drivers/spi/spi_mpc83xx.c
+@@ -112,8 +112,10 @@ u32 mpc83xx_spi_tx_buf_##type(struct mpc
+ {								\
+ 	u32 data;						\
+ 	const type * tx = mpc83xx_spi->tx;			\
+-	if (!tx)						\
+-		return 0;					\
++	if (!tx) {						\
++		data = (u32)(~((type)0));			\
++		return data;					\
++	}							\
+ 	data = *tx++;						\
+ 	mpc83xx_spi->tx = tx;					\
+ 	return data;						\
+@@ -158,9 +160,11 @@ static void mpc83xx_spi_chipselect(struc
+ 
+ 		if ((mpc83xx_spi->sysclk / spi->max_speed_hz) >= 64) {
+ 			u8 pm = mpc83xx_spi->sysclk / (spi->max_speed_hz * 64);
++			pm = (pm)?((pm > 16)?15:pm-1):0;
+ 			regval |= SPMODE_PM(pm) | SPMODE_DIV16;
+ 		} else {
+ 			u8 pm = mpc83xx_spi->sysclk / (spi->max_speed_hz * 4);
++			pm = (pm)?((pm > 16)?15:pm-1):0;
+ 			regval |= SPMODE_PM(pm);
+ 		}
+ 
+@@ -326,11 +330,8 @@ irqreturn_t mpc83xx_spi_irq(s32 irq, voi
+ 
+ 	mpc83xx_spi->count -= 1;
+ 	if (mpc83xx_spi->count) {
+-		if (mpc83xx_spi->tx) {
+-			u32 word = mpc83xx_spi->get_tx(mpc83xx_spi);
+-			mpc83xx_spi_write_reg(&mpc83xx_spi->base->transmit,
+-					      word);
+-		}
++		u32 word = mpc83xx_spi->get_tx(mpc83xx_spi);
++		mpc83xx_spi_write_reg(&mpc83xx_spi->base->transmit, word);
+ 	} else {
+ 		complete(&mpc83xx_spi->done);
+ 	}
+Index: linux-2.6.20/drivers/serial/serial_core.c
+===================================================================
+--- linux-2.6.20.orig/drivers/serial/serial_core.c
++++ linux-2.6.20/drivers/serial/serial_core.c
+@@ -412,8 +412,17 @@ uart_get_divisor(struct uart_port *port,
+ 	 */
+ 	if (baud == 38400 && (port->flags & UPF_SPD_MASK) == UPF_SPD_CUST)
+ 		quot = port->custom_divisor;
+-	else
++	else {
++#ifdef CONFIG_AVOCENT_PMHD
++// [LC] Jul/31/08: The actual baudrate must be raised by ~2% because
++// the CPU clock was programmed (from HW) to spread the frequency in a
++// 2% range in order to pass emissions certification. Although the normal
++// baudrate worked fine with PMHDs and ACS6000, the DSR was not able to
++// read data from the PMHD console.
++		//baud += (baud*2)/100; // clcok is being programmed to 98.54 %of original clock to compensate the clock spread , so no need to enhance the baud rate to 2%
++#endif
+ 		quot = (port->uartclk + (8 * baud)) / (16 * baud);
++	}
+ 
+ 	return quot;
+ }
+@@ -1669,11 +1678,16 @@ static int uart_line_info(char *buf, str
+ 		return 0;
+ 
+ 	mmio = port->iotype >= UPIO_MEM;
++#ifndef CONFIG_AVOCENT_PMHD
+ 	ret = sprintf(buf, "%d: uart:%s %s%08lX irq:%d",
+ 			port->line, uart_type(port),
+ 			mmio ? "mmio:0x" : "port:",
+ 			mmio ? port->mapbase : (unsigned long) port->iobase,
+ 			port->irq);
++#else 	// CONFIG_AVOCENT_PMHD
++	ret = sprintf(buf, "ttyS%d: uart:%s",
++			port->line, uart_type(port));
++#endif	// CONFIG_AVOCENT_PMHD
+ 
+ 	if (port->type == PORT_UNKNOWN) {
+ 		strcat(buf, "\n");
+@@ -1688,16 +1702,24 @@ static int uart_line_info(char *buf, str
+ 
+ 		ret += sprintf(buf + ret, " tx:%d rx:%d",
+ 				port->icount.tx, port->icount.rx);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.frame)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " fe:%d",
+ 				port->icount.frame);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.parity)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " pe:%d",
+ 				port->icount.parity);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.brk)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " brk:%d",
+ 				port->icount.brk);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.overrun)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " oe:%d",
+ 				port->icount.overrun);
+ 	
+Index: linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0002.c
+===================================================================
+--- linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0002.c
++++ linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0002.c
+@@ -419,8 +419,8 @@ static struct mtd_info *cfi_amdstd_setup
+ #endif
+ 
+ 	/* FIXME: erase-suspend-program is broken.  See
+-	   http://lists.infradead.org/pipermail/linux-mtd/2003-December/009001.html */
+-	printk(KERN_NOTICE "cfi_cmdset_0002: Disabling erase-suspend-program due to code brokenness.\n");
++	   http://lists.infradead.org/pipermail/linux-mtd/2003-December/009001.html
++	printk(KERN_NOTICE "cfi_cmdset_0002: Disabling erase-suspend-program due to code brokenness.\n"); */
+ 
+ 	__module_get(THIS_MODULE);
+ 	return mtd;
+Index: linux-2.6.20/arch/powerpc/kernel/time.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/time.c
++++ linux-2.6.20/arch/powerpc/kernel/time.c
+@@ -73,9 +73,14 @@
+ #include <asm/iseries/hv_call_xm.h>
+ #endif
+ #include <asm/smp.h>
++#include <linux/workqueue.h>
++#include <asm/atomic.h>
+ 
+ /* keep track of when we need to update the rtc */
+ time_t last_rtc_update;
++atomic_t do_set_rtc = ATOMIC_INIT(0);
++atomic_t flag_rtc = ATOMIC_INIT(1);
++unsigned long do_get_rtc_flag = 0;
+ #ifdef CONFIG_PPC_ISERIES
+ unsigned long iSeries_recal_titan = 0;
+ unsigned long iSeries_recal_tb = 0; 
+@@ -126,6 +131,29 @@ extern int gsp_watchdog_enabled;
+ #ifdef CONFIG_PPC_83xx
+ unsigned long wdt_base;
+ #endif
++static void
++rtc_get_work(struct work_struct *unusable)
++{
++	struct rtc_time tm;
++	unsigned long tm1 = 0;
++	unsigned long flags;
++	u8 set_flag = atomic_read(&do_set_rtc);
++	if( set_flag == 0 ) {
++		ppc_md.get_rtc_time(&tm);
++		tm1 = mktime(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
++	    		tm.tm_hour, tm.tm_min, tm.tm_sec);
++
++		if (tm1 == 0) //get_rtc_time return error in tm
++			return;
++
++		struct timespec time1;
++		time1.tv_sec = tm1;
++		time1.tv_nsec = 0;
++		atomic_set(&flag_rtc,0);
++		do_settimeofday(&time1);
++	}
++}
++static struct work_struct rtc_get_wq;
+ 
+ void avocent_gsp_watchdog_reset(void)
+ {
+@@ -380,21 +408,39 @@ static __inline__ void timer_check_rtc(v
+          * We should have an rtc call that only sets the minutes and
+          * seconds like on Intel to avoid problems with non UTC clocks.
+          */
+-        if (ppc_md.set_rtc_time && 
+-	    xtime.tv_sec - last_rtc_update >= 659 &&
++	u8 set_flag = atomic_read(&do_set_rtc);
++        if (ppc_md.set_rtc_time && set_flag &&
++	    ((xtime.tv_sec - last_rtc_update) >= 659) &&
+ 	    abs((xtime.tv_nsec/1000) - (1000000-1000000/HZ)) < 500000/HZ) {
+ 		struct rtc_time tm;
+ 		to_tm(xtime.tv_sec + 1 + timezone_offset, &tm);
+ 		tm.tm_year -= 1900;
+ 		tm.tm_mon -= 1;
+-		if (ppc_md.set_rtc_time(&tm) == 0)
++		if (ppc_md.set_rtc_time(&tm) == 0) {
+ 			last_rtc_update = xtime.tv_sec + 1;
+-		else
++			atomic_set(&do_set_rtc,0);
++		}
++		else {
+ 			/* Try again one minute later */
+ 			last_rtc_update += 60;
++		}
++		if( do_get_rtc_flag == 0 ) {
++			do_get_rtc_flag = 1; //first time
++			//Comment INIT_WORK as we don't need updatation of RTC time to System time as 
++			//System time would be based on manipulated  clock which is 98.54% of original clock
++			//INIT_WORK(&rtc_get_wq, rtc_get_work);
++		}
+         }
++
++	if (ppc_md.get_rtc_time && ((xtime.tv_sec+1) - last_rtc_update >= 119)&& do_get_rtc_flag && !set_flag) {
++		//Comment schedule_work as we don't need updatation of RTC time to System time as 
++		//System time would be based on manipulated  clock system which is 98.54% of original clock
++		//schedule_work(&rtc_get_wq);
++		last_rtc_update = xtime.tv_sec + 1;
++	}
+ }
+ 
++
+ /*
+  * This version of gettimeofday has microsecond resolution.
+  */
+@@ -867,7 +913,12 @@ int do_settimeofday(struct timespec *tv)
+ 	/* In case of a large backwards jump in time with NTP, we want the 
+ 	 * clock to be updated as soon as the PLL is again in lock.
+ 	 */
+-	last_rtc_update = new_sec - 658;
++
++	if (atomic_read(&flag_rtc) != 0) {
++		last_rtc_update = new_sec - 658;
++		atomic_inc(&do_set_rtc);
++	}
++	atomic_set(&flag_rtc,1);
+ 
+ 	ntp_clear();
+ 
+@@ -1042,7 +1093,6 @@ void __init time_init(void)
+ 	tb_to_ns_shift = shift;
+ 
+ 	tm = get_boot_time();
+-
+ 	write_seqlock_irqsave(&xtime_lock, flags);
+ 
+ 	/* If platform provided a timezone (pmac), we correct the time */
+@@ -1093,6 +1143,7 @@ void __init time_init(void)
+ #endif
+ 	}
+ #endif
++
+ }
+ 
+ 

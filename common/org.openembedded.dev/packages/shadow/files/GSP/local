@@ -1,0 +1,10 @@
+#
+# The PAM configuration file for the 'local' service
+#
+auth      requisite   pam_securetty.so
+auth      sufficient  pam_otk.so
+auth      optional    pam_shm.so 
+auth      required    pam_unix2.so 
+account   required    pam_unix2.so 
+password  include     sys-passwd
+session   required    pam_unix2.so 

@@ -1,0 +1,174 @@
+Index: grub-0.96/stage2/builtins.c
+===================================================================
+--- grub-0.96.orig/stage2/builtins.c
++++ grub-0.96/stage2/builtins.c
+@@ -143,7 +143,7 @@ blocklist_func (char *arg, int flags)
+ 
+   /* Collect contiguous blocks into one entry as many as possible,
+      and print the blocklist notation on the screen.  */
+-  static void disk_read_blocklist_func (int sector, int offset, int length)
++  /* static */ void disk_read_blocklist_func (int sector, int offset, int length)
+     {
+       if (num_sectors > 0)
+ 	{
+@@ -590,7 +590,7 @@ color_func (char *arg, int flags)
+   };
+ 
+   /* Convert the color name STR into the magical number.  */
+-  static int color_number (char *str)
++  /* static */ int color_number (char *str)
+     {
+       char *ptr;
+       int i;
+@@ -1775,7 +1775,7 @@ install_func (char *arg, int flags)
+ #endif /* GRUB_UTIL */
+   
+   /* Save the first sector of Stage2 in STAGE2_SECT.  */
+-  static void disk_read_savesect_func (int sector, int offset, int length)
++  /* static */ void disk_read_savesect_func (int sector, int offset, int length)
+     {
+       if (debug)
+ 	printf ("[%d]", sector);
+@@ -1791,7 +1791,7 @@ install_func (char *arg, int flags)
+ 
+   /* Write SECTOR to INSTALLLIST, and update INSTALLADDR and
+      INSTALLSECT.  */
+-  static void disk_read_blocklist_func (int sector, int offset, int length)
++  /* static */ void disk_read_blocklist_func (int sector, int offset, int length)
+     {
+       if (debug)
+ 	printf("[%d]", sector);
+@@ -3610,7 +3610,7 @@ setkey_func (char *arg, int flags)
+   int to_code, from_code;
+   int map_in_interrupt = 0;
+   
+-  static int find_key_code (char *key)
++  /* static */ int find_key_code (char *key)
+     {
+       int i;
+ 
+@@ -3627,7 +3627,7 @@ setkey_func (char *arg, int flags)
+       return 0;
+     }
+   
+-  static int find_ascii_code (char *key)
++  /* static */ int find_ascii_code (char *key)
+     {
+       int i;
+       
+Index: grub-0.96/stage2/smp-imps.c
+===================================================================
+--- grub-0.96.orig/stage2/smp-imps.c
++++ grub-0.96/stage2/smp-imps.c
+@@ -249,15 +249,15 @@ defconfig =
+  *  Exported globals here.
+  */
+ 
+-static int imps_any_new_apics = 0;
++/* static */ int imps_any_new_apics = 0;
+ #if 0
+ volatile int imps_release_cpus = 0;
+ #endif
+-static int imps_enabled = 0;
+-static int imps_num_cpus = 1;
+-static unsigned imps_lapic_addr = ((unsigned) (&lapic_dummy)) - LAPIC_ID;
+-static unsigned char imps_cpu_apic_map[IMPS_MAX_CPUS];
+-static unsigned char imps_apic_cpu_map[IMPS_MAX_CPUS];
++/* static */ int imps_enabled = 0;
++/* static */ int imps_num_cpus = 1;
++/* static */ unsigned imps_lapic_addr = ((unsigned) (&lapic_dummy)) - LAPIC_ID;
++/* static */ unsigned char imps_cpu_apic_map[IMPS_MAX_CPUS];
++/* static */ unsigned char imps_apic_cpu_map[IMPS_MAX_CPUS];
+ 
+ 
+ /*
+Index: grub-0.96/stage2/Makefile.am
+===================================================================
+--- grub-0.96.orig/stage2/Makefile.am
++++ grub-0.96/stage2/Makefile.am
+@@ -24,8 +24,7 @@ libgrub_a_CFLAGS = $(GRUB_CFLAGS) -I$(to
+ 	-DGRUB_UTIL=1 -DFSYS_EXT2FS=1 -DFSYS_FAT=1 -DFSYS_FFS=1 \
+ 	-DFSYS_ISO9660=1 -DFSYS_JFS=1 -DFSYS_MINIX=1 -DFSYS_REISERFS=1 \
+ 	-DFSYS_UFS2=1 -DFSYS_VSTAFS=1 -DFSYS_XFS=1 \
+-	-DUSE_MD5_PASSWORDS=1 -DSUPPORT_SERIAL=1 -DSUPPORT_HERCULES=1 \
+-	-fwritable-strings
++	-DUSE_MD5_PASSWORDS=1 -DSUPPORT_SERIAL=1 -DSUPPORT_HERCULES=1
+ 
+ # Stage 2 and Stage 1.5's.
+ pkglibdir = $(libdir)/$(PACKAGE)/$(host_cpu)-$(host_vendor)
+Index: grub-0.96/lib/device.c
+===================================================================
+--- grub-0.96.orig/lib/device.c
++++ grub-0.96/lib/device.c
+@@ -493,12 +493,12 @@ check_device (const char *device)
+ static int
+ read_device_map (FILE *fp, char **map, const char *map_file)
+ {
+-  static void show_error (int no, const char *msg)
++  /* statici */ void show_error (int no, const char *msg)
+     {
+       fprintf (stderr, "%s:%d: error: %s\n", map_file, no, msg);
+     }
+   
+-  static void show_warning (int no, const char *msg, ...)
++  /* static */ void show_warning (int no, const char *msg, ...)
+     {
+       va_list ap;
+       
+Index: grub-0.96/stage2/char_io.c
+===================================================================
+--- grub-0.96.orig/stage2/char_io.c
++++ grub-0.96/stage2/char_io.c
+@@ -1178,7 +1178,7 @@ int
+ memcheck (int addr, int len)
+ {
+ #ifdef GRUB_UTIL
+-  static int start_addr (void)
++  /* static */ int start_addr (void)
+     {
+       int ret;
+ # if defined(HAVE_START_SYMBOL)
+@@ -1189,7 +1189,7 @@ memcheck (int addr, int len)
+       return ret;
+     }
+ 
+-  static int end_addr (void)
++  /* static */ int end_addr (void)
+     {
+       int ret;
+ # if defined(HAVE_END_SYMBOL)
+Index: grub-0.96/grub/Makefile.am
+===================================================================
+--- grub-0.96.orig/grub/Makefile.am
++++ grub-0.96/grub/Makefile.am
+@@ -13,7 +13,7 @@ AM_CPPFLAGS = -DGRUB_UTIL=1 -DFSYS_EXT2F
+ 	$(SERIAL_FLAGS) -I$(top_srcdir)/stage2 \
+ 	-I$(top_srcdir)/stage1 -I$(top_srcdir)/lib
+ 
+-AM_CFLAGS = $(GRUB_CFLAGS) -fwritable-strings
++AM_CFLAGS = $(GRUB_CFLAGS)
+ 
+ grub_SOURCES = main.c asmstub.c
+ grub_LDADD = ../stage2/libgrub.a  ../lib/libcommon.a $(GRUB_LIBS)
+Index: grub-0.96/grub/asmstub.c
+===================================================================
+--- grub-0.96.orig/grub/asmstub.c
++++ grub-0.96/grub/asmstub.c
+@@ -90,7 +90,7 @@ char **device_map = 0;
+ static jmp_buf env_for_exit;
+ 
+ /* The current color for console.  */
+-static int console_current_color = A_NORMAL;
++/* static */ int console_current_color = A_NORMAL;
+ 
+ /* The file descriptor for a serial device.  */
+ static int serial_fd = -1;
+@@ -115,7 +115,7 @@ grub_stage2 (void)
+ 
+   /* We need a nested function so that we get a clean stack frame,
+      regardless of how the code is optimized. */
+-  static volatile void doit ()
++  /* static */ volatile void doit ()
+   {
+     /* Make sure our stack lives in the simulated memory area. */
+     asm volatile ("movl %%esp, %0\n\tmovl %1, %%esp\n"

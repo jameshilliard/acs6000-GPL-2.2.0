@@ -1,0 +1,13 @@
+--- httpd-2.2.3/modules/ssl/ssl_engine_io.c.orig
++++ httpd-2.2.3/modules/ssl/ssl_engine_io.c 
+@@ -1779,8 +1779,8 @@
+                     rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
+                     bio, argp,
+                     (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
+-            if (argp != NULL)
+-                ssl_io_data_dump(s, argp, rc);
++            //if (argp != NULL)
++            //    ssl_io_data_dump(s, argp, rc);
+         }
+         else {
+             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,

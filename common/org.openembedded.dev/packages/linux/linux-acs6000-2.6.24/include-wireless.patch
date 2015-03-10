@@ -1,0 +1,1370 @@
+--- linux-2.6.24.1/include/linux/wireless.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/wireless.h	2008-06-09 11:27:19.000000000 -0700
+@@ -541,6 +541,16 @@
+ /* Maximum size of returned data */
+ #define IW_SCAN_MAX_DATA	4096	/* In bytes */
+ 
++/* Scan capability flags - in (struct iw_range *)->scan_capa */
++#define IW_SCAN_CAPA_NONE		0x00
++#define IW_SCAN_CAPA_ESSID		0x01
++#define IW_SCAN_CAPA_BSSID		0x02
++#define IW_SCAN_CAPA_CHANNEL	0x04
++#define IW_SCAN_CAPA_MODE		0x08
++#define IW_SCAN_CAPA_RATE		0x10
++#define IW_SCAN_CAPA_TYPE		0x20
++#define IW_SCAN_CAPA_TIME		0x40
++
+ /* Max number of char in custom event - use multiple of them if needed */
+ #define IW_CUSTOM_MAX		256	/* In bytes */
+ 
+@@ -963,6 +973,9 @@
+ 	__u16		old_num_channels;
+ 	__u8		old_num_frequency;
+ 
++	/* Scan capabilities */
++	__u8		scan_capa; 	/* IW_SCAN_CAPA_* bit field */
++
+ 	/* Wireless event capability bitmasks */
+ 	__u32		event_capa[6];
+ 
+@@ -1066,7 +1079,7 @@
+  */
+ struct iw_event
+ {
+-	__u16		len;			/* Real lenght of this stuff */
++	__u16		len;			/* Real length of this stuff */
+ 	__u16		cmd;			/* Wireless IOCTL */
+ 	union iwreq_data	u;		/* IOCTL fixed payload */
+ };
+--- linux-2.6.24.1/include/net/ieee80211.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/net/ieee80211.h	2008-06-09 11:27:19.000000000 -0700
+@@ -677,7 +677,7 @@
+ 
+ struct ieee80211_probe_response {
+ 	struct ieee80211_hdr_3addr header;
+-	u32 time_stamp[2];
++	__le32 time_stamp[2];
+ 	__le16 beacon_interval;
+ 	__le16 capability;
+ 	/* SSID, supported rates, FH params, DS params,
+@@ -718,8 +718,8 @@
+ 	u8 encrypted;
+ 	u8 rts_included;
+ 	u8 reserved;
+-	__le16 frag_size;
+-	__le16 payload_size;
++	u16 frag_size;
++	u16 payload_size;
+ 	struct sk_buff *fragments[0];
+ };
+ 
+--- linux-2.6.24.1/include/net/mac80211.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/net/mac80211.h	2008-06-09 11:27:19.000000000 -0700
+@@ -139,17 +139,54 @@
+ };
+ 
+ /**
++ * struct ieee80211_ht_info - describing STA's HT capabilities
++ *
++ * This structure describes most essential parameters needed
++ * to describe 802.11n HT capabilities for an STA.
++ *
++ * @ht_supported: is HT supported by STA, 0: no, 1: yes
++ * @cap: HT capabilities map as described in 802.11n spec
++ * @ampdu_factor: Maximum A-MPDU length factor
++ * @ampdu_density: Minimum A-MPDU spacing
++ * @supp_mcs_set: Supported MCS set as described in 802.11n spec
++ */
++struct ieee80211_ht_info {
++	u8 ht_supported;
++	u16 cap; /* use IEEE80211_HT_CAP_ */
++	u8 ampdu_factor;
++	u8 ampdu_density;
++	u8 supp_mcs_set[16];
++};
++
++/**
++ * struct ieee80211_ht_bss_info - describing BSS's HT characteristics
++ *
++ * This structure describes most essential parameters needed
++ * to describe 802.11n HT characteristics in a BSS
++ *
++ * @primary_channel: channel number of primery channel
++ * @bss_cap: 802.11n's general BSS capabilities (e.g. channel width)
++ * @bss_op_mode: 802.11n's BSS operation modes (e.g. HT protection)
++ */
++struct ieee80211_ht_bss_info {
++	u8 primary_channel;
++	u8 bss_cap;  /* use IEEE80211_HT_IE_CHA_ */
++	u8 bss_op_mode; /* use IEEE80211_HT_IE_ */
++};
++
++/**
+  * struct ieee80211_hw_mode - PHY mode definition
+  *
+  * This structure describes the capabilities supported by the device
+  * in a single PHY mode.
+  *
++ * @list: internal
++ * @channels: pointer to array of supported channels
++ * @rates: pointer to array of supported bitrates
+  * @mode: the PHY mode for this definition
+  * @num_channels: number of supported channels
+- * @channels: pointer to array of supported channels
+  * @num_rates: number of supported bitrates
+- * @rates: pointer to array of supported bitrates
+- * @list: internal
++ * @ht_info: PHY's 802.11n HT abilities for this mode
+  */
+ struct ieee80211_hw_mode {
+ 	struct list_head list;
+@@ -158,6 +195,7 @@
+ 	enum ieee80211_phymode mode;
+ 	int num_channels;
+ 	int num_rates;
++	struct ieee80211_ht_info ht_info;
+ };
+ 
+ /**
+@@ -237,11 +275,49 @@
+ 	unsigned int dot11RTSSuccessCount;
+ };
+ 
++/**
++ * enum ieee80211_bss_change - BSS change notification flags
++ *
++ * These flags are used with the bss_info_changed() callback
++ * to indicate which BSS parameter changed.
++ *
++ * @BSS_CHANGED_ASSOC: association status changed (associated/disassociated),
++ *	also implies a change in the AID.
++ * @BSS_CHANGED_ERP_CTS_PROT: CTS protection changed
++ * @BSS_CHANGED_ERP_PREAMBLE: preamble changed
++ */
++enum ieee80211_bss_change {
++	BSS_CHANGED_ASSOC		= 1<<0,
++	BSS_CHANGED_ERP_CTS_PROT	= 1<<1,
++	BSS_CHANGED_ERP_PREAMBLE	= 1<<2,
++};
++
++/**
++ * struct ieee80211_bss_conf - holds the BSS's changing parameters
++ *
++ * This structure keeps information about a BSS (and an association
++ * to that BSS) that can change during the lifetime of the BSS.
++ *
++ * @assoc: association status
++ * @aid: association ID number, valid only when @assoc is true
++ * @use_cts_prot: use CTS protection
++ * @use_short_preamble: use 802.11b short preamble
++ */
++struct ieee80211_bss_conf {
++	/* association related data */
++	bool assoc;
++	u16 aid;
++	/* erp related data */
++	bool use_cts_prot;
++	bool use_short_preamble;
++};
++
+ /* Transmit control fields. This data structure is passed to low-level driver
+  * with each TX frame. The low-level driver is responsible for configuring
+  * the hardware to use given values (depending on what is supported). */
+ 
+ struct ieee80211_tx_control {
++	struct ieee80211_vif *vif;
+ 	int tx_rate; /* Transmit rate, given as the hw specific value for the
+ 		      * rate (from struct ieee80211_rate) */
+ 	int rts_cts_rate; /* Transmit rate for RTS/CTS frame, given as the hw
+@@ -269,6 +345,9 @@
+ 						  * using the through
+ 						  * set_retry_limit configured
+ 						  * long retry value */
++#define IEEE80211_TXCTL_EAPOL_FRAME	(1<<11) /* internal to mac80211 */
++#define IEEE80211_TXCTL_SEND_AFTER_DTIM	(1<<12) /* send this frame after DTIM
++						 * beacon */
+ 	u32 flags;			       /* tx control flags defined
+ 						* above */
+ 	u8 key_idx;		/* keyidx from hw->set_key(), undefined if
+@@ -291,7 +370,6 @@
+ 			     * packet dropping when probing higher rates, if hw
+ 			     * supports multiple retry rates. -1 = not used */
+ 	int type;	/* internal */
+-	int ifindex;	/* internal */
+ };
+ 
+ 
+@@ -312,6 +390,8 @@
+  *	the frame.
+  * @RX_FLAG_FAILED_PLCP_CRC: Set this flag if the PCLP check failed on
+  *	the frame.
++ * @RX_FLAG_TSFT: The timestamp passed in the RX status (@mactime field)
++ *	is valid.
+  */
+ enum mac80211_rx_flags {
+ 	RX_FLAG_MMIC_ERROR	= 1<<0,
+@@ -321,6 +401,7 @@
+ 	RX_FLAG_IV_STRIPPED	= 1<<4,
+ 	RX_FLAG_FAILED_FCS_CRC	= 1<<5,
+ 	RX_FLAG_FAILED_PLCP_CRC = 1<<6,
++	RX_FLAG_TSFT		= 1<<7,
+ };
+ 
+ /**
+@@ -406,11 +487,12 @@
+  *
+  * @IEEE80211_CONF_SHORT_SLOT_TIME: use 802.11g short slot time
+  * @IEEE80211_CONF_RADIOTAP: add radiotap header at receive time (if supported)
+- *
++ * @IEEE80211_CONF_SUPPORT_HT_MODE: use 802.11n HT capabilities (if supported)
+  */
+ enum ieee80211_conf_flags {
+-	IEEE80211_CONF_SHORT_SLOT_TIME	= 1<<0,
+-	IEEE80211_CONF_RADIOTAP		= 1<<1,
++	IEEE80211_CONF_SHORT_SLOT_TIME	= (1<<0),
++	IEEE80211_CONF_RADIOTAP		= (1<<1),
++	IEEE80211_CONF_SUPPORT_HT_MODE	= (1<<2),
+ };
+ 
+ /**
+@@ -434,6 +516,8 @@
+  * @antenna_sel_tx: transmit antenna selection, 0: default/diversity,
+  *	1/2: antenna 0/1
+  * @antenna_sel_rx: receive antenna selection, like @antenna_sel_tx
++ * @ht_conf: describes current self configuration of 802.11n HT capabilies
++ * @ht_bss_conf: describes current BSS configuration of 802.11n HT parameters
+  */
+ struct ieee80211_conf {
+ 	int channel;			/* IEEE 802.11 channel number */
+@@ -452,6 +536,9 @@
+ 	u8 antenna_max;
+ 	u8 antenna_sel_tx;
+ 	u8 antenna_sel_rx;
++
++	struct ieee80211_ht_info ht_conf;
++	struct ieee80211_ht_bss_info ht_bss_conf;
+ };
+ 
+ /**
+@@ -480,13 +567,27 @@
+ };
+ 
+ /**
++ * struct ieee80211_vif - per-interface data
++ *
++ * Data in this structure is continually present for driver
++ * use during the life of a virtual interface.
++ *
++ * @type: type of this virtual interface
++ * @drv_priv: data area for driver use, will always be aligned to
++ *	sizeof(void *).
++ */
++struct ieee80211_vif {
++	enum ieee80211_if_types type;
++	/* must be last */
++	u8 drv_priv[0] __attribute__((__aligned__(sizeof(void *))));
++};
++
++/**
+  * struct ieee80211_if_init_conf - initial configuration of an interface
+  *
+- * @if_id: internal interface ID. This number has no particular meaning to
+- *	drivers and the only allowed usage is to pass it to
+- *	ieee80211_beacon_get() and ieee80211_get_buffered_bc() functions.
+- *	This field is not valid for monitor interfaces
+- *	(interfaces of %IEEE80211_IF_TYPE_MNTR type).
++ * @vif: pointer to a driver-use per-interface structure. The pointer
++ *	itself is also used for various functions including
++ *	ieee80211_beacon_get() and ieee80211_get_buffered_bc().
+  * @type: one of &enum ieee80211_if_types constants. Determines the type of
+  *	added/removed interface.
+  * @mac_addr: pointer to MAC address of the interface. This pointer is valid
+@@ -503,8 +604,8 @@
+  * in pure monitor mode.
+  */
+ struct ieee80211_if_init_conf {
+-	int if_id;
+ 	enum ieee80211_if_types type;
++	struct ieee80211_vif *vif;
+ 	void *mac_addr;
+ };
+ 
+@@ -597,9 +698,6 @@
+ 	u8 key[0];
+ };
+ 
+-#define IEEE80211_SEQ_COUNTER_RX	0
+-#define IEEE80211_SEQ_COUNTER_TX	1
+-
+ /**
+  * enum set_key_cmd - key command
+  *
+@@ -710,6 +808,9 @@
+  * @rate_control_algorithm: rate control algorithm for this hardware.
+  *	If unset (NULL), the default algorithm will be used. Must be
+  *	set before calling ieee80211_register_hw().
++ *
++ * @vif_data_size: size (in bytes) of the drv_priv data area
++ *	within &struct ieee80211_vif.
+  */
+ struct ieee80211_hw {
+ 	struct ieee80211_conf conf;
+@@ -720,6 +821,7 @@
+ 	u32 flags;
+ 	unsigned int extra_tx_headroom;
+ 	int channel_change_time;
++	int vif_data_size;
+ 	u8 queues;
+ 	s8 max_rssi;
+ 	s8 max_signal;
+@@ -859,19 +961,18 @@
+ };
+ 
+ /**
+- * enum ieee80211_erp_change_flags - erp change flags
++ * enum ieee80211_ampdu_mlme_action - A-MPDU actions
+  *
+- * These flags are used with the erp_ie_changed() callback in
+- * &struct ieee80211_ops to indicate which parameter(s) changed.
+- * @IEEE80211_ERP_CHANGE_PROTECTION: protection changed
+- * @IEEE80211_ERP_CHANGE_PREAMBLE: barker preamble mode changed
+- */
+-enum ieee80211_erp_change_flags {
+-	IEEE80211_ERP_CHANGE_PROTECTION	= 1<<0,
+-	IEEE80211_ERP_CHANGE_PREAMBLE	= 1<<1,
++ * These flags are used with the ampdu_action() callback in
++ * &struct ieee80211_ops to indicate which action is needed.
++ * @IEEE80211_AMPDU_RX_START: start Rx aggregation
++ * @IEEE80211_AMPDU_RX_STOP: stop Rx aggregation
++ */
++enum ieee80211_ampdu_mlme_action {
++	IEEE80211_AMPDU_RX_START,
++	IEEE80211_AMPDU_RX_STOP,
+ };
+ 
+-
+ /**
+  * struct ieee80211_ops - callbacks from mac80211 to the driver
+  *
+@@ -927,6 +1028,14 @@
+  * @config_interface: Handler for configuration requests related to interfaces
+  *	(e.g. BSSID changes.)
+  *
++ * @bss_info_changed: Handler for configuration requests related to BSS
++ *	parameters that may vary during BSS's lifespan, and may affect low
++ *	level driver (e.g. assoc/disassoc status, erp parameters).
++ *	This function should not be used if no BSS has been set, unless
++ *	for association indication. The @changed parameter indicates which
++ *	of the bss parameters has changed when a call is made. This callback
++ *	has to be atomic.
++ *
+  * @configure_filter: Configure the device's RX filter.
+  *	See the section "Frame filtering" for more information.
+  *	This callback must be implemented and atomic.
+@@ -946,9 +1055,9 @@
+  *
+  * @get_stats: return low-level statistics
+  *
+- * @get_sequence_counter: For devices that have internal sequence counters this
+- *	callback allows mac80211 to access the current value of a counter.
+- *	This callback seems not well-defined, tell us if you need it.
++ * @get_tkip_seq: If your device implements TKIP encryption in hardware this
++ *	callback should be provided to read the TKIP transmit IVs (both IV32
++ *	and IV16) for the given key from hardware.
+  *
+  * @set_rts_threshold: Configuration of RTS threshold (if device needs it)
+  *
+@@ -961,8 +1070,6 @@
+  * @sta_notify: Notifies low level driver about addition or removal
+  *	of assocaited station or AP.
+  *
+- * @erp_ie_changed: Handle ERP IE change notifications. Must be atomic.
+- *
+  * @conf_tx: Configure TX queue parameters (EDCF (aifs, cw_min, cw_max),
+  *	bursting) for a hardware TX queue. The @queue parameter uses the
+  *	%IEEE80211_TX_QUEUE_* constants. Must be atomic.
+@@ -997,6 +1104,14 @@
+  * @tx_last_beacon: Determine whether the last IBSS beacon was sent by us.
+  *	This is needed only for IBSS mode and the result of this function is
+  *	used to determine whether to reply to Probe Requests.
++ *
++ * @conf_ht: Configures low level driver with 802.11n HT data. Must be atomic.
++ *
++ * @ampdu_action: Perform a certain A-MPDU action
++ * 	The RA/TID combination determines the destination and TID we want
++ * 	the ampdu action to be performed for. The action is defined through
++ * 	ieee80211_ampdu_mlme_action. Starting sequence number (@ssn)
++ * 	is the first frame we expect to perform the action on.
+  */
+ struct ieee80211_ops {
+ 	int (*tx)(struct ieee80211_hw *hw, struct sk_buff *skb,
+@@ -1009,7 +1124,12 @@
+ 				 struct ieee80211_if_init_conf *conf);
+ 	int (*config)(struct ieee80211_hw *hw, struct ieee80211_conf *conf);
+ 	int (*config_interface)(struct ieee80211_hw *hw,
+-				int if_id, struct ieee80211_if_conf *conf);
++				struct ieee80211_vif *vif,
++				struct ieee80211_if_conf *conf);
++	void (*bss_info_changed)(struct ieee80211_hw *hw,
++				 struct ieee80211_vif *vif,
++				 struct ieee80211_bss_conf *info,
++				 u32 changed);
+ 	void (*configure_filter)(struct ieee80211_hw *hw,
+ 				 unsigned int changed_flags,
+ 				 unsigned int *total_flags,
+@@ -1021,17 +1141,14 @@
+ 	int (*hw_scan)(struct ieee80211_hw *hw, u8 *ssid, size_t len);
+ 	int (*get_stats)(struct ieee80211_hw *hw,
+ 			 struct ieee80211_low_level_stats *stats);
+-	int (*get_sequence_counter)(struct ieee80211_hw *hw,
+-				    u8* addr, u8 keyidx, u8 txrx,
+-				    u32* iv32, u16* iv16);
++	void (*get_tkip_seq)(struct ieee80211_hw *hw, u8 hw_key_idx,
++			     u32 *iv32, u16 *iv16);
+ 	int (*set_rts_threshold)(struct ieee80211_hw *hw, u32 value);
+ 	int (*set_frag_threshold)(struct ieee80211_hw *hw, u32 value);
+ 	int (*set_retry_limit)(struct ieee80211_hw *hw,
+ 			       u32 short_retry, u32 long_retr);
+-	void (*sta_notify)(struct ieee80211_hw *hw, int if_id,
++	void (*sta_notify)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			enum sta_notify_cmd, const u8 *addr);
+-	void (*erp_ie_changed)(struct ieee80211_hw *hw, u8 changes,
+-			       int cts_protection, int preamble);
+ 	int (*conf_tx)(struct ieee80211_hw *hw, int queue,
+ 		       const struct ieee80211_tx_queue_params *params);
+ 	int (*get_tx_stats)(struct ieee80211_hw *hw,
+@@ -1042,6 +1159,10 @@
+ 			     struct sk_buff *skb,
+ 			     struct ieee80211_tx_control *control);
+ 	int (*tx_last_beacon)(struct ieee80211_hw *hw);
++	int (*conf_ht)(struct ieee80211_hw *hw, struct ieee80211_conf *conf);
++	int (*ampdu_action)(struct ieee80211_hw *hw,
++			    enum ieee80211_ampdu_mlme_action action,
++			    const u8 *ra, u16 tid, u16 ssn);
+ };
+ 
+ /**
+@@ -1073,6 +1194,7 @@
+ extern char *__ieee80211_get_tx_led_name(struct ieee80211_hw *hw);
+ extern char *__ieee80211_get_rx_led_name(struct ieee80211_hw *hw);
+ extern char *__ieee80211_get_assoc_led_name(struct ieee80211_hw *hw);
++extern char *__ieee80211_get_radio_led_name(struct ieee80211_hw *hw);
+ #endif
+ /**
+  * ieee80211_get_tx_led_name - get name of TX LED
+@@ -1112,6 +1234,16 @@
+ #endif
+ }
+ 
++/**
++ * ieee80211_get_assoc_led_name - get name of association LED
++ *
++ * mac80211 creates a association LED trigger for each wireless hardware
++ * that can be used to drive LEDs if your driver registers a LED device.
++ * This function returns the name (or %NULL if not configured for LEDs)
++ * of the trigger so you can automatically link the LED device.
++ *
++ * @hw: the hardware to get the LED trigger name for
++ */
+ static inline char *ieee80211_get_assoc_led_name(struct ieee80211_hw *hw)
+ {
+ #ifdef CONFIG_MAC80211_LEDS
+@@ -1121,6 +1253,24 @@
+ #endif
+ }
+ 
++/**
++ * ieee80211_get_radio_led_name - get name of radio LED
++ *
++ * mac80211 creates a radio change LED trigger for each wireless hardware
++ * that can be used to drive LEDs if your driver registers a LED device.
++ * This function returns the name (or %NULL if not configured for LEDs)
++ * of the trigger so you can automatically link the LED device.
++ *
++ * @hw: the hardware to get the LED trigger name for
++ */
++static inline char *ieee80211_get_radio_led_name(struct ieee80211_hw *hw)
++{
++#ifdef CONFIG_MAC80211_LEDS
++	return __ieee80211_get_radio_led_name(hw);
++#else
++	return NULL;
++#endif
++}
+ 
+ /* Register a new hardware PHYMODE capability to the stack. */
+ int ieee80211_register_hwmode(struct ieee80211_hw *hw,
+@@ -1210,7 +1360,7 @@
+ /**
+  * ieee80211_beacon_get - beacon generation function
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @control: will be filled with information needed to send this beacon.
+  *
+  * If the beacon frames are generated by the host system (i.e., not in
+@@ -1221,13 +1371,13 @@
+  * is responsible of freeing it.
+  */
+ struct sk_buff *ieee80211_beacon_get(struct ieee80211_hw *hw,
+-				     int if_id,
++				     struct ieee80211_vif *vif,
+ 				     struct ieee80211_tx_control *control);
+ 
+ /**
+  * ieee80211_rts_get - RTS frame generation function
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @frame: pointer to the frame that is going to be protected by the RTS.
+  * @frame_len: the frame length (in octets).
+  * @frame_txctl: &struct ieee80211_tx_control of the frame.
+@@ -1238,7 +1388,7 @@
+  * the next RTS frame from the 802.11 code. The low-level is responsible
+  * for calling this function before and RTS frame is needed.
+  */
+-void ieee80211_rts_get(struct ieee80211_hw *hw, int if_id,
++void ieee80211_rts_get(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 		       const void *frame, size_t frame_len,
+ 		       const struct ieee80211_tx_control *frame_txctl,
+ 		       struct ieee80211_rts *rts);
+@@ -1246,7 +1396,7 @@
+ /**
+  * ieee80211_rts_duration - Get the duration field for an RTS frame
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @frame_len: the length of the frame that is going to be protected by the RTS.
+  * @frame_txctl: &struct ieee80211_tx_control of the frame.
+  *
+@@ -1254,14 +1404,14 @@
+  * the duration field, the low-level driver uses this function to receive
+  * the duration field value in little-endian byteorder.
+  */
+-__le16 ieee80211_rts_duration(struct ieee80211_hw *hw, int if_id,
+-			      size_t frame_len,
++__le16 ieee80211_rts_duration(struct ieee80211_hw *hw,
++			      struct ieee80211_vif *vif, size_t frame_len,
+ 			      const struct ieee80211_tx_control *frame_txctl);
+ 
+ /**
+  * ieee80211_ctstoself_get - CTS-to-self frame generation function
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @frame: pointer to the frame that is going to be protected by the CTS-to-self.
+  * @frame_len: the frame length (in octets).
+  * @frame_txctl: &struct ieee80211_tx_control of the frame.
+@@ -1272,7 +1422,8 @@
+  * the next CTS-to-self frame from the 802.11 code. The low-level is responsible
+  * for calling this function before and CTS-to-self frame is needed.
+  */
+-void ieee80211_ctstoself_get(struct ieee80211_hw *hw, int if_id,
++void ieee80211_ctstoself_get(struct ieee80211_hw *hw,
++			     struct ieee80211_vif *vif,
+ 			     const void *frame, size_t frame_len,
+ 			     const struct ieee80211_tx_control *frame_txctl,
+ 			     struct ieee80211_cts *cts);
+@@ -1280,7 +1431,7 @@
+ /**
+  * ieee80211_ctstoself_duration - Get the duration field for a CTS-to-self frame
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @frame_len: the length of the frame that is going to be protected by the CTS-to-self.
+  * @frame_txctl: &struct ieee80211_tx_control of the frame.
+  *
+@@ -1288,28 +1439,30 @@
+  * the duration field, the low-level driver uses this function to receive
+  * the duration field value in little-endian byteorder.
+  */
+-__le16 ieee80211_ctstoself_duration(struct ieee80211_hw *hw, int if_id,
++__le16 ieee80211_ctstoself_duration(struct ieee80211_hw *hw,
++				    struct ieee80211_vif *vif,
+ 				    size_t frame_len,
+ 				    const struct ieee80211_tx_control *frame_txctl);
+ 
+ /**
+  * ieee80211_generic_frame_duration - Calculate the duration field for a frame
+  * @hw: pointer obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @frame_len: the length of the frame.
+  * @rate: the rate (in 100kbps) at which the frame is going to be transmitted.
+  *
+  * Calculate the duration field of some generic frame, given its
+  * length and transmission rate (in 100kbps).
+  */
+-__le16 ieee80211_generic_frame_duration(struct ieee80211_hw *hw, int if_id,
++__le16 ieee80211_generic_frame_duration(struct ieee80211_hw *hw,
++					struct ieee80211_vif *vif,
+ 					size_t frame_len,
+ 					int rate);
+ 
+ /**
+  * ieee80211_get_buffered_bc - accessing buffered broadcast and multicast frames
+  * @hw: pointer as obtained from ieee80211_alloc_hw().
+- * @if_id: interface ID from &struct ieee80211_if_init_conf.
++ * @vif: &struct ieee80211_vif pointer from &struct ieee80211_if_init_conf.
+  * @control: will be filled with information needed to send returned frame.
+  *
+  * Function for accessing buffered broadcast and multicast frames. If
+@@ -1328,7 +1481,7 @@
+  * use common code for all beacons.
+  */
+ struct sk_buff *
+-ieee80211_get_buffered_bc(struct ieee80211_hw *hw, int if_id,
++ieee80211_get_buffered_bc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			  struct ieee80211_tx_control *control);
+ 
+ /**
+@@ -1406,4 +1559,19 @@
+  */
+ void ieee80211_scan_completed(struct ieee80211_hw *hw);
+ 
++/**
++ * ieee80211_iterate_active_interfaces - iterate active interfaces
++ *
++ * This function iterates over the interfaces associated with a given
++ * hardware that are currently active and calls the callback for them.
++ *
++ * @hw: the hardware struct of which the interfaces should be iterated over
++ * @iterator: the iterator function to call, cannot sleep
++ * @data: first argument of the iterator function
++ */
++void ieee80211_iterate_active_interfaces(struct ieee80211_hw *hw,
++					 void (*iterator)(void *data, u8 *mac,
++						struct ieee80211_vif *vif),
++					 void *data);
++
+ #endif /* MAC80211_H */
+--- linux-2.6.24.1/include/linux/pci_ids.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/pci_ids.h	2008-06-09 11:27:19.000000000 -0700
+@@ -1351,6 +1351,7 @@
+ #define PCI_DEVICE_ID_VIA_8231_4	0x8235
+ #define PCI_DEVICE_ID_VIA_8365_1	0x8305
+ #define PCI_DEVICE_ID_VIA_CX700		0x8324
++#define PCI_DEVICE_ID_VIA_CX700_IDE	0x0581
+ #define PCI_DEVICE_ID_VIA_VX800		0x8353
+ #define PCI_DEVICE_ID_VIA_8371_1	0x8391
+ #define PCI_DEVICE_ID_VIA_82C598_1	0x8598
+@@ -1765,6 +1766,7 @@
+ #define PCI_DEVICE_ID_QUATECH_DSC100	0x0020
+ #define PCI_DEVICE_ID_QUATECH_ESC100D	0x0050
+ #define PCI_DEVICE_ID_QUATECH_ESC100M	0x0060
++#define PCI_DEVICE_ID_QUATECH_SPPXP_100 0x0278
+ 
+ #define PCI_VENDOR_ID_SEALEVEL		0x135e
+ #define PCI_DEVICE_ID_SEALEVEL_U530	0x7101
+@@ -1943,6 +1945,7 @@
+ #define PCI_DEVICE_ID_NX2_5706		0x164a
+ #define PCI_DEVICE_ID_NX2_5708		0x164c
+ #define PCI_DEVICE_ID_TIGON3_5702FE	0x164d
++#define PCI_DEVICE_ID_NX2_57710		0x164e
+ #define PCI_DEVICE_ID_TIGON3_5705	0x1653
+ #define PCI_DEVICE_ID_TIGON3_5705_2	0x1654
+ #define PCI_DEVICE_ID_TIGON3_5720	0x1658
+@@ -2042,6 +2045,23 @@
+ #define PCI_VENDOR_ID_QUICKNET		0x15e2
+ #define PCI_DEVICE_ID_QUICKNET_XJ	0x0500
+ 
++/*
++ * ADDI-DATA GmbH communication cards <info@addi-data.com>
++ */
++#define PCI_VENDOR_ID_ADDIDATA_OLD             0x10E8
++#define PCI_VENDOR_ID_ADDIDATA                 0x15B8
++#define PCI_DEVICE_ID_ADDIDATA_APCI7500        0x7000
++#define PCI_DEVICE_ID_ADDIDATA_APCI7420        0x7001
++#define PCI_DEVICE_ID_ADDIDATA_APCI7300        0x7002
++#define PCI_DEVICE_ID_ADDIDATA_APCI7800        0x818E
++#define PCI_DEVICE_ID_ADDIDATA_APCI7500_2      0x7009
++#define PCI_DEVICE_ID_ADDIDATA_APCI7420_2      0x700A
++#define PCI_DEVICE_ID_ADDIDATA_APCI7300_2      0x700B
++#define PCI_DEVICE_ID_ADDIDATA_APCI7500_3      0x700C
++#define PCI_DEVICE_ID_ADDIDATA_APCI7420_3      0x700D
++#define PCI_DEVICE_ID_ADDIDATA_APCI7300_3      0x700E
++#define PCI_DEVICE_ID_ADDIDATA_APCI7800_3      0x700F
++
+ #define PCI_VENDOR_ID_PDC		0x15e9
+ 
+ #define PCI_VENDOR_ID_FARSITE           0x1619
+@@ -2066,6 +2086,9 @@
+ #define PCI_VENDOR_ID_NETCELL		0x169c
+ #define PCI_DEVICE_ID_REVOLUTION	0x0044
+ 
++#define PCI_VENDOR_ID_CENATEK		0x16CA
++#define PCI_DEVICE_ID_CENATEK_IDE	0x0001
++
+ #define PCI_VENDOR_ID_VITESSE		0x1725
+ #define PCI_DEVICE_ID_VITESSE_VSC7174	0x7174
+ 
+@@ -2078,6 +2101,16 @@
+ #define PCI_DEVICE_ID_ALTIMA_AC9100	0x03ea
+ #define PCI_DEVICE_ID_ALTIMA_AC1003	0x03eb
+ 
++#define PCI_VENDOR_ID_BELKIN		0x1799
++#define PCI_DEVICE_ID_BELKIN_F5D7010V7	0x701f
++
++#define PCI_VENDOR_ID_RDC		0x17f3
++#define PCI_DEVICE_ID_RDC_R6020		0x6020
++#define PCI_DEVICE_ID_RDC_R6030		0x6030
++#define PCI_DEVICE_ID_RDC_R6040		0x6040
++#define PCI_DEVICE_ID_RDC_R6060		0x6060
++#define PCI_DEVICE_ID_RDC_R6061		0x6061
++
+ #define PCI_VENDOR_ID_LENOVO		0x17aa
+ 
+ #define PCI_VENDOR_ID_ARECA		0x17d3
+@@ -2106,6 +2139,8 @@
+ #define PCI_DEVICE_ID_HERC_WIN		0x5732
+ #define PCI_DEVICE_ID_HERC_UNI		0x5832
+ 
++#define PCI_VENDOR_ID_RDC		0x17f3
++
+ #define PCI_VENDOR_ID_SITECOM		0x182d
+ #define PCI_DEVICE_ID_SITECOM_DC105V2	0x3069
+ 
+@@ -2149,6 +2184,7 @@
+ #define PCI_DEVICE_ID_JMICRON_JMB366	0x2366
+ #define PCI_DEVICE_ID_JMICRON_JMB368	0x2368
+ #define PCI_DEVICE_ID_JMICRON_JMB38X_SD	0x2381
++#define PCI_DEVICE_ID_JMICRON_JMB38X_MS	0x2383
+ 
+ #define PCI_VENDOR_ID_KORENIX		0x1982
+ #define PCI_DEVICE_ID_KORENIX_JETCARDF0	0x1600
+@@ -2339,6 +2375,12 @@
+ #define PCI_DEVICE_ID_INTEL_MCH_PC1	0x359a
+ #define PCI_DEVICE_ID_INTEL_E7525_MCH	0x359e
+ #define PCI_DEVICE_ID_INTEL_IOAT_CNB	0x360b
++#define PCI_DEVICE_ID_INTEL_ICH10_0	0x3a14
++#define PCI_DEVICE_ID_INTEL_ICH10_1	0x3a16
++#define PCI_DEVICE_ID_INTEL_ICH10_2	0x3a18
++#define PCI_DEVICE_ID_INTEL_ICH10_3	0x3a1a
++#define PCI_DEVICE_ID_INTEL_ICH10_4	0x3a30
++#define PCI_DEVICE_ID_INTEL_ICH10_5	0x3a60
+ #define PCI_DEVICE_ID_INTEL_IOAT_SNB	0x402f
+ #define PCI_DEVICE_ID_INTEL_IOAT_SCNB	0x65ff
+ #define PCI_DEVICE_ID_INTEL_TOLAPAI_0	0x5031
+--- linux-2.6.24.1/include/linux/ieee80211.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/ieee80211.h	2008-06-09 11:27:19.000000000 -0700
+@@ -54,6 +54,8 @@
+ #define IEEE80211_STYPE_ACTION		0x00D0
+ 
+ /* control */
++#define IEEE80211_STYPE_BACK_REQ	0x0080
++#define IEEE80211_STYPE_BACK		0x0090
+ #define IEEE80211_STYPE_PSPOLL		0x00A0
+ #define IEEE80211_STYPE_RTS		0x00B0
+ #define IEEE80211_STYPE_CTS		0x00C0
+@@ -81,18 +83,18 @@
+ 
+ 
+ /* miscellaneous IEEE 802.11 constants */
+-#define IEEE80211_MAX_FRAG_THRESHOLD	2346
+-#define IEEE80211_MAX_RTS_THRESHOLD	2347
++#define IEEE80211_MAX_FRAG_THRESHOLD	2352
++#define IEEE80211_MAX_RTS_THRESHOLD	2353
+ #define IEEE80211_MAX_AID		2007
+ #define IEEE80211_MAX_TIM_LEN		251
+-#define IEEE80211_MAX_DATA_LEN		2304
+ /* Maximum size for the MA-UNITDATA primitive, 802.11 standard section
+    6.2.1.1.2.
+ 
+-   The figure in section 7.1.2 suggests a body size of up to 2312
+-   bytes is allowed, which is a bit confusing, I suspect this
+-   represents the 2304 bytes of real data, plus a possible 8 bytes of
+-   WEP IV and ICV. (this interpretation suggested by Ramiro Barreiro) */
++   802.11e clarifies the figure in section 7.1.2. The frame body is
++   up to 2304 octets long (maximum MSDU size) plus any crypt overhead. */
++#define IEEE80211_MAX_DATA_LEN		2304
++/* 30 byte 4 addr hdr, 2 byte QoS, 2304 byte MSDU, 12 byte crypt, 4 byte FCS */
++#define IEEE80211_MAX_FRAME_LEN		2352
+ 
+ #define IEEE80211_MAX_SSID_LEN		32
+ 
+@@ -185,6 +187,25 @@
+ 					u8 new_chan;
+ 					u8 switch_count;
+ 				} __attribute__((packed)) chan_switch;
++				struct{
++					u8 action_code;
++					u8 dialog_token;
++					__le16 capab;
++					__le16 timeout;
++					__le16 start_seq_num;
++				} __attribute__((packed)) addba_req;
++				struct{
++					u8 action_code;
++					u8 dialog_token;
++					__le16 status;
++					__le16 capab;
++					__le16 timeout;
++				} __attribute__((packed)) addba_resp;
++				struct{
++					u8 action_code;
++					__le16 params;
++					__le16 reason_code;
++				} __attribute__((packed)) delba;
+ 			} u;
+ 		} __attribute__ ((packed)) action;
+ 	} u;
+@@ -205,6 +226,72 @@
+ 	u8 ra[6];
+ } __attribute__ ((packed));
+ 
++/**
++ * struct ieee80211_bar - HT Block Ack Request
++ *
++ * This structure refers to "HT BlockAckReq" as
++ * described in 802.11n draft section 7.2.1.7.1
++ */
++struct ieee80211_bar {
++	__le16 frame_control;
++	__le16 duration;
++	__u8 ra[6];
++	__u8 ta[6];
++	__le16 control;
++	__le16 start_seq_num;
++} __attribute__((packed));
++
++/**
++ * struct ieee80211_ht_cap - HT capabilities
++ *
++ * This structure refers to "HT capabilities element" as
++ * described in 802.11n draft section 7.3.2.52
++ */
++struct ieee80211_ht_cap {
++	__le16 cap_info;
++	u8 ampdu_params_info;
++	u8 supp_mcs_set[16];
++	__le16 extended_ht_cap_info;
++	__le32 tx_BF_cap_info;
++	u8 antenna_selection_info;
++} __attribute__ ((packed));
++
++/**
++ * struct ieee80211_ht_cap - HT additional information
++ *
++ * This structure refers to "HT information element" as
++ * described in 802.11n draft section 7.3.2.53
++ */
++struct ieee80211_ht_addt_info {
++	u8 control_chan;
++	u8 ht_param;
++	__le16 operation_mode;
++	__le16 stbc_param;
++	u8 basic_set[16];
++} __attribute__ ((packed));
++
++/* 802.11n HT capabilities masks */
++#define IEEE80211_HT_CAP_SUP_WIDTH		0x0002
++#define IEEE80211_HT_CAP_MIMO_PS		0x000C
++#define IEEE80211_HT_CAP_GRN_FLD		0x0010
++#define IEEE80211_HT_CAP_SGI_20			0x0020
++#define IEEE80211_HT_CAP_SGI_40			0x0040
++#define IEEE80211_HT_CAP_DELAY_BA		0x0400
++#define IEEE80211_HT_CAP_MAX_AMSDU		0x0800
++#define IEEE80211_HT_CAP_AMPDU_FACTOR		0x03
++#define IEEE80211_HT_CAP_AMPDU_DENSITY		0x1C
++/* 802.11n HT IE masks */
++#define IEEE80211_HT_IE_CHA_SEC_OFFSET		0x03
++#define IEEE80211_HT_IE_CHA_WIDTH		0x04
++#define IEEE80211_HT_IE_HT_PROTECTION		0x0003
++#define IEEE80211_HT_IE_NON_GF_STA_PRSNT	0x0004
++#define IEEE80211_HT_IE_NON_HT_STA_PRSNT	0x0010
++
++/* MIMO Power Save Modes */
++#define WLAN_HT_CAP_MIMO_PS_STATIC         0
++#define WLAN_HT_CAP_MIMO_PS_DYNAMIC        1
++#define WLAN_HT_CAP_MIMO_PS_INVALID        2
++#define WLAN_HT_CAP_MIMO_PS_DISABLED       3
+ 
+ /* Authentication algorithms */
+ #define WLAN_AUTH_OPEN 0
+@@ -271,6 +358,18 @@
+ 	WLAN_STATUS_UNSUPP_RSN_VERSION = 44,
+ 	WLAN_STATUS_INVALID_RSN_IE_CAP = 45,
+ 	WLAN_STATUS_CIPHER_SUITE_REJECTED = 46,
++	/* 802.11e */
++	WLAN_STATUS_UNSPECIFIED_QOS = 32,
++	WLAN_STATUS_ASSOC_DENIED_NOBANDWIDTH = 33,
++	WLAN_STATUS_ASSOC_DENIED_LOWACK = 34,
++	WLAN_STATUS_ASSOC_DENIED_UNSUPP_QOS = 35,
++	WLAN_STATUS_REQUEST_DECLINED = 37,
++	WLAN_STATUS_INVALID_QOS_PARAM = 38,
++	WLAN_STATUS_CHANGE_TSPEC = 39,
++	WLAN_STATUS_WAIT_TS_DELAY = 47,
++	WLAN_STATUS_NO_DIRECT_LINK = 48,
++	WLAN_STATUS_STA_NOT_PRESENT = 49,
++	WLAN_STATUS_STA_NOT_QSTA = 50,
+ };
+ 
+ 
+@@ -301,6 +400,16 @@
+ 	WLAN_REASON_INVALID_RSN_IE_CAP = 22,
+ 	WLAN_REASON_IEEE8021X_FAILED = 23,
+ 	WLAN_REASON_CIPHER_SUITE_REJECTED = 24,
++	/* 802.11e */
++	WLAN_REASON_DISASSOC_UNSPECIFIED_QOS = 32,
++	WLAN_REASON_DISASSOC_QAP_NO_BANDWIDTH = 33,
++	WLAN_REASON_DISASSOC_LOW_ACK = 34,
++	WLAN_REASON_DISASSOC_QAP_EXCEED_TXOP = 35,
++	WLAN_REASON_QSTA_LEAVE_QBSS = 36,
++	WLAN_REASON_QSTA_NOT_USE = 37,
++	WLAN_REASON_QSTA_REQUIRE_SETUP = 38,
++	WLAN_REASON_QSTA_TIMEOUT = 39,
++	WLAN_REASON_QSTA_CIPHER_NOT_SUPP = 45,
+ };
+ 
+ 
+@@ -319,6 +428,15 @@
+ 	WLAN_EID_HP_PARAMS = 8,
+ 	WLAN_EID_HP_TABLE = 9,
+ 	WLAN_EID_REQUEST = 10,
++	/* 802.11e */
++	WLAN_EID_QBSS_LOAD = 11,
++	WLAN_EID_EDCA_PARAM_SET = 12,
++	WLAN_EID_TSPEC = 13,
++	WLAN_EID_TCLAS = 14,
++	WLAN_EID_SCHEDULE = 15,
++	WLAN_EID_TS_DELAY = 43,
++	WLAN_EID_TCLAS_PROCESSING = 44,
++	WLAN_EID_QOS_CAPA = 46,
+ 	/* 802.11h */
+ 	WLAN_EID_PWR_CONSTRAINT = 32,
+ 	WLAN_EID_PWR_CAPABILITY = 33,
+@@ -333,6 +451,9 @@
+ 	/* 802.11g */
+ 	WLAN_EID_ERP_INFO = 42,
+ 	WLAN_EID_EXT_SUPP_RATES = 50,
++	/* 802.11n */
++	WLAN_EID_HT_CAPABILITY = 45,
++	WLAN_EID_HT_EXTRA_INFO = 61,
+ 	/* 802.11i */
+ 	WLAN_EID_RSN = 48,
+ 	WLAN_EID_WPA = 221,
+@@ -341,6 +462,32 @@
+ 	WLAN_EID_QOS_PARAMETER = 222
+ };
+ 
++/* Action category code */
++enum ieee80211_category {
++	WLAN_CATEGORY_SPECTRUM_MGMT = 0,
++	WLAN_CATEGORY_QOS = 1,
++	WLAN_CATEGORY_DLS = 2,
++	WLAN_CATEGORY_BACK = 3,
++	WLAN_CATEGORY_WMM = 17,
++};
++
++/* BACK action code */
++enum ieee80211_back_actioncode {
++	WLAN_ACTION_ADDBA_REQ = 0,
++	WLAN_ACTION_ADDBA_RESP = 1,
++	WLAN_ACTION_DELBA = 2,
++};
++
++/* BACK (block-ack) parties */
++enum ieee80211_back_parties {
++	WLAN_BACK_RECIPIENT = 0,
++	WLAN_BACK_INITIATOR = 1,
++	WLAN_BACK_TIMER = 2,
++};
++
++/* A-MSDU 802.11n */
++#define IEEE80211_QOS_CONTROL_A_MSDU_PRESENT 0x0080
++
+ /* cipher suite selectors */
+ #define WLAN_CIPHER_SUITE_USE_GROUP	0x000FAC00
+ #define WLAN_CIPHER_SUITE_WEP40		0x000FAC01
+--- linux-2.6.24.1/include/linux/nl80211.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/nl80211.h	2008-06-09 11:27:19.000000000 -0700
+@@ -7,6 +7,18 @@
+  */
+ 
+ /**
++ * DOC: Station handling
++ *
++ * Stations are added per interface, but a special case exists with VLAN
++ * interfaces. When a station is bound to an AP interface, it may be moved
++ * into a VLAN identified by a VLAN interface index (%NL80211_ATTR_STA_VLAN).
++ * The station is still assumed to belong to the AP interface it was added
++ * to.
++ *
++ * TODO: need more info?
++ */
++
++/**
+  * enum nl80211_commands - supported nl80211 commands
+  *
+  * @NL80211_CMD_UNSPEC: unspecified command to catch errors
+@@ -37,6 +49,35 @@
+  *	userspace to request deletion of a virtual interface, then requires
+  *	attribute %NL80211_ATTR_IFINDEX.
+  *
++ * @NL80211_CMD_GET_KEY: Get sequence counter information for a key specified
++ *	by %NL80211_ATTR_KEY_IDX and/or %NL80211_ATTR_MAC.
++ * @NL80211_CMD_SET_KEY: Set key attributes %NL80211_ATTR_KEY_DEFAULT or
++ *	%NL80211_ATTR_KEY_THRESHOLD.
++ * @NL80211_CMD_NEW_KEY: add a key with given %NL80211_ATTR_KEY_DATA,
++ *	%NL80211_ATTR_KEY_IDX, %NL80211_ATTR_MAC and %NL80211_ATTR_KEY_CIPHER
++ *	attributes.
++ * @NL80211_CMD_DEL_KEY: delete a key identified by %NL80211_ATTR_KEY_IDX
++ *	or %NL80211_ATTR_MAC.
++ *
++ * @NL80211_CMD_GET_BEACON: retrieve beacon information (returned in a
++ *	%NL80222_CMD_NEW_BEACON message)
++ * @NL80211_CMD_SET_BEACON: set the beacon on an access point interface
++ *	using the %NL80211_ATTR_BEACON_INTERVAL, %NL80211_ATTR_DTIM_PERIOD,
++ *	%NL80211_BEACON_HEAD and %NL80211_BEACON_TAIL attributes.
++ * @NL80211_CMD_NEW_BEACON: add a new beacon to an access point interface,
++ *	parameters are like for %NL80211_CMD_SET_BEACON.
++ * @NL80211_CMD_DEL_BEACON: remove the beacon, stop sending it
++ *
++ * @NL80211_CMD_GET_STATION: Get station attributes for station identified by
++ *	%NL80211_ATTR_MAC on the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_SET_STATION: Set station attributes for station identified by
++ *	%NL80211_ATTR_MAC on the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_NEW_STATION: Add a station with given attributes to the
++ *	the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_DEL_STATION: Remove a station identified by %NL80211_ATTR_MAC
++ *	or, if no MAC address given, all stations, on the interface identified
++ *	by %NL80211_ATTR_IFINDEX.
++ *
+  * @NL80211_CMD_MAX: highest used command number
+  * @__NL80211_CMD_AFTER_LAST: internal use
+  */
+@@ -54,6 +95,21 @@
+ 	NL80211_CMD_NEW_INTERFACE,
+ 	NL80211_CMD_DEL_INTERFACE,
+ 
++	NL80211_CMD_GET_KEY,
++	NL80211_CMD_SET_KEY,
++	NL80211_CMD_NEW_KEY,
++	NL80211_CMD_DEL_KEY,
++
++	NL80211_CMD_GET_BEACON,
++	NL80211_CMD_SET_BEACON,
++	NL80211_CMD_NEW_BEACON,
++	NL80211_CMD_DEL_BEACON,
++
++	NL80211_CMD_GET_STATION,
++	NL80211_CMD_SET_STATION,
++	NL80211_CMD_NEW_STATION,
++	NL80211_CMD_DEL_STATION,
++
+ 	/* add commands here */
+ 
+ 	/* used to define NL80211_CMD_MAX below */
+@@ -75,6 +131,36 @@
+  * @NL80211_ATTR_IFNAME: network interface name
+  * @NL80211_ATTR_IFTYPE: type of virtual interface, see &enum nl80211_iftype
+  *
++ * @NL80211_ATTR_MAC: MAC address (various uses)
++ *
++ * @NL80211_ATTR_KEY_DATA: (temporal) key data; for TKIP this consists of
++ *	16 bytes encryption key followed by 8 bytes each for TX and RX MIC
++ *	keys
++ * @NL80211_ATTR_KEY_IDX: key ID (u8, 0-3)
++ * @NL80211_ATTR_KEY_CIPHER: key cipher suite (u32, as defined by IEEE 802.11
++ *	section 7.3.2.25.1, e.g. 0x000FAC04)
++ * @NL80211_ATTR_KEY_SEQ: transmit key sequence number (IV/PN) for TKIP and
++ *	CCMP keys, each six bytes in little endian
++ *
++ * @NL80211_ATTR_BEACON_INTERVAL: beacon interval in TU
++ * @NL80211_ATTR_DTIM_PERIOD: DTIM period for beaconing
++ * @NL80211_ATTR_BEACON_HEAD: portion of the beacon before the TIM IE
++ * @NL80211_ATTR_BEACON_TAIL: portion of the beacon after the TIM IE
++ *
++ * @NL80211_ATTR_STA_AID: Association ID for the station (u16)
++ * @NL80211_ATTR_STA_FLAGS: flags, nested element with NLA_FLAG attributes of
++ *	&enum nl80211_sta_flags.
++ * @NL80211_ATTR_STA_LISTEN_INTERVAL: listen interval as defined by
++ *	IEEE 802.11 7.3.1.6 (u16).
++ * @NL80211_ATTR_STA_SUPPORTED_RATES: supported rates, array of supported
++ *	rates as defined by IEEE 802.11 7.3.2.2 but without the length
++ *	restriction (at most %NL80211_MAX_SUPP_RATES).
++ * @NL80211_ATTR_STA_VLAN: interface index of VLAN interface to move station
++ *	to, or the AP interface the station was originally added to to.
++ * @NL80211_ATTR_STA_STATS: statistics for a station, part of station info
++ *	given for %NL80211_CMD_GET_STATION, nested attribute containing
++ *	info as possible, see &enum nl80211_sta_stats.
++ *
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+  * @__NL80211_ATTR_AFTER_LAST: internal use
+  */
+@@ -89,12 +175,34 @@
+ 	NL80211_ATTR_IFNAME,
+ 	NL80211_ATTR_IFTYPE,
+ 
++	NL80211_ATTR_MAC,
++
++	NL80211_ATTR_KEY_DATA,
++	NL80211_ATTR_KEY_IDX,
++	NL80211_ATTR_KEY_CIPHER,
++	NL80211_ATTR_KEY_SEQ,
++	NL80211_ATTR_KEY_DEFAULT,
++
++	NL80211_ATTR_BEACON_INTERVAL,
++	NL80211_ATTR_DTIM_PERIOD,
++	NL80211_ATTR_BEACON_HEAD,
++	NL80211_ATTR_BEACON_TAIL,
++
++	NL80211_ATTR_STA_AID,
++	NL80211_ATTR_STA_FLAGS,
++	NL80211_ATTR_STA_LISTEN_INTERVAL,
++	NL80211_ATTR_STA_SUPPORTED_RATES,
++	NL80211_ATTR_STA_VLAN,
++	NL80211_ATTR_STA_STATS,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	__NL80211_ATTR_AFTER_LAST,
+ 	NL80211_ATTR_MAX = __NL80211_ATTR_AFTER_LAST - 1
+ };
+ 
++#define NL80211_MAX_SUPP_RATES	32
++
+ /**
+  * enum nl80211_iftype - (virtual) interface types
+  *
+@@ -126,4 +234,50 @@
+ 	NL80211_IFTYPE_MAX = __NL80211_IFTYPE_AFTER_LAST - 1
+ };
+ 
++/**
++ * enum nl80211_sta_flags - station flags
++ *
++ * Station flags. When a station is added to an AP interface, it is
++ * assumed to be already associated (and hence authenticated.)
++ *
++ * @NL80211_STA_FLAG_AUTHORIZED: station is authorized (802.1X)
++ * @NL80211_STA_FLAG_SHORT_PREAMBLE: station is capable of receiving frames
++ *	with short barker preamble
++ * @NL80211_STA_FLAG_WME: station is WME/QoS capable
++ */
++enum nl80211_sta_flags {
++	__NL80211_STA_FLAG_INVALID,
++	NL80211_STA_FLAG_AUTHORIZED,
++	NL80211_STA_FLAG_SHORT_PREAMBLE,
++	NL80211_STA_FLAG_WME,
++
++	/* keep last */
++	__NL80211_STA_FLAG_AFTER_LAST,
++	NL80211_STA_FLAG_MAX = __NL80211_STA_FLAG_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_sta_stats - station statistics
++ *
++ * These attribute types are used with %NL80211_ATTR_STA_STATS
++ * when getting information about a station.
++ *
++ * @__NL80211_STA_STAT_INVALID: attribute number 0 is reserved
++ * @NL80211_STA_STAT_INACTIVE_TIME: time since last activity (u32, msecs)
++ * @NL80211_STA_STAT_RX_BYTES: total received bytes (u32, from this station)
++ * @NL80211_STA_STAT_TX_BYTES: total transmitted bytes (u32, to this station)
++ * @__NL80211_STA_STAT_AFTER_LAST: internal
++ * @NL80211_STA_STAT_MAX: highest possible station stats attribute
++ */
++enum nl80211_sta_stats {
++	__NL80211_STA_STAT_INVALID,
++	NL80211_STA_STAT_INACTIVE_TIME,
++	NL80211_STA_STAT_RX_BYTES,
++	NL80211_STA_STAT_TX_BYTES,
++
++	/* keep last */
++	__NL80211_STA_STAT_AFTER_LAST,
++	NL80211_STA_STAT_MAX = __NL80211_STA_STAT_AFTER_LAST - 1
++};
++
+ #endif /* __LINUX_NL80211_H */
+--- linux-2.6.24.1/include/net/cfg80211.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/net/cfg80211.h	2008-06-09 11:27:19.000000000 -0700
+@@ -49,6 +49,120 @@
+    struct ieee80211_radiotap_iterator *iterator);
+ 
+ 
++ /**
++ * struct key_params - key information
++ *
++ * Information about a key
++ *
++ * @key: key material
++ * @key_len: length of key material
++ * @cipher: cipher suite selector
++ * @seq: sequence counter (IV/PN) for TKIP and CCMP keys, only used
++ *	with the get_key() callback, must be in little endian,
++ *	length given by @seq_len.
++ */
++struct key_params {
++	u8 *key;
++	u8 *seq;
++	int key_len;
++	int seq_len;
++	u32 cipher;
++};
++
++/**
++ * struct beacon_parameters - beacon parameters
++ *
++ * Used to configure the beacon for an interface.
++ *
++ * @head: head portion of beacon (before TIM IE)
++ *     or %NULL if not changed
++ * @tail: tail portion of beacon (after TIM IE)
++ *     or %NULL if not changed
++ * @interval: beacon interval or zero if not changed
++ * @dtim_period: DTIM period or zero if not changed
++ * @head_len: length of @head
++ * @tail_len: length of @tail
++ */
++struct beacon_parameters {
++	u8 *head, *tail;
++	int interval, dtim_period;
++	int head_len, tail_len;
++};
++
++/**
++ * enum station_flags - station flags
++ *
++ * Station capability flags. Note that these must be the bits
++ * according to the nl80211 flags.
++ *
++ * @STATION_FLAG_CHANGED: station flags were changed
++ * @STATION_FLAG_AUTHORIZED: station is authorized to send frames (802.1X)
++ * @STATION_FLAG_SHORT_PREAMBLE: station is capable of receiving frames
++ *	with short preambles
++ * @STATION_FLAG_WME: station is WME/QoS capable
++ */
++enum station_flags {
++	STATION_FLAG_CHANGED		= 1<<0,
++	STATION_FLAG_AUTHORIZED		= 1<<NL80211_STA_FLAG_AUTHORIZED,
++	STATION_FLAG_SHORT_PREAMBLE	= 1<<NL80211_STA_FLAG_SHORT_PREAMBLE,
++	STATION_FLAG_WME		= 1<<NL80211_STA_FLAG_WME,
++};
++
++/**
++ * struct station_parameters - station parameters
++ *
++ * Used to change and create a new station.
++ *
++ * @vlan: vlan interface station should belong to
++ * @supported_rates: supported rates in IEEE 802.11 format
++ *	(or NULL for no change)
++ * @supported_rates_len: number of supported rates
++ * @station_flags: station flags (see &enum station_flags)
++ * @listen_interval: listen interval or -1 for no change
++ * @aid: AID or zero for no change
++ */
++struct station_parameters {
++	u8 *supported_rates;
++	struct net_device *vlan;
++	u32 station_flags;
++	int listen_interval;
++	u16 aid;
++	u8 supported_rates_len;
++};
++
++/**
++ * enum station_stats_flags - station statistics flags
++ *
++ * Used by the driver to indicate which info in &struct station_stats
++ * it has filled in during get_station().
++ *
++ * @STATION_STAT_INACTIVE_TIME: @inactive_time filled
++ * @STATION_STAT_RX_BYTES: @rx_bytes filled
++ * @STATION_STAT_TX_BYTES: @tx_bytes filled
++ */
++enum station_stats_flags {
++	STATION_STAT_INACTIVE_TIME	= 1<<0,
++	STATION_STAT_RX_BYTES		= 1<<1,
++	STATION_STAT_TX_BYTES		= 1<<2,
++};
++
++/**
++ * struct station_stats - station statistics
++ *
++ * Station information filled by driver for get_station().
++ *
++ * @filled: bitflag of flags from &enum station_stats_flags
++ * @inactive_time: time since last station activity (tx/rx) in milliseconds
++ * @rx_bytes: bytes received from this station
++ * @tx_bytes: bytes transmitted to this station
++ */
++struct station_stats {
++	u32 filled;
++	u32 inactive_time;
++	u32 rx_bytes;
++	u32 tx_bytes;
++};
++
+ /* from net/wireless.h */
+ struct wiphy;
+ 
+@@ -71,6 +185,31 @@
+  *
+  * @change_virtual_intf: change type of virtual interface
+  *
++ * @add_key: add a key with the given parameters. @mac_addr will be %NULL
++ *	when adding a group key.
++ *
++ * @get_key: get information about the key with the given parameters.
++ *	@mac_addr will be %NULL when requesting information for a group
++ *	key. All pointers given to the @callback function need not be valid
++ *	after it returns.
++ *
++ * @del_key: remove a key given the @mac_addr (%NULL for a group key)
++ *	and @key_index
++ *
++ * @set_default_key: set the default key on an interface
++ *
++ * @add_beacon: Add a beacon with given parameters, @head, @interval
++ *	and @dtim_period will be valid, @tail is optional.
++ * @set_beacon: Change the beacon parameters for an access point mode
++ *	interface. This should reject the call when no beacon has been
++ *	configured.
++ * @del_beacon: Remove beacon configuration and stop sending the beacon.
++ *
++ * @add_station: Add a new station.
++ *
++ * @del_station: Remove a station; @mac may be NULL to remove all stations.
++ *
++ * @change_station: Modify a given station.
+  */
+ struct cfg80211_ops {
+ 	int	(*add_virtual_intf)(struct wiphy *wiphy, char *name,
+@@ -78,6 +217,34 @@
+ 	int	(*del_virtual_intf)(struct wiphy *wiphy, int ifindex);
+ 	int	(*change_virtual_intf)(struct wiphy *wiphy, int ifindex,
+ 				       enum nl80211_iftype type);
++
++	int	(*add_key)(struct wiphy *wiphy, struct net_device *netdev,
++			   u8 key_index, u8 *mac_addr,
++			   struct key_params *params);
++	int	(*get_key)(struct wiphy *wiphy, struct net_device *netdev,
++			   u8 key_index, u8 *mac_addr, void *cookie,
++			   void (*callback)(void *cookie, struct key_params*));
++	int	(*del_key)(struct wiphy *wiphy, struct net_device *netdev,
++			   u8 key_index, u8 *mac_addr);
++	int	(*set_default_key)(struct wiphy *wiphy,
++				   struct net_device *netdev,
++				   u8 key_index);
++
++	int	(*add_beacon)(struct wiphy *wiphy, struct net_device *dev,
++			      struct beacon_parameters *info);
++	int	(*set_beacon)(struct wiphy *wiphy, struct net_device *dev,
++			      struct beacon_parameters *info);
++	int	(*del_beacon)(struct wiphy *wiphy, struct net_device *dev);
++
++
++	int	(*add_station)(struct wiphy *wiphy, struct net_device *dev,
++			       u8 *mac, struct station_parameters *params);
++	int	(*del_station)(struct wiphy *wiphy, struct net_device *dev,
++			       u8 *mac);
++	int	(*change_station)(struct wiphy *wiphy, struct net_device *dev,
++				  u8 *mac, struct station_parameters *params);
++	int	(*get_station)(struct wiphy *wiphy, struct net_device *dev,
++			       u8 *mac, struct station_stats *stats);
+ };
+ 
+ #endif /* __NET_CFG80211_H */

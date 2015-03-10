@@ -1,0 +1,13 @@
+Index: linux-2.6.20/arch/powerpc/kernel/time.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/time.c	2008-03-05 17:39:20.000000000 -0800
++++ linux-2.6.20/arch/powerpc/kernel/time.c	2008-03-05 17:43:23.000000000 -0800
+@@ -360,7 +360,7 @@
+          * We should have an rtc call that only sets the minutes and
+          * seconds like on Intel to avoid problems with non UTC clocks.
+          */
+-        if (ppc_md.set_rtc_time && ntp_synced() &&
++        if (ppc_md.set_rtc_time && 
+ 	    xtime.tv_sec - last_rtc_update >= 659 &&
+ 	    abs((xtime.tv_nsec/1000) - (1000000-1000000/HZ)) < 500000/HZ) {
+ 		struct rtc_time tm;

@@ -1,0 +1,133 @@
+Index: linux-2.6-denx/drivers/rtc/rtc-ds1307.c
+===================================================================
+--- linux-2.6-denx.orig/drivers/rtc/rtc-ds1307.c
++++ linux-2.6-denx/drivers/rtc/rtc-ds1307.c
+@@ -352,6 +352,41 @@ static struct bin_attribute nvram = {
+ 
+ static struct i2c_driver ds1307_driver;
+ 
++static int m41t00_regs_valid(struct ds1307 *ds1307)
++{
++	int tmp, valid = 1;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_SECS] & 0x7f);
++	if (tmp > 59)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MIN] & 0x7f);
++	if (tmp > 59)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_HOUR] & 0x3f);
++	if (tmp > 23)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_WDAY] & 0x3f);
++	if (tmp == 0 || tmp > 7)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MDAY] & 0x3f);
++	if (tmp == 0 || tmp > 31)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MONTH] & 0x1f);
++	if (tmp == 0 || tmp > 12)
++		valid = 0;
++
++	tmp = BCD2BIN(ds1307->regs[DS1307_REG_YEAR]);
++	if (tmp > 99)
++		valid = 0;
++
++	return valid;
++}
++
+ static int __devinit ds1307_probe(struct i2c_client *client)
+ {
+ 	struct ds1307		*ds1307;
+@@ -359,6 +394,7 @@ static int __devinit ds1307_probe(struct
+ 	int			tmp;
+ 	const struct chip_desc	*chip;
+ 	struct i2c_adapter	*adapter = to_i2c_adapter(client->dev.parent);
++	int			already_reset = false;
+ 
+ 	chip = find_chip(client->name);
+ 	if (!chip) {
+@@ -406,6 +442,8 @@ static int __devinit ds1307_probe(struct
+ 		ds1307->reg_addr = 0;
+ 		ds1307->msg[1].len = sizeof(ds1307->regs);
+ 
++		//mp: Where is the seconf reading? Should be here!!!
++
+ 		/* oscillator off?  turn it on, so clock can tick. */
+ 		if (ds1307->regs[0] & DS1337_BIT_nEOSC)
+ 			i2c_smbus_write_byte_data(client, DS1337_REG_CONTROL,
+@@ -471,21 +509,39 @@ read_rtc:
+ 		break;
+ 	}
+ 
+-	tmp = ds1307->regs[DS1307_REG_SECS];
+-	tmp = BCD2BIN(tmp & 0x7f);
+-	if (tmp > 60)
+-		goto exit_bad;
+-	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MIN] & 0x7f);
+-	if (tmp > 60)
+-		goto exit_bad;
+-
+-	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MDAY] & 0x3f);
+-	if (tmp == 0 || tmp > 31)
+-		goto exit_bad;
+-
+-	tmp = BCD2BIN(ds1307->regs[DS1307_REG_MONTH] & 0x1f);
+-	if (tmp == 0 || tmp > 12)
+-		goto exit_bad;
++	switch (ds1307->type) {
++	case m41t00:
++		// Protect against random initial state on registers.
++		// (after batery replace and first power on ever...)
++		if (!m41t00_regs_valid(ds1307)) {
++			if (already_reset)
++				goto exit_bad;
++			i2c_smbus_write_byte_data(client, DS1307_REG_SECS, 0);
++			i2c_smbus_write_byte_data(client, DS1307_REG_MIN,  0);
++			i2c_smbus_write_byte_data(client, DS1307_REG_HOUR, 0);
++			i2c_smbus_write_byte_data(client, DS1307_REG_WDAY, 7);
++			i2c_smbus_write_byte_data(client, DS1307_REG_MDAY, 1);
++			i2c_smbus_write_byte_data(client, DS1307_REG_MONTH,1);
++			i2c_smbus_write_byte_data(client, DS1307_REG_YEAR, 0);
++			dev_warn(&client->dev, "reset bogus registers, please SET TIME!\n");
++			already_reset = true;
++			goto read_rtc;
++		}
++		break;
++	default:
++		tmp = BCD2BIN(ds1307->regs[DS1307_REG_SECS] & 0x7f);
++		if (tmp > 60)
++			goto exit_bad;
++		tmp = BCD2BIN(ds1307->regs[DS1307_REG_MIN] & 0x7f);
++		if (tmp > 60)
++			goto exit_bad;
++		tmp = BCD2BIN(ds1307->regs[DS1307_REG_MDAY] & 0x3f);
++		if (tmp == 0 || tmp > 31)
++			goto exit_bad;
++		tmp = BCD2BIN(ds1307->regs[DS1307_REG_MONTH] & 0x1f);
++		if (tmp == 0 || tmp > 12)
++			goto exit_bad;
++	}
+ 
+ 	tmp = ds1307->regs[DS1307_REG_HOUR];
+ 	switch (ds1307->type) {
+@@ -494,6 +550,14 @@ read_rtc:
+ 		/* NOTE: ignores century bits; fix before deploying
+ 		 * systems that will run through year 2100.
+ 		 */
++
++		//checking calibration
++		tmp = ds1307->regs[DS1307_REG_CONTROL];
++		if (tmp & 0x1f) {
++			// ACS6000 doesn't use calibration...
++			i2c_smbus_write_byte_data(client, DS1307_REG_CONTROL, tmp & ~0x1f);
++			dev_warn(&client->dev, "reset calibration!\n");
++		}
+ 		break;
+ 	default:
+ 		if (!(tmp & DS1307_BIT_12HR))

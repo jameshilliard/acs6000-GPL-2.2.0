@@ -1,0 +1,20 @@
+Index: dtc/Makefile
+===================================================================
+--- dtc.orig/Makefile	2008-01-24 08:16:07.000000000 -0800
++++ dtc/Makefile	2008-01-28 17:32:39.000000000 -0800
+@@ -22,11 +22,10 @@
+ LEX = flex
+ 
+ INSTALL = /usr/bin/install
+-DESTDIR =
+-PREFIX = $(HOME)
+-BINDIR = $(PREFIX)/bin
+-LIBDIR = $(PREFIX)/lib
+-INCLUDEDIR = $(PREFIX)/include
++#DESTDIR =
++BINDIR = /bin
++LIBDIR = /lib
++INCLUDEDIR = /include
+ 
+ #
+ # Overall rules

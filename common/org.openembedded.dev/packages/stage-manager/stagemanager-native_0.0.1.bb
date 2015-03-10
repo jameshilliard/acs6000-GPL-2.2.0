@@ -1,0 +1,21 @@
+DESCRIPTION = "Helper script for packaged-staging.bbclass"
+PR = "r1"
+
+SRC_URI = "file://stage-manager"
+LICENSE = "GPLv2"
+
+PACKAGE_ARCH = "all"
+
+inherit native
+
+DEPENDS = " "
+PACKAGE_DEPENDS = " "
+PATCHTOOL = ""
+INHIBIT_DEFAULT_DEPS = "1"
+
+STAGEMAN = "${WORKDIR}/stage-manager"
+
+do_stage () {
+	install -d ${STAGING_BINDIR}
+	install -m 0755 ${WORKDIR}/stage-manager ${STAGING_BINDIR}
+}

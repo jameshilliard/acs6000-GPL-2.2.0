@@ -1,0 +1,29 @@
+Index: linux-2.6.denx/drivers/serial/8250_pci.c
+===================================================================
+--- linux-2.6.denx.orig/drivers/serial/8250_pci.c	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.denx/drivers/serial/8250_pci.c	2007-07-27 09:01:47.000000000 -0700
+@@ -31,7 +31,7 @@
+ 
+ #include "8250.h"
+ 
+-#undef SERIAL_DEBUG_PCI
++//#define SERIAL_DEBUG_PCI
+ 
+ /*
+  * init function returns:
+@@ -2278,6 +2278,15 @@
+ 	{	PCI_VENDOR_ID_XIRCOM, PCI_DEVICE_ID_XIRCOM_RBM56G,
+ 		PCI_ANY_ID, PCI_ANY_ID, 0, 0,
+ 		pbn_b0_1_115200 },
++	/*
++	 * Xircom [C|R]BEM56G cardbus modem - Dirk Arnold (temp entry)
++	 */
++	{	PCI_VENDOR_ID_XIRCOM, 0x0103,
++		PCI_ANY_ID, PCI_ANY_ID, 0, 0,
++		pbn_b0_1_115200 },
++	{	0x14E4, 0x4344,
++		PCI_ANY_ID, PCI_ANY_ID, 0, 0,
++		pbn_b0_1_115200 },
+ 
+ 	/*
+ 	 * Untested PCI modems, sent in from various folks...

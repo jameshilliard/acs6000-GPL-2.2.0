@@ -1,0 +1,99 @@
+Index: u-boot-1.2.0/cpu/ppc4xx/cpu.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/cpu.c
++++ u-boot-1.2.0/cpu/ppc4xx/cpu.c
+@@ -489,6 +489,7 @@ watchdog_reset(void)
+ 	if (re_enable) enable_interrupts();
+ }
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ void
+ reset_4xx_watchdog(void)
+ {
+@@ -497,4 +498,37 @@ reset_4xx_watchdog(void)
+ 	 */
+ 	mtspr(tsr, 0x40000000);
+ }
++#else
++static unsigned char watchdog_enable = 0;
++void
++reset_4xx_watchdog(void)
++{
++	if (watchdog_enable) {
++		mtspr(TSR, TSR_ENW | TSR_WIS);
++	}
++}
++
++void
++start_4xx_watchdog(void)
++{
++	unsigned long val;
++
++	mtspr(TSR, TSR_ENW | TSR_WIS);
++
++	val = mfspr(TCR);
++#if defined(CONFIG_440EP) || defined(CONFIG_440GR)
++	val |= 0xb8000000;      /* generate system reset after 1.34 seconds */
++#else
++	val |= 0xb0000000;      /* generate system reset after 2.684 seconds */
++#endif
++#if defined(CFG_4xx_RESET_TYPE)
++	val &= ~0x30000000;			/* clear WRC bits */
++	val |= CFG_4xx_RESET_TYPE << 28;	/* set board specific WRC type */
++#endif
++	mtspr(TCR, val);
++
++	watchdog_enable = 1;
++}
++#endif
++
+ #endif	/* CONFIG_WATCHDOG */
+Index: u-boot-1.2.0/cpu/ppc4xx/cpu_init.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/cpu_init.c
++++ u-boot-1.2.0/cpu/ppc4xx/cpu_init.c
+@@ -309,6 +309,7 @@ cpu_init_f (void)
+ 	mtebc(pb7cr, CFG_EBC_PB7CR);
+ #endif
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ #if defined(CONFIG_WATCHDOG)
+ 	unsigned long val;
+ 
+@@ -330,6 +331,7 @@ cpu_init_f (void)
+ 
+ 	reset_4xx_watchdog();
+ #endif /* CONFIG_WATCHDOG */
++#endif
+ }
+ 
+ /*
+Index: u-boot-1.2.0/lib_ppc/board.c
+===================================================================
+--- u-boot-1.2.0.orig/lib_ppc/board.c
++++ u-boot-1.2.0/lib_ppc/board.c
+@@ -244,8 +244,10 @@ static int init_func_i2c (void)
+ #if defined(CONFIG_WATCHDOG)
+ static int init_func_watchdog_init (void)
+ {
++#ifndef CONFIG_4xx
+ 	puts ("       Watchdog enabled\n");
+ 	WATCHDOG_RESET ();
++#endif
+ 	return (0);
+ }
+ # define INIT_FUNC_WATCHDOG_INIT	init_func_watchdog_init,
+Index: u-boot-1.2.0/board/avocent/gsp/gsp-config.c
+===================================================================
+--- u-boot-1.2.0.orig/board/avocent/gsp/gsp-config.c
++++ u-boot-1.2.0/board/avocent/gsp/gsp-config.c
+@@ -26,6 +26,9 @@ int gsp_config_wdt(void)
+ 	}
+ 	if (bd->wdt) {
+ 		puts ("       Watchdog enabled\n");
++#ifdef CONFIG_4xx
++		start_4xx_watchdog();
++#endif
+ 	}
+ #endif
+ 	return set;

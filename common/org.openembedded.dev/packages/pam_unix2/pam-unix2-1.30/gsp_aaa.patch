@@ -1,0 +1,161 @@
+Index: pam_unix2-1.30/src/unix_passwd.c
+===================================================================
+--- pam_unix2-1.30.orig/src/unix_passwd.c
++++ pam_unix2-1.30/src/unix_passwd.c
+@@ -187,17 +187,17 @@ pam_sm_chauthtok (pam_handle_t *pamh, in
+ 
+   /* Now we have all the initial information we need from the app to
+      set things up (we assume that getting the username succeeded...) */
+-  if ((flags & PAM_CHANGE_EXPIRED_AUTHTOK) || getuid () != 0)
++  if ((flags & PAM_ENFORCE_PASSWORD_STRENGTH) || (flags & PAM_CHANGE_EXPIRED_AUTHTOK) || getuid () != 0)
+     {
+       if (data->is_tooearly)
+ 	{
+ 	  if (data->use_hp_aging)
+ 	    __write_message (pamh, flags, PAM_TEXT_INFO,
+-			     _("Less then %d weeks since the last change."),
++			     _("Less than %d weeks since the last change."),
+ 			     data->hp_week);
+ 	  else
+ 	    __write_message (pamh, flags, PAM_TEXT_INFO,
+-			     _("Less then %d days since the last change."),
++			     _("Less than %d days since the last change."),
+ 			     data->spw.sp_min);
+ 	  free_user_t (data);
+ 	  return PAM_AUTHTOK_ERR;
+@@ -240,6 +240,7 @@ pam_sm_chauthtok (pam_handle_t *pamh, in
+ 	 If we are a NIS user, but called by root for on the
+ 	 master, change local password with query, too.  */
+       if (getuid () || (flags & PAM_CHANGE_EXPIRED_AUTHTOK) ||
++	  (flags & PAM_ENFORCE_PASSWORD_STRENGTH) ||
+ 	  (data->service != S_LOCAL &&
+ 	   !(data->service == S_YP && options.nisdir != NULL )))
+ 	{
+@@ -286,7 +287,12 @@ pam_sm_chauthtok (pam_handle_t *pamh, in
+ 	      free_user_t (data);
+ 	      return PAM_AUTH_ERR;
+ 	    }
++	}
++      else
++	oldpass = "";
++    }
+ 
++	if (oldpass && *oldpass) {
+ 	  if (strcmp (data->oldpassword,
+ 		      crypt_r (oldpass, data->oldpassword, &output)) != 0)
+ 	    {
+@@ -301,9 +307,6 @@ pam_sm_chauthtok (pam_handle_t *pamh, in
+ 	  if (!options.not_set_pass)
+ 	    pam_set_item (pamh, PAM_OLDAUTHTOK, (void *) oldpass);
+ 	}
+-      else
+-	oldpass = "";
+-    }
+ 
+   /* create a copy which we can give free later */
+   data->oldclearpwd = strdup (oldpass);
+@@ -515,13 +518,24 @@ make_crypt_salt (const char *crypt_prefi
+ #define ascii_to_bin(c) ((c)>='a'?(c-59):(c)>='A'?((c)-53):(c)-'.')
+ #define bin_to_ascii(c) ((c)>=38?((c)-38+'a'):(c)>=12?((c)-12+'A'):(c)+'.')
+ 
++//[RK]Sep/22/05 - included the crypt_prefix in the salt
++
+   time_t tm;
+-  char salt[3];
++  char salt[16];
++  int x;
++
++  strcpy(salt,crypt_prefix);
++
++  x = strlen(salt);
+ 
+   time (&tm);
+-  salt[0] = bin_to_ascii(tm & 0x3f);
+-  salt[1] = bin_to_ascii((tm >> 6) & 0x3f);
+-  salt[2] = '\0';
++  salt[x] = bin_to_ascii(tm & 0x3f);
++  salt[x+1] = bin_to_ascii((tm >> 6) & 0x3f);
++  if (x == 3) {
++     salt[x+2] = '$';
++     x++;
++  }
++  salt[x+2] = '\0';
+ 
+   return strdup (salt);
+ #endif
+Index: pam_unix2-1.30/src/get_options.c
+===================================================================
+--- pam_unix2-1.30.orig/src/get_options.c
++++ pam_unix2-1.30/src/get_options.c
+@@ -76,51 +76,51 @@ parse_option (pam_handle_t *pamh, const 
+     options->secrpc_flag = 1;
+   else if (strcasecmp (argv, "md5") == 0)
+     {
+-      pam_syslog (pamh, LOG_DEBUG,
+-		  "md5 option is obsolete, please use /etc/default/passwd");
++      //pam_syslog (pamh, LOG_DEBUG,
++	//	  "md5 option is obsolete, please use /etc/default/passwd");
+       options->use_crypt = MD5;
+     }
+   else if (strcasecmp (argv, "bigcrypt") == 0)
+     {
+-      pam_syslog (pamh, LOG_DEBUG,
+-	     "bigcrypt option is obsolete, please use /etc/default/passwd");
++      //pam_syslog (pamh, LOG_DEBUG,
++	 //    "bigcrypt option is obsolete, please use /etc/default/passwd");
+ #if defined(HAVE_BIGCRYPT)
+       options->use_crypt = BIGCRYPT;
+-#else
+-      pam_syslog (pamh, LOG_ERR, "No bigcrypt support compiled in");
++//#else
++//      pam_syslog (pamh, LOG_ERR, "No bigcrypt support compiled in");
+ #endif
+     }
+   else if (strcasecmp (argv, "bf") == 0 ||
+ 	   strcasecmp (argv, "blowfish") == 0)
+     {
+-      pam_syslog (pamh, LOG_DEBUG,
+-	     "blowfish option is obsolete, please use /etc/default/passwd");
++      //pam_syslog (pamh, LOG_DEBUG,
++	    // "blowfish option is obsolete, please use /etc/default/passwd");
+ #if defined(HAVE_CRYPT_GENSALT_RN)
+       options->use_crypt = BLOWFISH;
+-#else
+-      pam_syslog (pamh, LOG_ERR, "No blowfish support compiled in");
++//#else
++//      pam_syslog (pamh, LOG_ERR, "No blowfish support compiled in");
+ #endif
+     }
+   else if (strncasecmp (argv, "rounds=", 7) == 0)
+     {
+-      pam_syslog (pamh, LOG_DEBUG,
+-		  "rounds option is obsolete, please use /etc/default/passwd");
++//      pam_syslog (pamh, LOG_DEBUG,
++//		  "rounds option is obsolete, please use /etc/default/passwd");
+ #if defined(HAVE_CRYPT_GENSALT_RN)
+       options->crypt_rounds = atoi (&argv[7]);
+-#else
+-      pam_syslog (pamh, LOG_ERR,
+-		  "Option \"%s\": No blowfish support compiled in",
+-		  argv);
++//#else
++//      pam_syslog (pamh, LOG_ERR,
++//		  "Option \"%s\": No blowfish support compiled in",
++//		  argv);
+ #endif
+     }
+   else if (strncasecmp (argv, "crypt_rounds=", 13) == 0)
+     {
+ #if defined(HAVE_CRYPT_GENSALT_RN)
+       options->crypt_rounds = atoi (&argv[13]);
+-#else
+-      pam_syslog (pamh, LOG_ERR,
+-		  "Option \"%s\": No blowfish support compiled in",
+-		  argv);
++//#else
++ //     pam_syslog (pamh, LOG_ERR,
++//		  "Option \"%s\": No blowfish support compiled in",
++//		  argv);
+ #endif
+     }
+   else if (strncasecmp (argv, "nisdir=", 7) == 0)

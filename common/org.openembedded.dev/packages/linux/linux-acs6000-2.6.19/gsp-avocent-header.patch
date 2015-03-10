@@ -1,0 +1,122 @@
+Index: linux-2.6.19/arch/ppc/boot/images/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/boot/images/Makefile
++++ linux-2.6.19/arch/ppc/boot/images/Makefile
+@@ -3,6 +3,8 @@
+ # Tom Rini	January 2001
+ 
+ MKIMAGE		:= $(srctree)/scripts/mkuboot.sh
++MKAVOKERNEL	:= $(srctree)/scripts/mkavokernel.sh
++MKAVOIMAGE	:= $(srctree)/scripts/mkavoimage.sh
+ 
+ extra-y		:= vmlinux.bin vmlinux.gz
+ 
+@@ -43,5 +45,26 @@ $(obj)/uImage.initrd: $(obj)/vmlinux.gz 
+ 	@echo -n '  Image: $@ '
+ 	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
+ 
++quiet_cmd_avoimage = AVOIMAGE  $@
++      cmd_avoimage = $(CONFIG_SHELL) $(MKAVOKERNEL) $< $@
++
++targets += avoImage
++$(obj)/avoImage: $(obj)/vmlinux.gz
++	$(Q)rm -f $@
++	$(call cmd,avoimage)
++	@echo -n '  Image: $@ '
++	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
++
++quiet_cmd_avoimage.initrd = AVOIMAGE.INITRD  $@
++	cmd_avoimage.initrd = $(CONFIG_SHELL) $(MKAVOIMAGE) $< \
++		$(obj)/ramdisk.image.gz $(obj)/u-boot.bin $@ $(obj)/header
++
++targets += avoImage.initrd
++$(obj)/avoImage.initrd: $(obj)/vmlinux.gz $(obj)/ramdisk.image.gz $(obj)/u-boot.bin $(obj)/header
++	$(Q)rm -f $@
++	$(call if_changed,avoimage.initrd)
++	@echo -n '  Image: $@ '
++	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
++
+ # Files generated that shall be removed upon make clean
+-clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage*
++clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage* avoImage*
+Index: linux-2.6.19/scripts/mkavokernel.sh
+===================================================================
+--- /dev/null
++++ linux-2.6.19/scripts/mkavokernel.sh
+@@ -0,0 +1,16 @@
++#!/bin/bash
++
++#
++# Build Avocent-encapsulated kernel when `kernelhdr' tool is available.
++#
++
++MKAVOKERNEL=$(type -path kernelhdr)
++
++if [ -z "${MKAVOKERNEL}" ]; then
++	# Doesn't exist
++	echo '"kernelhdr" command not found - U-Boot images will not be built' >&2
++	exit 0;
++fi
++
++# Call "mkimage" to create U-Boot image
++${MKAVOKERNEL} "$@"
+Index: linux-2.6.19/scripts/mkavoimage.sh
+===================================================================
+--- /dev/null
++++ linux-2.6.19/scripts/mkavoimage.sh
+@@ -0,0 +1,25 @@
++#!/bin/bash
++
++#
++# Build U-Boot image when `mkimage' tool is available.
++#
++
++MKAVOIMAGE=$(type -path flash2x)
++
++if [ -z "${MKAVOIMAGE}" ]; then
++	# Doesn't exist
++	echo '"flash2x" command not found - Avocent image will not be built' >&2
++	exit 0;
++fi
++
++# Build the command file
++CMDFILE=cmdfile
++echo K $1 > ${CMDFILE}
++echo F $2 >> ${CMDFILE}
++echo R $3 >> ${CMDFILE}
++echo O $4 >> ${CMDFILE}
++cat $5 >> ${CMDFILE}
++
++${MKAVOIMAGE} ${CMDFILE}
++
++#rm -f ${CMDFILE}
+Index: linux-2.6.19/arch/ppc/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/Makefile
++++ linux-2.6.19/arch/ppc/Makefile
+@@ -80,7 +80,7 @@ BOOT_TARGETS = zImage zImage.initrd znet
+ 
+ PHONY += $(BOOT_TARGETS)
+ 
+-all: uImage zImage
++all: uImage avoImage zImage
+ 
+ CPPFLAGS_vmlinux.lds	:= -Upowerpc
+ 
+@@ -98,9 +98,16 @@ uImage: vmlinux
+ uImage.initrd:
+ 	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
+ 
++avoImage: vmlinux
++	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
++
++avoImage.initrd:
++	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
++
+ define archhelp
+   @echo '* zImage          - Compressed kernel image (arch/$(ARCH)/boot/images/zImage.*)'
+   @echo '  uImage          - Create a bootable image for U-Boot / PPCBoot'
++  @echo '  avoImage        - Create an Avocent bootable image'
+   @echo '  install         - Install kernel using'
+   @echo '                    (your) ~/bin/installkernel or'
+   @echo '                    (distribution) /sbin/installkernel or'

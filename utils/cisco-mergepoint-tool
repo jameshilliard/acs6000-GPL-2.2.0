@@ -1,0 +1,177 @@
+#!/bin/env python
+# Descriptions : Cisco Systems Install Tools
+# Lynn.Lin@avocent.com
+#
+import shutil,re,os,sys, optparse, string, copy
+
+class Packages (object):
+    def __init__(self, fn = "Packages"): 
+        self.map = {}
+        self._map = {}
+        try:
+            fh = open (fn, "r")
+        except OSError:
+            sys.stderr.write ( "cannot open %s\n" % fn)
+            sys.exit(1)
+        
+        pn = ""
+        for line in fh.readlines ():
+            line = line.strip (' \n')
+            # end of package
+            if not line:
+                pn = ""
+                continue
+
+            # invalid line
+            if not ':' in line:
+                continue
+
+            var, val = line.split (':', 1)
+            var = var.strip()
+            val = val.strip()
+            if var == "Package":
+                pn = val
+                self.map[val] = {} 
+                self.map[val]['pn'] = val
+            elif not pn:
+                continue
+            else:
+                self.map[pn][var] = val
+
+        fh.close ()
+        for pkg in self.map.keys():
+            self.convert (pkg)
+
+        self._map = copy.deepcopy (self.map)
+
+
+    def set (self, pkg, deps = []):
+        self.map[pkg] = {}
+        self.map[pkg]['pn'] = pkg
+        self.map[pkg]['deps'] = deps
+        self.map[pkg]['Depends'] = string.join (deps, ", ")
+
+    def convert (self, x):
+        deps = []
+        if not self.map[x].has_key('deps'):
+            self.map[x]['deps'] = []
+            if self.map[x].has_key('Depends'):
+                deps = self.map[x]['Depends'].split(',')
+                deps = [f.strip() for f in deps]
+                for dep in deps:
+                    dep=dep.split()[0] 
+                    if self.map.has_key(dep):
+                        self.map[x]['deps'].append (dep)
+            else:
+                self.map[x]['deps'] = []
+
+
+        
+    def _tred (self, pn, li = [], cyclic = []):
+        for dep in self.map[pn]['deps']:
+            if not self.map.has_key(dep):
+                self.map[pn]['deps'].remove (dep)
+            elif dep in cyclic:
+                sys.stderr.write ("Warning: cyclic loop dependency detected: %s->%s\n" % (pn, dep))
+                self.map[pn]['deps'].remove (dep)
+            elif self._tred (dep, li, cyclic + [pn]):
+                self.map[pn]['deps'].remove (dep)
+
+        if not self.map[pn]['deps']:
+            del self.map[pn]
+            li.append (pn)
+            return True
+        else:
+            return False
+    def tred (self, pn, default_deps = []):
+        li = []
+        if not self.map.has_key(pn):
+            self.set (pn, default_deps)
+        while not self._tred (pn,li): True
+#        li.pop ()
+
+        self.map = copy.deepcopy (self._map)
+        return li 
+
+def list_installed_package () :
+	fp = os.popen('ipkg-cl list_installed')
+	installed_package = []
+	m = re.compile (r'''^(\S+)\s+-\s+(\S+)\s+-''')
+	for line in fp.readlines () :
+		match = m.match (line)
+		if not match:
+			continue
+		installed_package.append(match.group(1))
+	del m
+	fp.close()
+	return installed_package
+
+def pre_install() :
+	if os.access('/bin/gpasswd',os.F_OK):
+		return 0
+        else :
+		os.system('tar -xzf tools.tar.gz -C /')
+		os.system('cp -v /etc/passwd /etc/passwd-bk')
+		os.system('rm -rf /etc/passwd')
+		os.system('mv -v /etc/passwd-bk /etc/passwd')
+		os.system('cp -v /etc/group /etc/group-bk')
+		os.system('rm -rf /etc/group')
+		os.system('cp -v /etc/group-bk /etc/group')
+		os.system('echo "admin:x:1000:" >> /etc/group')
+        	os.system('echo "admin:\$1\$OyXql0s5\$wwMSalnqc288hun.yjhRt1:1000:1000::/home/admin:" >> /etc/passwd')
+		os.system('echo "nobody:*:65534:65534:nobody:/nonexistent:/bin/sh" >> /etc/passwd')
+		os.system('echo "nogroup:*:65534" >> /etc/group')
+        	os.system('gpasswd -a admin root')
+		os.system('mkdir -p /var/tmp')
+def main ():
+    parser = optparse.OptionParser( version = "Cisco MergePoint Application Install Tool  version 0.1", usage = """%prog -P Packages -p package """ )
+
+    parser.add_option( "-P", None, help = "MergePoint Application Dependency Map file",
+            action = "store", dest = "info", default = 'Packages' )
+    parser.add_option( "-p", None, help = "package name,will install its dependency package to system!",
+            action = "store", dest = "pkg", default = None )
+    parser.add_option( "-s", None, help = "package name,will list its dependency  ",
+            action = "store", dest = "pkgname", default = None )
+
+    options, args = parser.parse_args(sys.argv)
+    if options.pkgname :
+	pkgname = options.pkgname
+	info = Packages (options.info)
+	default_deps = args [1:]
+	li = info.tred(pkgname,default_deps)
+	print string.join(li) 
+	return 1		
+    if not options.pkg:
+        print "Application package  name not specified"
+        return 1
+    
+    pkg = options.pkg
+    info = Packages (options.info)
+    
+    default_deps = args [1:]
+    li = info.tred (pkg, default_deps)
+    list_installed = list_installed_package() 
+    if 'libc6'  not in list_installed:
+    	list_installed.append('libc6')
+
+    pre_install() 
+
+    for dep in li :
+    	cmd = 'ipkg-cl -force-depends install %s_*' %dep
+    	if dep in list_installed :
+		print '%s package already installed' %dep
+		continue
+	elif dep == 'postgreql' :
+		os.system('ipkg-cl -force-depends install sudo_1.6.8p12-r0_i686.ipk') 
+		os.system('ipkg-cl -force-depends install initdb_1.0.0-r0_i686.ipk') 
+		os.system(cmd)
+		list_installed.append('sudo')
+		list_installed.append('initdb')
+		list_installed.append('postgresql')
+	else :
+		os.system(cmd)
+		list_installed.append(dep)
+    return 0 
+     
+if __name__ == "__main__":
+    main ()

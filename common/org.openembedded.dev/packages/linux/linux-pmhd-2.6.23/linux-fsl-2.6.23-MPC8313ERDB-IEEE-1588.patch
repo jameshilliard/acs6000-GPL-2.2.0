@@ -1,0 +1,1126 @@
+From ac8a692b0f85b8370f856524dd7546f486a9613f Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Thu, 5 Jun 2008 21:06:54 +0800
+Subject: [PATCH] Added Support for IEEE-1588v1 over 8313
+
+ 1) Supports only IEEE-1588v1 for Linux-2.6.23 based BSP release
+    to be released by Devtech team
+ 2) Supports Fiper PPS signal found on MPC8313 Rev2
+ 3) Another patch will be generated which will support IEEE-1588v2 too
+  and same will be submitted for inclusion in linux open-source and later
+  8313 BSPs too.
+ 4) Added a seperate node for IEEE-1588 device with its own address space rather than whole eTSEC address space.
+
+Signed-off-by: Yashpal Dutta <yashpal.dutta@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |    7 +
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |   11 +-
+ arch/powerpc/platforms/83xx/mpc83xx.h     |    4 +
+ arch/powerpc/sysdev/fsl_soc.c             |   20 +-
+ drivers/net/Kconfig                       |   13 +
+ drivers/net/Makefile                      |    3 +
+ drivers/net/gianfar.c                     |   56 +++-
+ drivers/net/gianfar.h                     |  172 +++++++++-
+ drivers/net/gianfar_1588.c                |  530 +++++++++++++++++++++++++++++
+ include/linux/fsl_devices.h               |    3 +
+ 10 files changed, 812 insertions(+), 7 deletions(-)
+ create mode 100644 drivers/net/gianfar_1588.c
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index dd5b102..b35b356 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -144,11 +144,17 @@
+ 			};
+ 		};
+ 
++		ptimer: ptimer@24e00 {
++			device_type = "timer";
++			reg = <24e00 b0>;
++		};
++
+ 		ethernet@24000 {
+ 			device_type = "network";
+ 			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <24000 1000>;
++			ptimer-handle = < &ptimer >;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupts = <20 8 21 8 22 8>;
+ 			interrupt-parent = < &ipic >;
+@@ -160,6 +166,7 @@
+ 			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <25000 1000>;
++			ptimer-handle = < &ptimer >;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupts = <23 8 24 8 25 8>;
+ 			interrupt-parent = < &ipic >;
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+index 14a2826..21cbd40 100644
+--- a/arch/powerpc/platforms/83xx/mpc8313_rdb.c
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -5,7 +5,7 @@
+  * This file is based on mpc834x_sys.c
+  * Author: Lo Wlison <r43300@freescale.com>
+  *
+- * Copyright (C) Freescale Semiconductor, Inc. 2006. All rights reserved.
++ * Copyright (C) 2006-2008 Freescale Semiconductor, Inc. All rights reserved.
+  *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+@@ -113,6 +113,8 @@ static void __init mpc8313_rdb_setup_arch(void)
+ #ifdef CONFIG_PCI
+ 	struct device_node *np;
+ #endif
++	void __iomem *immap;
++	unsigned long spcr, sicrh;
+ 
+ 	if (ppc_md.progress)
+ 		ppc_md.progress("mpc8313_rdb_setup_arch()", 0);
+@@ -124,6 +126,13 @@ static void __init mpc8313_rdb_setup_arch(void)
+ 	ppc_md.pci_exclude_device = mpc83xx_exclude_device;
+ #endif
+ 	mpc831x_usb_cfg();
++	immap = ioremap(get_immrbase(), 0x1000);
++	spcr = in_be32(immap + MPC83XX_SPCR_OFFS);
++	sicrh = in_be32(immap + MPC83XX_SICRH_OFFS);
++	sicrh |= MPC8313_SICRH_1588_PPS;
++	out_be32(immap + MPC83XX_SICRH_OFFS, sicrh);
++	spcr |= MPC8313_SPCR_1588_PPS;
++	out_be32(immap + MPC83XX_SPCR_OFFS, spcr);
+ }
+ 
+ void __init mpc8313_rdb_init_IRQ(void)
+diff --git a/arch/powerpc/platforms/83xx/mpc83xx.h b/arch/powerpc/platforms/83xx/mpc83xx.h
+index 589ee55..78a3615 100644
+--- a/arch/powerpc/platforms/83xx/mpc83xx.h
++++ b/arch/powerpc/platforms/83xx/mpc83xx.h
+@@ -5,6 +5,10 @@
+ #include <linux/device.h>
+ #include <asm/pci-bridge.h>
+ 
++#define MPC83XX_SPCR_OFFS         0x110
++#define MPC8313_SPCR_1588_PPS 0x00004000
++#define MPC8313_SICRH_1588_PPS 0x01000000
++
+ /* System Clock Control Register */
+ #define MPC83XX_SCCR_OFFS          0xA08
+ #define MPC83XX_SCCR_USB_MASK      0x00f00000
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index cf817fd..601b6cf 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -255,14 +255,14 @@ static int __init gfar_of_init(void)
+ 	for (np = NULL, i = 0;
+ 	     (np = of_find_compatible_node(np, "network", "gianfar")) != NULL;
+ 	     i++) {
+-		struct resource r[4];
+-		struct device_node *phy, *mdio;
++		struct resource r[5];
++		struct device_node *phy, *mdio, *timer_node;
+ 		struct gianfar_platform_data gfar_data;
+ 		const unsigned int *id;
+ 		const char *model;
+ 		const char *ctype;
+ 		const void *mac_addr;
+-		const phandle *ph;
++		const phandle *ph, *timer_handle;
+ 		int n_res = 2;
+ 
+ 		memset(r, 0, sizeof(r));
+@@ -292,12 +292,26 @@ static int __init gfar_of_init(void)
+ 		gfar_dev =
+ 		    platform_device_register_simple("fsl-gianfar", i, &r[0],
+ 						    n_res);
++#if defined(CONFIG_GFAR_PTP)
++		timer_handle = of_get_property(np, "ptimer-handle", NULL);
++		if (!timer_handle)
++			goto err;
++
++		timer_node = of_find_node_by_phandle(*timer_handle);
++		ret = of_address_to_resource(timer_node, 0, &r[4]);
++		if (ret)
++			goto err;
++
++		memcpy(&gfar_data.timer_resource, &r[4],
++			sizeof(struct resource));
++#endif
+ 
+ 		if (IS_ERR(gfar_dev)) {
+ 			ret = PTR_ERR(gfar_dev);
+ 			goto err;
+ 		}
+ 
++
+ 		mac_addr = of_get_mac_address(np);
+ 		if (mac_addr)
+ 			memcpy(gfar_data.mac_addr, mac_addr, 6);
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index 0ac7706..8ba95b1 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -2383,6 +2383,19 @@ config GFAR_SKBUFF_RECYCLING
+ 	  used for fast IPv4 packet forwarding. Select this if you would like
+ 	  to improve your latency and throughput performance.
+ 
++config GFAR_PTP
++	bool "1588 Precision Time protocol Support"
++	depends on GIANFAR
++	help
++	  This will allow 1588 PTP support in Gianfar driver in eTSEC
++	  based SOC
++
++config GFAR_PTP_EXTERNAL_CLK
++	bool "Use external CLK for PTP"
++	depends on GFAR_PTP
++	help
++	  This will make the PTP module use the external Clk source found on some boards.
++
+ config UCC_GETH
+ 	tristate "Freescale QE Gigabit Ethernet"
+ 	depends on QUICC_ENGINE
+diff --git a/drivers/net/Makefile b/drivers/net/Makefile
+index 9c928a8..6e44a3d 100644
+--- a/drivers/net/Makefile
++++ b/drivers/net/Makefile
+@@ -16,6 +16,9 @@ gianfar_driver-objs := gianfar.o \
+ 		gianfar_ethtool.o \
+ 		gianfar_mii.o \
+ 		gianfar_sysfs.o
++ifeq ($(CONFIG_GFAR_PTP),y)
++gianfar_driver-objs += gianfar_1588.o
++endif
+ 
+ obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
+ ucc_geth_driver-objs := ucc_geth.o ucc_geth_mii.o ucc_geth_ethtool.o
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index 3bb2c86..7867939 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -9,7 +9,7 @@
+  * Author: Andy Fleming
+  * Maintainer: Kumar Gala
+  *
+- * Copyright (c) 2002-2006 Freescale Semiconductor, Inc.
++ * Copyright (c) 2002-2008 Freescale Semiconductor, Inc.
+  * Copyright (c) 2007 MontaVista Software, Inc.
+  *
+  * This program is free software; you can redistribute  it and/or modify it
+@@ -221,6 +221,13 @@ static int gfar_probe(struct platform_device *pdev)
+ 		goto regs_fail;
+ 	}
+ 
++#if defined(CONFIG_GFAR_PTP)
++	if (gfar_ptp_init(priv, einfo)) {
++		err = -ENOMEM;
++		goto regs_fail;
++	}
++#endif
++
+ 	spin_lock_init(&priv->txlock);
+ 	spin_lock_init(&priv->rxlock);
+ 
+@@ -268,6 +275,11 @@ static int gfar_probe(struct platform_device *pdev)
+ 	dev->hard_start_xmit = gfar_start_xmit;
+ 	dev->tx_timeout = gfar_timeout;
+ 	dev->watchdog_timeo = TX_TIMEOUT;
++#if defined(CONFIG_GFAR_PTP)
++	/* Flags for enabling ptp Timestamping and ptp ioctl handler */
++	priv->ptp_timestamping = 1;
++	dev->do_ioctl = gfar_ioctl;
++#endif
+ #ifdef CONFIG_GFAR_NAPI
+ 	dev->poll = gfar_poll;
+ 	dev->weight = GFAR_DEV_WEIGHT;
+@@ -339,7 +351,15 @@ static int gfar_probe(struct platform_device *pdev)
+ 	else
+ 		priv->padding = 0;
+ 
++#if defined(CONFIG_GFAR_PTP)
++	/*
++	 * Check for PTP Timestamping enable flag as well for allocating
++	 * space for FCB
++	 */
++	if (dev->features & NETIF_F_IP_CSUM  || priv->ptp_timestamping)
++#else
+ 	if (dev->features & NETIF_F_IP_CSUM)
++#endif
+ 		dev->hard_header_len += GMAC_FCB_LEN;
+ 
+ 	priv->tx_ring_size = DEFAULT_TX_RING_SIZE;
+@@ -394,6 +414,9 @@ static int gfar_probe(struct platform_device *pdev)
+ register_fail:
+ 	iounmap(priv->regs);
+ regs_fail:
++#if defined(CONFIG_GFAR_PTP)
++	gfar_ptp_cleanup(priv);
++#endif
+ 	free_netdev(dev);
+ 	return err;
+ }
+@@ -612,6 +635,11 @@ void stop_gfar(struct net_device *dev)
+ 	spin_unlock(&priv->rxlock);
+ 	spin_unlock_irqrestore(&priv->txlock, flags);
+ 
++#if defined(CONFIG_GFAR_PTP)
++	/* Stop 1588 Timer Module */
++	gfar_1588_stop(dev);
++#endif
++
+ 	/* Free the IRQs */
+ 	if (priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MULTI_INTR) {
+ 		free_irq(priv->interruptError, dev);
+@@ -948,6 +976,16 @@ int startup_gfar(struct net_device *dev)
+ 		rctrl |= RCTRL_PADDING(priv->padding);
+ 	}
+ 
++#if defined(CONFIG_GFAR_PTP)
++	/* Enable Filer and Rx Packet Parsing capability of eTSEC */
++	/* Set Filer Table */
++	gfar_1588_start(dev);
++
++	/* Enable Filer for Rx Queue */
++	rctrl |= RCTRL_PRSDEP_INIT |
++		RCTRL_TS_ENABLE | RCTRL_PADB_SIZE | RCTRL_FSQEN;
++#endif
++
+ 	/* Init rctrl based on our settings */
+ 	gfar_write(&priv->regs->rctrl, rctrl);
+ 
+@@ -1104,6 +1142,16 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 		gfar_tx_vlan(skb, fcb);
+ 	}
+ 
++#if defined(CONFIG_GFAR_PTP)
++	/* Enable ptp flag so that Tx time stamping happens */
++	if (gfar_ptp_do_txstamp(skb)) {
++		if (fcb == NULL)
++			fcb = gfar_add_fcb(skb, txbdp);
++		fcb->ptp = 0x01;
++		status |= TXBD_TOE;
++	}
++#endif
++
+ 	/* Set buffer length and pointer */
+ 	txbdp->length = skb->len;
+ 	txbdp->bufPtr = dma_map_single(NULL, skb->data,
+@@ -1694,6 +1742,12 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
+ 		if (gfar_uses_fcb(priv))
+ 			fcb = gfar_get_fcb(skb);
+ 
++#if defined(CONFIG_GFAR_PTP)
++		if (fcb->rq == 0)
++		gfar_ptp_store_rxstamp(dev, skb);
++		skb_pull(skb, 8);
++#endif
++
+ 		/* Remove the padded bytes, if there are any */
+ 		if (priv->padding)
+ 			skb_pull(skb, priv->padding);
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index a2fbe6e..bdf3d5f 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -106,6 +106,29 @@ extern const char gfar_driver_version[];
+ #define DEFAULT_STASH_LENGTH	96
+ #define DEFAULT_STASH_INDEX	0
+ 
++#define PTP_GET_RX_TIMESTAMP_SYNC	SIOCDEVPRIVATE
++#define PTP_GET_RX_TIMESTAMP_DEL_REQ	(SIOCDEVPRIVATE + 1)
++#define PTP_GET_RX_TIMESTAMP_FOLLOWUP	(SIOCDEVPRIVATE + 2)
++#define PTP_GET_RX_TIMESTAMP_DEL_RESP	(SIOCDEVPRIVATE + 3)
++#define PTP_GET_TX_TIMESTAMP		(SIOCDEVPRIVATE + 4)
++#define PTP_SET_CNT			(SIOCDEVPRIVATE + 5)
++#define PTP_GET_CNT			(SIOCDEVPRIVATE + 6)
++#define PTP_SET_FIPER_ALARM		(SIOCDEVPRIVATE + 7)
++#define PTP_ADJ_ADDEND			(SIOCDEVPRIVATE + 9)
++#define PTP_GET_ADDEND			(SIOCDEVPRIVATE + 10)
++#define DEFAULT_PTP_RX_BUF_SZ		2000
++#define GFAR_PTP_MSG_TYPE_SYNC		0x0
++#define GFAR_PTP_MSG_TYPE_DEL_REQ	0x1
++#define GFAR_PTP_MSG_TYPE_FOLLOWUP	0x2
++#define GFAR_PTP_MSG_TYPE_DEL_RESP	0x3
++#define GFAR_PTP_DOMAIN_DLFT		0xe0000181
++#define GFAR_PTP_PKT_TYPE_OFFS		0x1f
++#define GFAR_PTP_MULTI_ADDR_OFFS	0x26
++#define GFAR_PTP_SEQ_ID_OFFS		0x50
++#define GFAR_PTP_MSG_TYPE_OFFS		0x52
++#define GFAR_PTP_PROTOCOL_OFFS		0x20
++#define GFAR_PACKET_TYPE_UDP		0x11
++
+ /* The number of Exact Match registers */
+ #define GFAR_EM_NUM	15
+ 
+@@ -206,9 +229,12 @@ extern const char gfar_driver_version[];
+ 				mk_ic_icft(count) | \
+ 				mk_ic_ictt(time))
+ 
++#define RCTRL_TS_ENABLE         0x01000000
++#define RCTRL_PADB_SIZE         (0x8 << 16)
+ #define RCTRL_PAL_MASK		0x001f0000
+ #define RCTRL_VLEX		0x00002000
+ #define RCTRL_FILREN		0x00001000
++#define RCTRL_FSQEN             0x00000800
+ #define RCTRL_GHTX		0x00000400
+ #define RCTRL_IPCSEN		0x00000200
+ #define RCTRL_TUCSEN		0x00000100
+@@ -368,6 +394,24 @@ extern const char gfar_driver_version[];
+ #define RXFCB_PERR_MASK		0x000c
+ #define RXFCB_PERR_BADL3	0x0008
+ 
++/* 1588 Module Registers bits */
++#define TMR_CTRL_ENABLE		0x00000004
++#define TMR_CTRL_RTC_CLK	0x00000003
++#define TMR_CTRL_EXT_CLK	0x00000000
++#define TMR_CTRL_SYS_CLK	0x00000001
++#define TMR_CTRL_TCLK_PRD	0x000A0000
++#define TMR_OSC_FREQ		166000000
++#define TMR_ADD_VAL		CONFIG_GFAR_PTP_TMR_ADD
++#define TMR_CTRL_TCLK_MASK	0x03ff0000
++#define TMR_PTPD_MAX_FREQ	0x80000
++#define TMR_CTRL_FIPER_START    0x10000000
++#define TMR_FIPER1		1000000000
++/*Alarm to traigger at 15sec boundary */
++#define TMR_ALARM1_L	0xD964B800
++#define TMR_ALARM1_H	0x00000045
++#define TMR_PRSC                0x2
++#define TMR_SEC		1000000000
++
+ struct txbd8
+ {
+ 	u16	status;	/* Status Fields */
+@@ -377,7 +421,7 @@ struct txbd8
+ 
+ struct txfcb {
+ 	u8	flags;
+-	u8	reserved;
++	u8	ptp;	/* Least Significant bit for enabling Tx TimeStamping */
+ 	u8	l4os;	/* Level 4 Header Offset */
+ 	u8	l3os; 	/* Level 3 Header Offset */
+ 	u16	phcs;	/* Pseudo-header Checksum */
+@@ -551,7 +595,19 @@ struct gfar {
+ 	u32	tbase6;		/* 0x.234 - TxBD Base Address of ring 6 */
+ 	u8	res10g[4];
+ 	u32	tbase7;		/* 0x.23c - TxBD Base Address of ring 7 */
++#ifdef CONFIG_GFAR_PTP
++	u8	res10h[64];
++	u32	tmr_txts1_id;	/* 0x.280 Tx time stamp identification*/
++	u32	tmr_txts2_id;	/* 0x.284 Tx time stamp Identification*/
++	u8	res10i[56];
++	u32	tmr_txts1_h;	/* 0x.2c0 Tx time stamp high*/
++	u32	tmr_txts1_l;	/* 0x.2c4 Tx Time Stamp low*/
++	u32	tmr_txts2_h;	/* 0x.2c8 Tx time stamp high*/
++	u32	tmr_txts2_l;	/*0x.2cc  Tx Time Stamp low */
++	u8	res10j[48];
++#else
+ 	u8	res10[192];
++#endif
+ 	u32	rctrl;		/* 0x.300 - Receive Control Register */
+ 	u32	rstat;		/* 0x.304 - Receive Status Register */
+ 	u8	res12[8];
+@@ -598,7 +654,14 @@ struct gfar {
+ 	u32	rbase6;		/* 0x.434 - RxBD base address of ring 6 */
+ 	u8	res17g[4];
+ 	u32	rbase7;		/* 0x.43c - RxBD base address of ring 7 */
++#ifdef CONFIG_GFAR_PTP
++	u8	res17h[128];
++	u32	tmr_rxts_h;	/* 0x.4c0 Rx Time Stamp high*/
++	u32	tmr_rxts_l;	/* 0x.4c4 Rx Time Stamp low */
++	u8	res17i[56];
++#else
+ 	u8	res17[192];
++#endif
+ 	u32	maccfg1;	/* 0x.500 - MAC Configuration 1 Register */
+ 	u32	maccfg2;	/* 0x.504 - MAC Configuration 2 Register */
+ 	u32	ipgifg;		/* 0x.508 - Inter Packet Gap/Inter Frame Gap Register */
+@@ -667,8 +730,99 @@ struct gfar {
+ 	u8	res23c[248];
+ 	u32	attr;		/* 0x.bf8 - Attributes Register */
+ 	u32	attreli;	/* 0x.bfc - Attributes Extract Length and Extract Index Register */
++#ifdef CONFIG_GFAR_PTP
++	u8	res24[512];
++	u32	tmr_ctrl;	/* 0x.e00 - Timer Control Register */
++	u32	tmr_tevent;	/* 0x.e04 - Timer stamp event register */
++	u32	tmr_temask;	/* 0x.e08 - Timer event mask register */
++	u32	tmr_pevent;	/* 0x.e0c - Timer stamp event register */
++	u32	tmr_pemask;	/* 0x.e10 - Timer event mask register */
++	u32	tmr_stat;	/* 0x.e14 - Timer stamp status register */
++	u32	tmr_cnt_h;	/* 0x.e18 - Timer counter high register */
++	u32	tmr_cnt_l;	/* 0x.e1c - Timer counter low register */
++	u32	tmr_add;	/* 0x.e20 - Timer dirft compensation*/
++						/*addend register */
++	u32	tmr_acc;	/* 0x.e24 - Timer accumulator register */
++	u32	tmr_prsc;	/* 0x.e28 - Timer prescale register */
++	u8	res24a[4];	/* 0x.e2c - 0x.e2f reserved */
++	u32	tmr_off_h;	/* 0x.e30 - Timer offset high register */
++	u32	tmr_off_l;	/* 0x.e34 - Timer offset low register */
++	u8	res24b[8];	/* 0x.e38 - 0x.e3f reserved */
++	u32	tmr_alarm1_h;	/* 0x.e40 - Timer alarm 1 high register */
++	u32	tmr_alarm1_l;	/* 0x.e44 - Timer alarm 1 low register */
++	u32	tmr_alarm2_h;	/* 0x.e48 - Timer alarm 2 high register */
++	u32	tmr_alarm2_l;	/* 0x.e4c - Timer alarm 2 low register */
++	u8	res24c[48];	/* 0x.e50 - 0x.e7f reserved */
++	u32	tmr_fiper1;	/* 0x.e80 - Timer fixed period register 1 */
++	u32	tmr_fiper2;	/* 0x.e84 - Timer fixed period register 2 */
++	u32	tmr_fiper3;	/* 0x.e88 - Timer fixed period register 3 */
++	u8	res24d[20];	/* 0x.e8c - 0x.ebf reserved */
++	u32	tmr_etts1_h;	/* 0x.ea0 - Timer stamp high of*/
++				/*general purpose external trigger 1*/
++	u32	tmr_etts1_l;	/* 0x.ea4 - Timer stamp low of*/
++				/*general purpose external trigger 1*/
++	u32	tmr_etts2_h;	/* 0x.ea8 - Timer stamp high of*/
++				/*general purpose external trigger 2 */
++	u32	tmr_etts2_l;	/* 0x.eac - Timer stamp low of*/
++				/*general purpose external trigger 2*/
++	u8	res25[336];	/* 0x.eb0 - 0x.fff */
++#else
+ 	u8	res24[1024];
++#endif
++};
++
++/* IEEE-1588 Timer Controller Registers */
++struct gfar_1588 {
++	u32	tmr_ctrl;	/* 0x.e00 - Timer Control Register */
++	u32	tmr_tevent;	/* 0x.e04 - Timer stamp event register */
++	u32	tmr_temask;	/* 0x.e08 - Timer event mask register */
++	u32	tmr_pevent;	/* 0x.e0c - Timer stamp event register */
++	u32	tmr_pemask;	/* 0x.e10 - Timer event mask register */
++	u32	tmr_stat;	/* 0x.e14 - Timer stamp status register */
++	u32	tmr_cnt_h;	/* 0x.e18 - Timer counter high register */
++	u32	tmr_cnt_l;	/* 0x.e1c - Timer counter low register */
++	u32	tmr_add;	/* 0x.e20 - Timer dirft compensation*/
++				/*addend register */
++	u32	tmr_acc;	/* 0x.e24 - Timer accumulator register */
++	u32	tmr_prsc;	/* 0x.e28 - Timer prescale register */
++	u8	res24a[4];	/* 0x.e2c - 0x.e2f reserved */
++	u32	tmr_off_h;	/* 0x.e30 - Timer offset high register */
++	u32	tmr_off_l;	/* 0x.e34 - Timer offset low register */
++	u8	res24b[8];	/* 0x.e38 - 0x.e3f reserved */
++	u32	tmr_alarm1_h;	/* 0x.e40 - Timer alarm 1 high register */
++	u32	tmr_alarm1_l;	/* 0x.e44 - Timer alarm 1 low register */
++	u32	tmr_alarm2_h;	/* 0x.e48 - Timer alarm 2 high register */
++	u32	tmr_alarm2_l;	/* 0x.e4c - Timer alarm 2 low register */
++	u8	res24c[48];	/* 0x.e50 - 0x.e7f reserved */
++	u32	tmr_fiper1;	/* 0x.e80 - Timer fixed period register 1 */
++	u32	tmr_fiper2;	/* 0x.e84 - Timer fixed period register 2 */
++	u32	tmr_fiper3;	/* 0x.e88 - Timer fixed period register 3 */
++	u8	res24d[20];	/* 0x.e8c - 0x.ebf reserved */
++	u32	tmr_etts1_h;	/* 0x.ea0 - Timer stamp high of*/
++				/*general purpose external trigger 1*/
++	u32	tmr_etts1_l;	/* 0x.ea4 - Timer stamp low of*/
++				/*general purpose external trigger 1*/
++	u32	tmr_etts2_h;	/* 0x.ea8 - Timer stamp high of*/
++				/*general purpose external trigger 2 */
++	u32	tmr_etts2_l;	/* 0x.eac - Timer stamp low of*/
++};
++
++/* Structure for PTP Time Stamp */
++struct gfar_ptp_time {
++	u32	high;
++	u32	low;
++};
++
++struct gfar_ptp_data_t {
++	int	key;
++	struct	gfar_ptp_time	item;
++};
+ 
++struct gfar_ptp_circular_t {
++	int	front;
++	int	end;
++	int	size;
++	struct	gfar_ptp_data_t	*data_buf;
+ };
+ 
+ #ifdef CONFIG_GFAR_SKBUFF_RECYCLING
+@@ -771,7 +925,10 @@ struct gfar_private {
+ 	unsigned char vlan_enable:1,
+ 		rx_csum_enable:1,
+ 		extended_hash:1,
+-		bd_stash_en:1;
++		bd_stash_en:1,
++		ptp_timestamping:1,
++		wol_en:1, /* Wake-on-LAN enabled */
++		suspended:1;
+ 	unsigned short padding;
+ 
+ 	unsigned int interruptTransmit;
+@@ -793,6 +950,9 @@ struct gfar_private {
+ 	/* Network Statistics */
+ 	struct net_device_stats stats;
+ 	struct gfar_extra_stats extra_stats;
++	struct gfar_ptp_circular_t rx_time_sync;
++	struct gfar_ptp_circular_t rx_time_del_req;
++	struct gfar_1588 __iomem *ptimer;
+ };
+ 
+ static inline u32 gfar_read(volatile unsigned __iomem *addr)
+@@ -811,6 +971,14 @@ extern irqreturn_t gfar_receive(int irq, void *dev_id);
+ extern int startup_gfar(struct net_device *dev);
+ extern void stop_gfar(struct net_device *dev);
+ extern void gfar_halt(struct net_device *dev);
++extern void gfar_1588_start(struct net_device *dev);
++extern void gfar_1588_stop(struct net_device *dev);
++extern int gfar_ptp_init(struct gfar_private *priv,
++			struct gianfar_platform_data *einfo);
++extern void gfar_ptp_cleanup(struct gfar_private *priv);
++extern int gfar_ptp_do_txstamp(struct sk_buff *skb);
++extern void gfar_ptp_store_rxstamp(struct net_device *dev, struct sk_buff *skb);
++extern int gfar_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd);
+ extern void gfar_phy_test(struct mii_bus *bus, struct phy_device *phydev,
+ 		int enable, u32 regnum, u32 read);
+ void gfar_init_sysfs(struct net_device *dev);
+diff --git a/drivers/net/gianfar_1588.c b/drivers/net/gianfar_1588.c
+new file mode 100644
+index 0000000..d04c34d
+--- /dev/null
++++ b/drivers/net/gianfar_1588.c
+@@ -0,0 +1,530 @@
++/*
++ * drivers/net/gianfar_1588.c
++ *
++ * Copyright (C) 2008 Freescale Semiconductor, Inc.
++ *
++ * Author: Anup Gangwar <anup.gangwar@freescale.com>
++ *	   Yashpal Dutta <yashpal.dutta@freescale.com>
++ *
++ * Gianfar Ethernet Driver -- IEEE 1588 interface functionality
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the
++ * Free Software Foundation; either version 2 of the License, or (at your
++ * option) any later version.
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/string.h>
++#include <linux/errno.h>
++#include <linux/unistd.h>
++#include <linux/slab.h>
++#include <linux/interrupt.h>
++#include <linux/init.h>
++#include <linux/delay.h>
++#include <linux/netdevice.h>
++#include <linux/etherdevice.h>
++#include <linux/skbuff.h>
++#include <linux/spinlock.h>
++#include <linux/vmalloc.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/io.h>
++#include <linux/irq.h>
++#include <linux/uaccess.h>
++
++#include <asm/ocp.h>
++
++#include "gianfar.h"
++
++static int gfar_ptp_init_circ(struct gfar_ptp_circular_t *buf);
++static int gfar_ptp_is_empty(struct gfar_ptp_circular_t *buf);
++static int gfar_ptp_nelems(struct gfar_ptp_circular_t *buf);
++static int gfar_ptp_is_full(struct gfar_ptp_circular_t *buf);
++static int gfar_ptp_insert(struct gfar_ptp_circular_t *buf,
++			struct gfar_ptp_data_t *data);
++static int gfar_ptp_find_and_remove(struct gfar_ptp_circular_t *buf,
++			int key, struct gfar_ptp_data_t *data);
++
++static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
++#define PTP_GET_RX_TIMEOUT	HZ/10
++
++static u32 freq_compensation;
++
++/*64 bites add and return the result*/
++static u64 add64_oper(u64 addend, u64 augend)
++{
++	u64 result = 0;
++	u32 addendh, addendl, augendl, augendh;
++
++	addendh = (u32)(addend >> 32);
++	addendl = (u32)addend;
++
++	augendh = (u32)(augend >> 32);
++	augendl = (u32)augend;
++
++	asm("addc %0,%1,%2" : "=r" (addendl) : "r" (addendl), "r" (augendl));
++	asm("adde %0,%1,%2" : "=r" (addendh) : "r" (addendh), "r" (augendh));
++
++	result = (((u64)addendh << 32) | (u64)addendl);
++
++	return result;
++}
++
++/*64 bits multiplication and return the result*/
++static u64 multi64_oper(u32 multiplier, u32 multiplicand)
++{
++	u64 result = 0;
++	u64 tmp_ret = 0;
++	u32 tmp_multi = multiplicand;
++	int i;
++
++	for (i = 0; i < 32; i++) {
++		if (tmp_multi & 0x1) {
++			tmp_ret = ((u64)multiplier << i);
++			result = add64_oper(result, tmp_ret);
++		}
++		tmp_multi = (tmp_multi >> 1);
++	}
++	return result;
++}
++
++static u32 div64_oper(u64 dividend, u32 divisor, u32 *quotient)
++{
++	u32 time_h, time_l;
++	u32 result;
++	u64 tmp_dividend;
++	int i;
++
++	time_h = (u32)(dividend >> 32);
++	time_l = (u32)dividend;
++	time_h = time_h % divisor;
++	for (i = 1; i <= 32; i++) {
++		tmp_dividend = (((u64)time_h << 32) | (u64)time_l);
++		tmp_dividend = (tmp_dividend << 1);
++		time_h = (u32)(tmp_dividend >> 32);
++		time_l = (u32)tmp_dividend;
++		result = time_h / divisor;
++		time_h = time_h % divisor;
++		*quotient += (result << (32 - i));
++	}
++	return time_h;
++}
++
++/*
++ * Resource required for accessing 1588 Timer Registers. There are few 1588
++ * modules registers which are present in eTSEC1 memory space only. The second
++ * reg entry there in denotes the 1588 regs.
++ */
++int gfar_ptp_init(struct gfar_private *priv,
++		struct gianfar_platform_data *einfo)
++{
++	priv->ptimer = ioremap(einfo->timer_resource.start,
++			sizeof(struct gfar_1588));
++	if ((priv->ptimer == NULL) ||
++			gfar_ptp_init_circ(&priv->rx_time_sync) ||
++			gfar_ptp_init_circ(&priv->rx_time_del_req))
++		return 1;
++	return 0;
++}
++
++void gfar_ptp_cleanup(struct gfar_private *priv)
++{
++	if (priv->ptimer != NULL)
++		iounmap(priv->ptimer);
++
++	if (priv->rx_time_sync.data_buf)
++		vfree(priv->rx_time_sync.data_buf);
++
++	if (priv->rx_time_del_req.data_buf)
++		vfree(priv->rx_time_del_req.data_buf);
++}
++
++int gfar_ptp_do_txstamp(struct sk_buff *skb)
++{
++	u32 *multicast_addr;
++	char *pkt_type;
++
++	if (skb->len > 42) {
++		pkt_type = (char *)(skb->data + GFAR_PTP_PKT_TYPE_OFFS);
++		multicast_addr = (u32 *)(skb->data + GFAR_PTP_MULTI_ADDR_OFFS);
++
++		if ((*multicast_addr == GFAR_PTP_DOMAIN_DLFT) &&
++					(*pkt_type == GFAR_PACKET_TYPE_UDP))
++			return 1;
++	}
++
++	return 0;
++}
++
++void gfar_ptp_store_rxstamp(struct net_device *dev, struct sk_buff *skb)
++{
++	int is_not_igmp, msg_type, seq_id;
++	struct gfar_ptp_data_t tmp_rx_time;
++	struct gfar_private *priv = netdev_priv(dev);
++
++	is_not_igmp = (*((char *)skb->data) + GFAR_PTP_PROTOCOL_OFFS) != 0x2;
++	seq_id = *((u16 *)(skb->data + GFAR_PTP_SEQ_ID_OFFS));
++	msg_type = *((u8 *)(skb->data + GFAR_PTP_MSG_TYPE_OFFS));
++
++	if (is_not_igmp && (seq_id != 0)) {
++		tmp_rx_time.key = seq_id;
++		tmp_rx_time.item.high = *((u32 *)skb->data);
++		tmp_rx_time.item.low = *(((u32 *)skb->data) + 1);
++
++		switch (msg_type) {
++		case GFAR_PTP_MSG_TYPE_SYNC:
++			gfar_ptp_insert(&priv->rx_time_sync, &tmp_rx_time);
++			break;
++		case GFAR_PTP_MSG_TYPE_DEL_REQ:
++			gfar_ptp_insert(&priv->rx_time_del_req, &tmp_rx_time);
++			break;
++		default:
++			break;
++		}
++		wake_up_interruptible(&ptp_rx_ts_wait);
++	}
++}
++
++int gfar_ptp_init_circ(struct gfar_ptp_circular_t *buf)
++{
++	buf->data_buf = (struct gfar_ptp_data_t *)
++				vmalloc((DEFAULT_PTP_RX_BUF_SZ+1) *
++					sizeof(struct gfar_ptp_data_t));
++
++	if (!buf->data_buf)
++		return 1;
++	buf->front = 0;
++	buf->end = 0;
++	buf->size = (DEFAULT_PTP_RX_BUF_SZ + 1);
++
++	return 0;
++}
++
++static inline int gfar_ptp_calc_index(int size, int curr_index, int offset)
++{
++	return ((curr_index + offset) % size);
++}
++
++int gfar_ptp_is_empty(struct gfar_ptp_circular_t *buf)
++{
++	return (buf->front == buf->end);
++}
++
++int gfar_ptp_nelems(struct gfar_ptp_circular_t *buf)
++{
++	const int front = buf->front;
++	const int end = buf->end;
++	const int size = buf->size;
++	int n_items;
++
++	if (end > front)
++		n_items = end - front;
++	else if (end < front)
++		n_items = size - (front - end);
++	else
++		n_items = 0;
++
++	return n_items;
++}
++
++int gfar_ptp_is_full(struct gfar_ptp_circular_t *buf)
++{
++	if (gfar_ptp_nelems(buf) == (buf->size - 1))
++		return 1;
++	else
++		return 0;
++}
++
++int gfar_ptp_insert(struct gfar_ptp_circular_t *buf,
++				struct gfar_ptp_data_t *data)
++{
++	struct gfar_ptp_data_t *tmp;
++
++	if (gfar_ptp_is_full(buf))
++		return 1;
++
++	tmp = (buf->data_buf + buf->end);
++
++	tmp->key = data->key;
++	tmp->item.high = data->item.high;
++	tmp->item.low = data->item.low;
++
++	buf->end = gfar_ptp_calc_index(buf->size, buf->end, 1);
++
++	return 0;
++}
++
++int gfar_ptp_find_and_remove(struct gfar_ptp_circular_t *buf,
++			int key, struct gfar_ptp_data_t *data)
++{
++	int i;
++	int size = buf->size, end = buf->end;
++
++	if (gfar_ptp_is_empty(buf))
++		return 1;
++
++	i = buf->front;
++	while (i != end) {
++		if ((buf->data_buf + i)->key == key)
++			break;
++		i = gfar_ptp_calc_index(size, i, 1);
++	}
++
++	if (i == end) {
++		buf->front = buf->end;
++		return 1;
++	}
++
++	data->item.high = (buf->data_buf + i)->item.high;
++	data->item.low = (buf->data_buf + i)->item.low;
++
++	buf->front = gfar_ptp_calc_index(size, i, 1);
++
++	return 0;
++}
++
++/* Set the 1588 timer counter registers */
++static void gfar_set_1588cnt(struct net_device *dev,
++			struct gfar_ptp_time *gfar_time)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	u32 tempval;
++	u64 alarm_value = 0, temp_alarm_val;
++
++	temp_alarm_val = add64_oper((u64)gfar_time->low,
++		((u64)gfar_time->high)<<32);
++	div64_oper(temp_alarm_val, TMR_SEC, &tempval);
++	alarm_value = multi64_oper(tempval, TMR_SEC);
++	temp_alarm_val = add64_oper((u64)TMR_ALARM1_L,
++			((u64)TMR_ALARM1_H)<<32);
++	alarm_value = add64_oper(alarm_value, temp_alarm_val);
++
++	/* We must write the tmr_cnt_l register first */
++	tempval = (u32)gfar_time->low;
++	gfar_write(&priv->ptimer->tmr_cnt_l, tempval);
++	tempval = (u32)gfar_time->high;
++	gfar_write(&priv->ptimer->tmr_cnt_h, tempval);
++	tempval = (u32)alarm_value;
++	gfar_write(&(priv->ptimer->tmr_alarm1_l), tempval);
++	tempval = (u32)(alarm_value>>32);
++	gfar_write(&(priv->ptimer->tmr_alarm1_h), tempval);
++	gfar_write(&(priv->ptimer->tmr_fiper1),
++		(TMR_FIPER1 - (TMR_CTRL_TCLK_PRD>>16)));
++}
++
++/* Get both the time-stamps and use the larger one */
++static void gfar_get_tx_timestamp(struct gfar __iomem *regs,
++			struct gfar_ptp_time *tx_time)
++{
++	struct gfar_ptp_time tx_set_1, tx_set_2;
++	u32 tmp;
++
++	/* Read the low register first */
++	tx_set_1.low = gfar_read(&regs->tmr_txts1_l);
++	tx_set_1.high = gfar_read(&regs->tmr_txts1_h);
++
++	tx_set_2.low = gfar_read(&regs->tmr_txts2_l);
++	tx_set_2.high = gfar_read(&regs->tmr_txts2_h);
++
++	tmp = 0;
++
++	if (tx_set_2.high > tx_set_1.high)
++		tmp = 1;
++	else if (tx_set_2.high == tx_set_1.high)
++		if (tx_set_2.low > tx_set_1.low)
++			tmp = 1;
++
++	if (tmp == 0) {
++		tx_time->low = tx_set_1.low;
++		tx_time->high = tx_set_1.high;
++	} else {
++		tx_time->low = tx_set_2.low;
++		tx_time->high = tx_set_2.high;
++	}
++}
++
++static uint8_t gfar_get_rx_time(struct gfar_private *priv, struct ifreq *ifr,
++		struct gfar_ptp_time *rx_time, int mode)
++{
++	struct gfar_ptp_data_t tmp;
++	int key, flag;
++
++	key = *((int *)ifr->ifr_data);
++
++	switch (mode) {
++	case PTP_GET_RX_TIMESTAMP_SYNC:
++		flag = gfar_ptp_find_and_remove(&priv->rx_time_sync,
++						key, &tmp);
++		break;
++	case PTP_GET_RX_TIMESTAMP_DEL_REQ:
++		flag = gfar_ptp_find_and_remove(&priv->rx_time_del_req,
++						key, &tmp);
++		break;
++	default:
++		flag = 1;
++		printk(KERN_ERR "ERROR\n");
++		break;
++	}
++
++	if (!flag) {
++		rx_time->high = tmp.item.high;
++		rx_time->low = tmp.item.low;
++		return 0;
++	} else {
++		wait_event_interruptible_timeout(ptp_rx_ts_wait, 0,
++			PTP_GET_RX_TIMEOUT);
++
++		switch (mode) {
++		case PTP_GET_RX_TIMESTAMP_SYNC:
++			flag = gfar_ptp_find_and_remove(&(priv->rx_time_sync),
++					key, &tmp);
++			break;
++		case PTP_GET_RX_TIMESTAMP_DEL_REQ:
++			flag = gfar_ptp_find_and_remove(
++				&(priv->rx_time_del_req), key, &tmp);
++			break;
++		}
++
++		if (flag == 0) {
++			rx_time->high = tmp.item.high;
++			rx_time->low = tmp.item.low;
++			return 0;
++		} else {
++			return -1;
++		}
++	}
++}
++
++static void gfar_get_curr_cnt(struct gfar_1588 __iomem *ptimer,
++			struct gfar_ptp_time *curr_time)
++{
++	curr_time->low = gfar_read(&ptimer->tmr_cnt_l);
++	curr_time->high = gfar_read(&ptimer->tmr_cnt_h);
++}
++
++/*set Fiper Trigger Alarm */
++void gfar_set_fiper_alarm(struct net_device *dev, struct gfar_ptp_time *alarm)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++
++	gfar_write(&(priv->ptimer->tmr_alarm1_l), alarm->low);
++	gfar_write(&(priv->ptimer->tmr_alarm1_h), alarm->high);
++	gfar_write(&(priv->ptimer->tmr_fiper1), TMR_FIPER1
++			- (TMR_CTRL_TCLK_PRD>>16));
++}
++
++/* IOCTL Handler for PTP Specific IOCTL Commands coming from PTPD Application */
++int gfar_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	struct gfar __iomem *regs = priv->regs;
++	struct gfar_ptp_time *cnt, *alarm;
++	signed long *p_addend;
++	struct gfar_ptp_time rx_time, tx_time, curr_time;
++	int retval = 0;
++
++	switch (cmd) {
++	case PTP_GET_RX_TIMESTAMP_SYNC:
++	case PTP_GET_RX_TIMESTAMP_DEL_REQ:
++		retval = gfar_get_rx_time(priv, ifr, &rx_time, cmd);
++		if (retval == 0)
++			copy_to_user(ifr->ifr_data, &rx_time, sizeof(rx_time));
++		break;
++	case PTP_GET_TX_TIMESTAMP:
++		gfar_get_tx_timestamp(regs, &tx_time);
++		copy_to_user(ifr->ifr_data, &tx_time, sizeof(tx_time));
++		break;
++	case PTP_GET_CNT:
++		gfar_get_curr_cnt(priv->ptimer, &curr_time);
++		copy_to_user(ifr->ifr_data, &curr_time, sizeof(curr_time));
++		break;
++	case PTP_SET_CNT:
++		cnt = (struct gfar_ptp_time *)ifr->ifr_data;
++		gfar_set_1588cnt(dev, cnt);
++		break;
++	case PTP_SET_FIPER_ALARM:
++		alarm = (struct gfar_ptp_time *)ifr->ifr_data;
++		gfar_set_fiper_alarm(dev, alarm);
++		break;
++	case PTP_ADJ_ADDEND:
++		p_addend = (signed long *)ifr->ifr_data;
++		/* assign new value directly */
++		gfar_write(&priv->ptimer->tmr_add, *p_addend);
++		break;
++	case PTP_GET_ADDEND:
++		/* return initial timer add value
++		 * to calculate drift correction */
++		copy_to_user(ifr->ifr_data, &freq_compensation,
++				sizeof(freq_compensation));
++		break;
++	default:
++		return -EINVAL;
++	}
++	return retval;
++}
++
++/* Function to initialize Filer Entry
++ * far: Offset in Filer Table in SRAM
++ * fcr: Filer Control register value corresponds to table entry
++ * fpr: Filer Entry Value
++ */
++inline void gfar_write_filer(struct net_device *dev, unsigned int far,
++			unsigned int fcr, unsigned int fpr)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	gfar_write(&priv->regs->rqfar, far);
++	gfar_write(&priv->regs->rqfcr, fcr);
++	gfar_write(&priv->regs->rqfpr, fpr);
++}
++
++/* 1588 Module intialization and filer table populating routine*/
++void gfar_1588_start(struct net_device *dev)
++{
++	u32 freq = 0;
++	struct gfar_private *priv = netdev_priv(dev);
++
++	gfar_write(&(priv->ptimer->tmr_prsc), TMR_PRSC);
++	gfar_write(&(priv->ptimer->tmr_fiper1), TMR_FIPER1
++		 - (TMR_CTRL_TCLK_PRD>>16));
++	gfar_write(&(priv->ptimer->tmr_alarm1_l), TMR_ALARM1_L);
++	gfar_write(&(priv->ptimer->tmr_alarm1_h), TMR_ALARM1_H);
++
++	/* Need to mask the TCLK bits as they are initialized with 1 */
++	gfar_write(&(priv->ptimer->tmr_ctrl),
++		(gfar_read(&(priv->ptimer->tmr_ctrl))
++		 & ~TMR_CTRL_TCLK_MASK) | TMR_CTRL_TCLK_PRD);
++
++	freq = TMR_SEC / (TMR_CTRL_TCLK_PRD>>16);
++	/* initialize TMR_ADD with the initial frequency compensation value:
++	 * freq_compensation = (2^32 / frequency ratio)
++	 */
++	div64_oper(((u64)freq << 32),
++		TMR_OSC_FREQ, &freq_compensation);
++
++	gfar_write(&(priv->ptimer->tmr_add), freq_compensation);
++#if defined(CONFIG_GFAR_PTP_EXTERNAL_CLK)
++	/* Select 1588 Timer source and enable module for starting Tmr Clock */
++	gfar_write(&(priv->ptimer->tmr_ctrl),
++		gfar_read(&(priv->ptimer->tmr_ctrl)) |
++		TMR_CTRL_ENABLE | TMR_CTRL_EXT_CLK | TMR_CTRL_FIPER_START);
++#else
++	/* Select 1588 Timer source and enable module for starting Tmr Clock */
++	gfar_write(&(priv->ptimer->tmr_ctrl),
++		gfar_read(&(priv->ptimer->tmr_ctrl)) |
++		TMR_CTRL_ENABLE | TMR_CTRL_SYS_CLK | TMR_CTRL_FIPER_START);
++#endif
++}
++
++/* Cleanup routine for 1588 module.
++ * When PTP is disabled this routing is called */
++void gfar_1588_stop(struct net_device *dev)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++
++	gfar_write(&priv->ptimer->tmr_ctrl,
++		gfar_read(&priv->ptimer->tmr_ctrl)
++		& ~TMR_CTRL_ENABLE);
++}
+diff --git a/include/linux/fsl_devices.h b/include/linux/fsl_devices.h
+index 1831b19..d596c67 100644
+--- a/include/linux/fsl_devices.h
++++ b/include/linux/fsl_devices.h
+@@ -53,6 +53,9 @@ struct gianfar_platform_data {
+ 	u32	bus_id;
+ 	u32	phy_id;
+ 	u8	mac_addr[6];
++#ifdef CONFIG_GFAR_PTP
++       struct resource	timer_resource;
++#endif
+ 	phy_interface_t interface;
+ };
+ 
+-- 
+1.5.5.1.248.g4b17
+

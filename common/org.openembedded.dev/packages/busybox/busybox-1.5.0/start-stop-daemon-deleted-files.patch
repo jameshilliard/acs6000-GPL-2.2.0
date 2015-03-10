@@ -1,0 +1,24 @@
+# The Linux kernel appends the text " (deleted)" to the results of calls to
+# readlink(2) on /proc/<nnn>/exe when the executable image has been deleted or
+# replaced, but the process is still running.  This patch ensures that the
+# start-stop-daemon utility can cope with processes in such a state.  IMHO the
+# kernel it broken...
+diff -u -r busybox-1.5.0+/debianutils/start_stop_daemon.c busybox-1.5.0/debianutils/start_stop_daemon.c
+--- busybox-1.5.0+/debianutils/start_stop_daemon.c	2007-03-22 13:21:27.000000000 -0700
++++ busybox-1.5.0/debianutils/start_stop_daemon.c	2007-10-15 19:01:01.000000000 -0700
+@@ -45,12 +45,13 @@
+ 	int equal;
+ 
+ 	sprintf(buf, "/proc/%d/exe", pid);
+-	sz = strlen(name) + 1;
++	sz = strlen(name) + 11;
+ 	execbuf = xzalloc(sz);
+ 	readlink(buf, execbuf, sz);
+ 
+ 	/* if readlink fails, execbuf still contains "" */
+-	equal = !strcmp(execbuf, name);
++	equal = !strcmp(execbuf, name) ||
++        (!strncmp(execbuf, name, strlen(name)) && !strcmp(execbuf+strlen(name), " (deleted)"));
+ 	if (ENABLE_FEATURE_CLEAN_UP)
+ 		free(execbuf);
+ 	return equal;

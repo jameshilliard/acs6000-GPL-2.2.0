@@ -1,0 +1,6 @@
+#! /bin/sh
+#
+# Created by configure
+
+"/home/lynn/workGSP/mergepoint/build/tmp/work/powerpc-linux/apache2-2.2.3-r5/httpd-2.2.3/srclib/apr/configure" \
+"$@"

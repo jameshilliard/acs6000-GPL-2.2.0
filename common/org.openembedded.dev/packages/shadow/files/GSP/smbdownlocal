@@ -1,0 +1,11 @@
+#
+# The PAM configuration file for the 'smbDownLocal' service
+# If SMB server is down, uses the local service
+#
+auth	requisite	pam_securetty.so
+auth    sufficient  pam_otk.so
+auth  optional		pam_shm.so
+auth	[ success=1 new_authtok_reqd=1 authinfo_unavail=ignore default=die ] pam_smb_auth.so
+auth  required		pam_redirect.so service=s_local
+account required	pam_smb_auth.so
+session required	pam_smb_auth.so

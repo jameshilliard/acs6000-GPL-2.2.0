@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# This program is for checking out source codes of a given module.
+# Author: Ice Liu
+# History: Draft on Apr 9, 2007
+#          Updated on Jun 18, 2007
+#          To check out source codes from sources/mergepoint, not from sources/avocent.
+# Copyright: Avocent
+
+SVNREP=svn://sha-scm.corp.avocent.com/avocent-gsp
+GENERICSRC=${SVNREP}/sources/generic
+MERPOINTSRC=${SVNREP}/sources/mergepoint
+BRANCH=trunk
+SRCDIR=~/sources
+USAGE="\
+Usage:\n\
+\t$0 <-l> <-b branchname> modulename\n\
+\t\t -l list all modules\n\
+\t\t -b branchname checkout the given module with given branch name, default is trunk\n\
+"
+
+while getopts "hlb:r:" opt; do
+    case $opt in
+        h)
+	    echo "Usage:"
+	    echo "    $0 <-l> <-b branchname> modulename"
+	    echo "    -l list all modules"
+	    echo "    -b branchname checkout the given module with given branch name, default is trunk"
+	    exit 0
+	    ;;
+	l) 
+	    echo "To list all modules ..."
+	    echo "modules of generic:"
+	    svn list ${SVNREP}/sources/generic
+	    echo "modules of mergepoint:"
+	    svn list ${SVNREP}/sources/mergepoint | grep -v "trunk/"
+	    exit 0
+	    ;;
+	b)
+	    #echo "get branches"
+	    BRANCH=${OPTARG}
+	    ;;
+        \?)
+	    echo "Usage:"
+	    echo "    $0 <-l> <-b branchname> modulename"
+	    echo "    -l list all modules"
+	    echo "    -b branchname checkout the given module with given branch name, default is trunk"
+	    exit 0
+	    ;;
+    esac
+done
+
+if [ "" == "$1" ]; then
+    echo "no package name provided."
+    echo $USAGE
+    exit 1
+fi
+
+if [ -d ${SRCDIR}/$1 ]; then
+    echo -n "${SRCDIR}/$1 already exists, do you want remove it?[y/n]: "
+    read r
+
+    if [ "y" = $r ]; then
+	echo "${SRCDIR}/$1 removed."
+	rm -rf ${SRCDIR}/$1
+    else
+	echo "Keep old source codes."
+	exit 0
+    fi
+fi
+
+
+if [ "trunk" = ${BRANCH} ]; then
+    echo "check out from trunk"
+    svn list ${GENERICSRC} | grep "$1" > /dev/null
+    if [ 0 = $? ]; then
+	CMD="svn co ${GENERICSRC}/$1/${BRANCH} ${SRCDIR}/$1"
+    else
+	svn list ${MERPOINTSRC} | grep "$1" > /dev/null
+	if [ 0 = $? ]; then
+	    echo "No $1 module"
+	    exit 1
+	fi
+	CMD="svn co ${MERPOINTSRC}/$1/${BRANCH} ${SRCDIR}/$1"
+    fi
+    echo "commond = ${CMD}"
+    eval ${CMD}	
+else
+    echo "check out from branch ${BRANCH}"
+fi

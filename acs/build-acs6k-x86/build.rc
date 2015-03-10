@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# adjust PRE_PATH for your build environment
+export PRE_PATH="/opt/eldk4.0"
+export ANT_HOME="/opt/ant"
+export JAVA_BINDIR="/opt/java/bin"
+export JAVA_HOME="/opt/java"
+export JAVA_ROOT="/opt/java"
+export JDK_HOME="/opt/java"
+export JRE_HOME="/opt/java/jre"
+
+DELETED_PACKAGES=""
+
+function set_deleted_pkgs ()
+{
+  wdir=${1}/tmp
+  ipkdir="${wdir}/deploy/ipk"
+  if [ ! -d ${ipkdir} ] ; then
+    return
+  fi
+
+  cd ${ipkdir} || return
+
+  ls *.ipk | sort > ${wdir}/current_ipk_list
+  cd ${wdir}
+  sort full_ipk_list > full_ipk_list.tmp
+
+  DELETED_PACKAGES="$(diff -u current_ipk_list full_ipk_list.tmp | grep -v -e '^+task-\|^+++' | grep -e '^+' || true)"
+  rm -f full_ipk_list.tmp
+}
+
+if [ "${GPL_ENV}" = "yes" ] ; then
+  export GSP_FEATURES="NOFETCH GPL_ENV"
+else
+  if [ ! "x${GPL_TAR}" = "xyes" ] ; then
+    export GSP_FEATURES="NOFETCH"
+    # Never _DO_ _TOUCH_ the following line
+    export INHIBIT_PREBUILT_PACKAGES=""
+	if [ -n "${INHIBIT_PREBUILT_PACKAGES}" ] ; then
+      set_deleted_pkgs ${BUILDDIR}
+      export DELETED_PACKAGES
+    fi
+  fi
+fi
+

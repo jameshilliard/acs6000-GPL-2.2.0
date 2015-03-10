@@ -1,0 +1,26 @@
+-detach
+lcp-echo-failure 0
+/dev/ttyUSB0
+115200
+debug
+defaultroute
+usepeerdns
+
+#ipcp-no-address
+#ipcp-no-addresses
+ipcp-max-failure 4
+ipcp-accept-local
+ipcp-accept-remote
+
+# AUTHENTICATION
+# If noauth works, use that, otherwise you have to pass
+# the user name and password. This is an example of a
+# standard Cingular user/pw combo
+
+noauth
+#user ISPDA@CINGULARGPRS.COM
+#password CINGULAR1
+
+crtscts
+lock
+connect '/usr/sbin/chat -v -t6 -f /etc/ppp/peers/gsm_chat'

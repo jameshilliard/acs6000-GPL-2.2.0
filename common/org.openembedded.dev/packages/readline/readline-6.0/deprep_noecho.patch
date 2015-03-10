@@ -1,0 +1,132 @@
+Index: readline-6.0/rltty.c
+===================================================================
+--- readline-6.0.orig/rltty.c
++++ readline-6.0/rltty.c
+@@ -62,6 +62,8 @@ static void set_winsize PARAMS((int));
+ 
+ /* Non-zero means that the terminal is in a prepped state. */
+ static int terminal_prepped;
++static int _rl_app_echo_set = 0;
++static int _rl_app_echo_off = 0;
+ 
+ static _RL_TTY_CHARS _rl_tty_chars, _rl_last_tty_chars;
+ 
+@@ -233,11 +235,31 @@ set_tty_settings (tty, tiop)
+ }
+ 
+ static void
++set_echo_on(TIOTYPE *tio)
++{
++  tio->sgttyb.sg_flags |= ECHO;
++}
++
++static int
++set_echo_off(TIOTYPE *tio)
++{
++  int ret = tio->sgttyb.sg_flags & ECHO;
++
++  tio->sgttyb.sg_flags &= ~(ECHO | CRMOD);
++  tio->sgttyb.sg_flags |= CBREAK;
++  return ret;
++}
++
++static void
+ prepare_terminal_settings (meta_flag, oldtio, tiop)
+      int meta_flag;
+      TIOTYPE oldtio, *tiop;
+ {
+-  _rl_echoing_p = (oldtio.sgttyb.sg_flags & ECHO);
++  if (_rl_app_echo_off) {
++    _rl_echoing_p = 1;
++  } else {
++    _rl_echoing_p = (oldtio.sgttyb.sg_flags & ECHO);
++  }
+   _rl_echoctl = (oldtio.sgttyb.sg_flags & ECHOCTL);
+ 
+   /* Copy the original settings to the structure we're going to use for
+@@ -512,11 +534,30 @@ set_tty_settings (tty, tiop)
+ }
+ 
+ static void
++set_echo_on(TIOTYPE *tio)
++{
++  tio->c_lflag |= ECHO;
++}
++
++static int
++set_echo_off(TIOTYPE *tio)
++{
++  int ret = tio->c_lflag & ECHO;
++
++  tio->c_lflag &= ~(ICANON | ECHO);
++  return ret;
++}
++
++static void
+ prepare_terminal_settings (meta_flag, oldtio, tiop)
+      int meta_flag;
+      TIOTYPE oldtio, *tiop;
+ {
+-  _rl_echoing_p = (oldtio.c_lflag & ECHO);
++  if (_rl_app_echo_off) {
++    _rl_echoing_p = 1;
++  } else {
++    _rl_echoing_p = (oldtio.c_lflag & ECHO);
++  }
+   _rl_echoctl = (oldtio.c_lflag & ECHOCTL);
+ 
+   tiop->c_lflag &= ~(ICANON | ECHO);
+@@ -574,6 +615,39 @@ prepare_terminal_settings (meta_flag, ol
+ }
+ #endif  /* !NEW_TTY_DRIVER */
+ 
++void rl_echo_on(void)
++{
++	int tty;
++
++	if (!_rl_app_echo_set) return;
++
++	_rl_app_echo_set = 0;
++
++	if (_rl_app_echo_off) {
++		set_echo_on(&otio);
++		tty = fileno (rl_instream);
++		set_tty_settings (tty, &otio);
++		_rl_app_echo_off = 0;
++	}
++}
++
++void rl_echo_off(void)
++{
++	int tty;
++
++	if (_rl_app_echo_set) return;
++
++	_rl_app_echo_set = 1;
++
++	_rl_app_echo_off = set_echo_off(&otio);
++
++	if (_rl_app_echo_off) {
++		tty = fileno (rl_instream);
++		set_tty_settings (tty, &otio);
++	}
++}
++
++
+ /* Put the terminal in CBREAK mode so that we can detect key presses. */
+ #if defined (NO_TTY_DRIVER)
+ void
+Index: readline-6.0/readline.h
+===================================================================
+--- readline-6.0.orig/readline.h
++++ readline-6.0/readline.h
+@@ -863,6 +863,9 @@ struct readline_state {
+ extern int rl_save_state PARAMS((struct readline_state *));
+ extern int rl_restore_state PARAMS((struct readline_state *));
+ 
++extern void rl_echo_on(void);
++extern void rl_echo_off(void);
++
+ #ifdef __cplusplus
+ }
+ #endif

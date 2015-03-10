@@ -1,0 +1,30 @@
+Index: trunk/builds/source/dsi5200/appliance/source/fw_upgrade/Makefile
+===================================================================
+--- trunk.orig/builds/source/dsi5200/appliance/source/fw_upgrade/Makefile	2006-11-08 14:12:20.000000000 +0800
++++ trunk/builds/source/dsi5200/appliance/source/fw_upgrade/Makefile	2006-11-11 03:54:10.000000000 +0800
+@@ -21,19 +21,19 @@
+ 	$(CC) -o $(BUILD_DIR)/upload $(BUILD_DIR)/cgic.o $(BUILD_DIR)/upload.o $(BUILD_DIR)/aiasem.o $(BUILD_DIR)/upgradeStatus_c.o
+ 
+ cgic.o:
+-	$(CC) -c -o $(BUILD_DIR)/cgic.o -MD -I/usr/include src/cgic.c
++	$(CC) -c -o $(BUILD_DIR)/cgic.o -MD src/cgic.c
+ 
+ upload.o:
+-	$(CC) -c -o $(BUILD_DIR)/upload.o -MD -I/usr/include src/upload.c
++	$(CC) -c -o $(BUILD_DIR)/upload.o -MD src/upload.c
+ 
+ aiasem.o:
+-	$(CPP) -c -o $(BUILD_DIR)/aiasem.o -MD -I/usr/include src/aiasem.c
++	$(CPP) -c -o $(BUILD_DIR)/aiasem.o -MD src/aiasem.c
+ 
+ upgradeStatus_c.o:
+-	$(CC) -c -o $(BUILD_DIR)/upgradeStatus_c.o -MD -I/usr/include src/upgradeStatus.c
++	$(CC) -c -o $(BUILD_DIR)/upgradeStatus_c.o -MD src/upgradeStatus.c
+ 	
+ download: download.o
+ 	$(CC) -o $(BUILD_DIR)/download $(BUILD_DIR)/download.o $(BUILD_DIR)/cgic.o
+ 
+ download.o:
+-	$(CC) -c -o $(BUILD_DIR)/download.o -MD -I/usr/include src/download.c
+\ No newline at end of file
++	$(CC) -c -o $(BUILD_DIR)/download.o -MD src/download.c

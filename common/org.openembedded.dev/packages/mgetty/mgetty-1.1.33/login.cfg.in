@@ -1,0 +1,5 @@
+# login.config
+# Format:
+#	username callback userid utmp_entry login_program [arguments]
+!version 2
+*	-	-	-	/bin/false

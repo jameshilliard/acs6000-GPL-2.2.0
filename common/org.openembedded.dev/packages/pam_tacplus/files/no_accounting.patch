@@ -1,0 +1,14 @@
+diff -BurN pam_tacplus/pam_tacplus.c pam_tacplus-noacct/pam_tacplus.c
+--- pam_tacplus/pam_tacplus.c	2009-07-17 13:47:34.000000000 -0700
++++ pam_tacplus-noacct/pam_tacplus.c	2009-07-17 17:00:43.000000000 -0700
+@@ -649,6 +649,10 @@
+ /*  if(type == TAC_PLUS_ACCT_FLAG_START) */
+   ctrl = _pam_parse (1,0, argc, argv);
+ 
++  // Fix for bug 55122, accounting is optional
++  if (0 == tac_srv_no)
++	return PAM_SUCCESS;
++ 
+   if (ctrl & PAM_TAC_DEBUG)
+     syslog (LOG_DEBUG, "%s: [%s] called (pam_tacplus v%hu.%hu.%hu)"
+ 	, __FUNCTION__, typemsg, PAM_TAC_VMAJ, PAM_TAC_VMIN, PAM_TAC_VPAT);

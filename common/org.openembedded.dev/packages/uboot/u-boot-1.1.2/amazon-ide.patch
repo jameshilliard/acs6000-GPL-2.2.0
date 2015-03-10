@@ -1,0 +1,94 @@
+--- u-boot-1.1.2/board/amazon/bdparam.c	2007-06-26 10:05:38.000000000 -0500
++++ u-boot-1.1.2/board/amazon/bdparam.c	2007-06-26 12:55:24.000000000 -0500
+@@ -34,6 +34,7 @@
+    
+    */
+ #include <common.h>
++#include <pci.h>
+ #include "bdparam.h"
+ #include <asm/immap_85xx.h>
+ #include <asm/cpm_85xx.h>
+@@ -157,3 +158,52 @@
+ {
+ 	return 1;			/* use both PCI1 and PCI2 */
+ }
++
++
++
++#ifdef CFG_CMD_IDE
++#include <ata.h>
++#include <ide.h>
++#include <pci.h>
++
++extern ulong ide_bus_offset[CFG_IDE_MAXBUS];
++
++int ide_preinit (void)
++{
++	int status;
++	pci_dev_t devbusfn;
++	int l;
++	u32 base_address;
++	
++	status = 1;
++	for (l = 0; l < CFG_IDE_MAXBUS; l++) {
++		ide_bus_offset[l] = -ATA_STATUS;
++	}
++	devbusfn = pci_find_device (0x1095, 0x3512, 0);
++	if (devbusfn != -1) {
++		status = 0;
++		l = pci_read_config_dword (devbusfn, PCI_BASE_ADDRESS_5,
++				       (u32 *) & ide_bus_offset[0]);
++/*
++		FIX: if second ide bus is to be used make sure that CFG_IDE_MAXBUS is 2 if not don't write
++*/
++		if ( CFG_IDE_MAXBUS == 2 )
++		{
++			l = pci_read_config_dword (devbusfn, PCI_BASE_ADDRESS_5,
++				       (u32 *) & ide_bus_offset[1]);
++			/* NOTE:  this address would seem to use the reg offset from the AMAZON.h file.  the second
++				ide bus is located at 0xc0 from the above address so to make this work out we should subtract
++				the make this address equal to BASE-REG_OFFSET+IDE2_REG_OFFSET
++				HARDCODEDVALUES:  these offsets below of 0xc0 and 0x80 are for SiI3512 only!!!!
++			*/
++			ide_bus_offset[1] += ( 0xc0 - 0x80 );
++		}
++	}
++	return (status);
++}
++
++void ide_set_reset (int flag) {
++	return;
++}
++
++#endif /* of CONFIG_CMDS_IDE */
+--- u-boot-1.1.2/include/configs/AMAZON.h	2007-06-26 10:05:39.000000000 -0500
++++ u-boot-1.1.2/include/configs/AMAZON.h	2007-06-26 12:57:27.000000000 -0500
+@@ -530,6 +530,7 @@
+ 				| CFG_CMD_I2C \
+ 				| CFG_CMD_IDE \
+ 				| CFG_CMD_FAT \
++				| CFG_CMD_EXT2 \
+         | CFG_CMD_DATE \
+         | CFG_CMD_LEDS \
+         | CFG_CMD_JFFS2 \
+@@ -672,13 +673,16 @@
+ // #include <cyc_ide_cfg.h>
+ 
+ #if 1 
+-#define CFG_ATA_BASE_ADDR     0xe3000000
++#define CONFIG_IDE_PREINIT	1
++#define __PPC__	1
+ 
+-#define CFG_IDE_MAXBUS		2	/* max. 1 IDE busses	*/
++#define CFG_ATA_BASE_ADDR     0
++
++#define CFG_IDE_MAXBUS		1	/* max. 1 IDE busses	*/
+ #define CFG_IDE_MAXDEVICE	CFG_IDE_MAXBUS /* max. 1 drive per IDE bus */
+ 
+-#define CFG_ATA_DATA_OFFSET	0
+-#define	CFG_ATA_REG_OFFSET	1
++#define CFG_ATA_DATA_OFFSET	0x80
++#define	CFG_ATA_REG_OFFSET	0x80
+ #define	CFG_ATA_ALT_OFFSET	0x11
+ #define CFG_ATA_IDE0_OFFSET	0x0000
+ #endif

@@ -1,0 +1,3 @@
+blacklist usbcore
+blacklist ohci_hcd
+blacklist ehci_hcd

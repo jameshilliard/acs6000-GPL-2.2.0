@@ -1,0 +1,64 @@
+Gianfar parameter adjusting for better performance
+    
+Signed-off-by: Haiying Wang <Haiying.Wang@freescale.com>
+---
+
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index 05aa7c8..a2fbe6e 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -50,7 +50,7 @@
+ #include "gianfar_mii.h"
+ 
+ /* The maximum number of packets to be handled in one call of gfar_poll */
+-#define GFAR_DEV_WEIGHT 64
++#define GFAR_DEV_WEIGHT 16
+ 
+ /* Length for FCB */
+ #define GMAC_FCB_LEN 8
+@@ -79,8 +79,8 @@ extern const char gfar_driver_version[];
+ 
+ /* These need to be powers of 2 for this driver */
+ #ifdef CONFIG_GFAR_NAPI
+-#define DEFAULT_TX_RING_SIZE	256
+-#define DEFAULT_RX_RING_SIZE	256
++#define DEFAULT_TX_RING_SIZE	64
++#define DEFAULT_RX_RING_SIZE	64
+ #else
+ #define DEFAULT_TX_RING_SIZE    64
+ #define DEFAULT_RX_RING_SIZE    64
+@@ -99,7 +99,7 @@ extern const char gfar_driver_version[];
+ #define JUMBO_BUFFER_SIZE 9728
+ #define JUMBO_FRAME_SIZE 9600
+ 
+-#define DEFAULT_FIFO_TX_THR 0x100
++#define DEFAULT_FIFO_TX_THR 0x80
+ #define DEFAULT_FIFO_TX_STARVE 0x40
+ #define DEFAULT_FIFO_TX_STARVE_OFF 0x80
+ #define DEFAULT_BD_STASH 1
+@@ -134,12 +134,12 @@ extern const char gfar_driver_version[];
+ #define DEFAULT_RXTIME	21
+ #else /* CONFIG_GFAR_NAPI */
+ #define DEFAULT_TX_COALESCE 1
+-#define DEFAULT_TXCOUNT	16
+-#define DEFAULT_TXTIME	21
++#define DEFAULT_TXCOUNT	22
++#define DEFAULT_TXTIME	64
+ 
+ #define DEFAULT_RX_COALESCE 0
+-#define DEFAULT_RXCOUNT	0
+-#define DEFAULT_RXTIME	21
++#define DEFAULT_RXCOUNT	2
++#define DEFAULT_RXTIME	64
+ #endif /* CONFIG_GFAR_NAPI */
+ 
+ #define TBIPA_VALUE		0x1f
+@@ -672,7 +672,7 @@ struct gfar {
+ };
+ 
+ #ifdef CONFIG_GFAR_SKBUFF_RECYCLING
+-#define GFAR_DEFAULT_RECYCLE_MAX 64
++#define GFAR_DEFAULT_RECYCLE_MAX 32
+ #define GFAR_DEFAULT_RECYCLE_TRUESIZE (SKB_DATA_ALIGN(DEFAULT_RX_BUFFER_SIZE \
+ 		+ RXBUF_ALIGNMENT + NET_SKB_PAD) + sizeof(struct sk_buff))
+ 

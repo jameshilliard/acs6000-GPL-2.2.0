@@ -1,0 +1,82 @@
+diff -Nru httpd-2.2.8.vanilla/modules/ssl/mod_ssl.c httpd-2.2.8/modules/ssl/mod_ssl.c
+--- httpd-2.2.8.vanilla/modules/ssl/mod_ssl.c	2008-02-05 21:32:15.000000000 +0100
++++ httpd-2.2.8/modules/ssl/mod_ssl.c	2008-02-05 21:58:18.000000000 +0100
+@@ -92,6 +92,9 @@
+     SSL_CMD_SRV(RandomSeed, TAKE23,
+                 "SSL Pseudo Random Number Generator (PRNG) seeding source "
+                 "(`startup|connect builtin|file:/path|exec:/path [bytes]')")
++    SSL_CMD_SRV(MaximumBufferSize, TAKE1,
++               "Maximum size of input buffer, if unset or zero defaults "
++               "to 128k")
+ 
+     /*
+      * Per-server context configuration directives
+diff -Nru httpd-2.2.8.vanilla/modules/ssl/ssl_engine_config.c httpd-2.2.8/modules/ssl/ssl_engine_config.c
+--- httpd-2.2.8.vanilla/modules/ssl/ssl_engine_config.c	2008-02-05 21:32:15.000000000 +0100
++++ httpd-2.2.8/modules/ssl/ssl_engine_config.c	2008-02-05 22:03:08.000000000 +0100
+@@ -75,6 +75,7 @@
+ #if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_INIT)
+     mc->szCryptoDevice         = NULL;
+ #endif
++    mc->nMaximumBufferSize     = 0;
+ 
+     memset(mc->pTmpKeys, 0, sizeof(mc->pTmpKeys));
+ 
+@@ -1402,6 +1403,14 @@
+     return NULL;
+ }
+ 
++const char *ssl_cmd_SSLMaximumBufferSize(cmd_parms *cmd,
++                                         void *dcfg,
++                                         const char *arg)
++{
++    SSLModConfigRec *sc = myModConfig(cmd->server);
++    sc->nMaximumBufferSize = (apr_off_t)strtol(arg, NULL, 10);
++    return NULL;
++}
+ 
+ const char *ssl_cmd_SSLUserName(cmd_parms *cmd, void *dcfg,
+                                 const char *arg)
+diff -Nru httpd-2.2.8.vanilla/modules/ssl/ssl_engine_io.c httpd-2.2.8/modules/ssl/ssl_engine_io.c
+--- httpd-2.2.8.vanilla/modules/ssl/ssl_engine_io.c	2008-02-05 21:32:15.000000000 +0100
++++ httpd-2.2.8/modules/ssl/ssl_engine_io.c	2008-02-05 22:04:26.000000000 +0100
+@@ -1464,6 +1464,11 @@
+     apr_bucket_brigade *tempb;
+     apr_off_t total = 0; /* total length buffered */
+     int eos = 0; /* non-zero once EOS is seen */
++    SSLModConfigRec *mc = myModConfig(r->server);
++    apr_off_t max_io_buffer = SSL_MAX_IO_BUFFER;
++    if (mc->nMaximumBufferSize != 0)
++        max_io_buffer = mc->nMaximumBufferSize;
++    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "Using %u as SSL_MAX_IO_BUFFER", max_io_buffer);
+ 
+     /* Create the context which will be passed to the input filter;
+      * containing a setaside pool and a brigade which constrain the
+@@ -1531,7 +1536,7 @@
+                       total, eos);
+ 
+         /* Fail if this exceeds the maximum buffer size. */
+-        if (total > SSL_MAX_IO_BUFFER) {
++        if (total > max_io_buffer) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                           "request body exceeds maximum size for SSL buffer");
+             return HTTP_REQUEST_ENTITY_TOO_LARGE;
+diff -Nru httpd-2.2.8.vanilla/modules/ssl/ssl_private.h httpd-2.2.8/modules/ssl/ssl_private.h
+--- httpd-2.2.8.vanilla/modules/ssl/ssl_private.h	2008-02-05 21:32:15.000000000 +0100
++++ httpd-2.2.8/modules/ssl/ssl_private.h	2008-02-05 22:02:53.000000000 +0100
+@@ -374,6 +374,7 @@
+     struct {
+         void *pV1, *pV2, *pV3, *pV4, *pV5, *pV6, *pV7, *pV8, *pV9, *pV10;
+     } rCtx;
++    apr_off_t      nMaximumBufferSize;
+ } SSLModConfigRec;
+ 
+ /** public cert/private key */
+@@ -525,6 +526,7 @@
+ const char  *ssl_cmd_SSLProxyCARevocationFile(cmd_parms *, void *, const char *);
+ const char  *ssl_cmd_SSLProxyMachineCertificatePath(cmd_parms *, void *, const char *);
+ const char  *ssl_cmd_SSLProxyMachineCertificateFile(cmd_parms *, void *, const char *);
++const char  *ssl_cmd_SSLMaximumBufferSize(cmd_parms *, void *, const char *);
+ 
+ /**  module initialization  */
+ int          ssl_init_Module(apr_pool_t *, apr_pool_t *, apr_pool_t *, server_rec *);

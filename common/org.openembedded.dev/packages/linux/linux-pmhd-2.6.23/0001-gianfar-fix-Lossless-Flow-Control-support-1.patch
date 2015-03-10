@@ -1,0 +1,124 @@
+From c3537d1b192be6c652a6683e8e9a2b667c68fdae Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Thu, 18 Dec 2008 14:49:11 +0800
+Subject: [PATCH] gianfar: fix Lossless Flow Control support
+
+The patch is for MPC8313erdb-revc BSP with is based on Linux-2.6.23
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ drivers/net/gianfar.c |   28 +++++++++++++++++++---------
+ drivers/net/gianfar.h |   14 +++++++++++---
+ 2 files changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index ccffccb..e4f9c83 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -259,6 +259,13 @@ static int gfar_probe(struct platform_device *pdev)
+ 	svr = mfspr(SPRN_SVR);
+ 	/* MPC8315E Rev1.2 or MPC8313E Rev2.1 */
+ 	if (svr == 0x80B40012 || svr == 0x80B00021) {
++		dev_info(&pdev->dev, "enabling Lossless Flow Control\n");
++		priv->lfc_enable = 1;
++		/* FIXME: threshold configurable? */
++		priv->free_bd_thres = 3;
++	}
++
++	if (priv->lfc_enable) {
+ 		tempval = (MACCFG1_TX_FLOW | MACCFG1_RX_FLOW);
+ 	} else {
+ 		/* do not enable flow control due to errata eTSEC27 for MPC8313 */
+@@ -936,7 +943,6 @@ int startup_gfar(struct net_device *dev)
+ 	struct rxbd8 *rxbdp;
+ 	dma_addr_t addr;
+ 	unsigned long vaddr;
+-	unsigned int svr;
+ 	int i;
+ 	struct gfar_private *priv = netdev_priv(dev);
+ 	struct gfar __iomem *regs = priv->regs;
+@@ -1099,15 +1105,13 @@ int startup_gfar(struct net_device *dev)
+ 	else
+ 		gfar_write(&regs->rxic, 0);
+ 
+-	svr = mfspr(SPRN_SVR);
+-	/* MPC8315E Rev1.2 or MPC8313E Rev2.1 */
+-	if (svr == 0x80B40012 || svr == 0x80B00021) {
+-		void *rqprm0 = ((void *)regs + 0xC00);
+-
++	if (priv->lfc_enable) {
+ 		/* Clear the LFC bit */
+-		gfar_write(&priv->regs->rctrl, rctrl);
+-		/* Set the Receiv Queue Parameter Register0, FBTHR = 0 */
+-		gfar_write(rqprm0, priv->rx_ring_size);
++		gfar_write(&regs->rctrl, rctrl);
++
++		/* Set the Receiv Queue Parameter Register0 */
++		gfar_write(&regs->rqprm[0], priv->free_bd_thres << 24 |
++				priv->rx_ring_size);
+ 		rctrl = RCTRL_LFC;
+ 	}
+ 
+@@ -1975,6 +1979,12 @@ int gfar_clean_rx_ring(struct net_device *dev, int rx_work_limit)
+ 		skb = gfar_new_skb(dev, bdp);
+ 		priv->rx_skbuff[priv->skb_currx] = skb;
+ 
++		/* Update Last Free TxBD pointer for LFC */
++		if (priv->lfc_enable)
++			/* write to the high half for 32bit system */
++			gfar_write((u32 __iomem *)&priv->regs->rfbptr[0] + 1,
++					(u32)bdp);
++
+ 		/* Update to the next pointer */
+ 		if (bdp->status & RXBD_WRAP)
+ 			bdp = priv->rx_bd_base;
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index dea5671..cc3c7ac 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -735,8 +735,12 @@ struct gfar {
+ 	u8	res23c[248];
+ 	u32	attr;		/* 0x.bf8 - Attributes Register */
+ 	u32	attreli;	/* 0x.bfc - Attributes Extract Length and Extract Index Register */
++	/* Lossless Flow Control Registers */
++	u32	rqprm[8];	/* 0x.c00 - Receive Queue Parameters register */
++	u8	res23d[32];
++	u64	rfbptr[8];	/* 0x.c40 - Last Free RxBD prointer */
++	u8	res24[384];
+ #ifdef CONFIG_GFAR_PTP
+-	u8	res24[512];
+ 	u32	tmr_ctrl;	/* 0x.e00 - Timer Control Register */
+ 	u32	tmr_tevent;	/* 0x.e04 - Timer stamp event register */
+ 	u32	tmr_temask;	/* 0x.e08 - Timer event mask register */
+@@ -772,7 +776,7 @@ struct gfar {
+ 				/*general purpose external trigger 2*/
+ 	u8	res25[336];	/* 0x.eb0 - 0x.fff */
+ #else
+-	u8	res24[1024];
++	u8	res25[512];
+ #endif
+ };
+ 
+@@ -936,7 +940,8 @@ struct gfar_private {
+ 		bd_stash_en:1,
+ 		ptp_timestamping:1,
+ 		wol_en:1, /* Wake-on-LAN enabled */
+-		suspended:1;
++		suspended:1,
++		lfc_enable:1;
+ 	unsigned short padding;
+ 
+ 	unsigned int interruptTransmit;
+@@ -961,6 +966,9 @@ struct gfar_private {
+ 	struct gfar_ptp_circular_t rx_time_sync;
+ 	struct gfar_ptp_circular_t rx_time_del_req;
+ 	struct gfar_1588 __iomem *ptimer;
++
++	/* LFC stuff */
++	u8 free_bd_thres;
+ };
+ 
+ static inline u32 gfar_read(volatile unsigned __iomem *addr)
+-- 
+1.5.5.1.248.g4b17
+

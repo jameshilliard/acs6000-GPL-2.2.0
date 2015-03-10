@@ -1,0 +1,98 @@
+#!/bin/bash
+
+while getopts d:o: options
+do
+	case $options in
+		d) TMPDIR=${OPTARG%/};;
+		o) OUTPUT=$OPTARG;;
+		\?) echo "Usage: $(basename $0) -d <OE_TMPDIR> -o <CDKNAME.tar.gz>"; exit 1;;
+	esac
+done
+
+if [[ -z $TMPDIR || -z $OUTPUT ]]
+then
+	echo "Usage: $(basename $0) -d <OE_TMPDIR> -o <CDKNAME.tar.gz>"
+	exit 1
+fi
+
+if [ ! -d $TMPDIR ]
+then
+	echo "Not a directory $TMPDIR"
+	exit 1
+fi
+
+if [ -e $OUTPUT ]
+then
+	echo "$OUTPUT already exists"
+	exit 1
+fi
+
+echo $TMPDIR | grep -s '^\/.*'
+
+if [ $? -ne 0 ]; then
+	OPWD=$(pwd)
+	cd $TMPDIR
+	TMPDIR=$(pwd); 
+	cd $OPWD
+fi
+
+read -p "Create CDK $OUTPUT from $TMPDIR? (Yes/No):"
+
+case $REPLY in
+	Yes|yes|Y|y) REPLY="YES";;
+	No|no|N|n) REPLY="NO";;
+	.*) REPLY='';;
+esac
+
+if [ "X$REPLY" != "XYES" ]
+then
+	exit 1
+fi
+
+GCC=$(ls $TMPDIR/cross/bin/*-linux-gcc)
+
+GCC=${GCC##*/}
+TARGET_SYS=${GCC%-gcc}
+
+if [ -z ${TARGET_SYS} -o ! -d ${TMPDIR}/cross/${TARGET_SYS} ]
+then
+    echo "Can not find cross compiler in $TMPDIR/cross"
+    exit 1
+fi
+
+echo "Copying $TMPDIR/staging/${TARGET_SYS}/{include,lib} to ${TMPDIR}/cross/${TARGET_SYS}/" 
+
+if [ ! -d $TMPDIR/staging/${TARGET_SYS}/include ]
+then
+    echo "Can not found $TMPDIR/staging/${TARGET_SYS}/include"
+    exit 1
+fi
+
+if [ ! -d $TMPDIR/staging/${TARGET_SYS}/lib ]
+then
+    echo "Can not found $TMPDIR/staging/${TARGET_SYS}/include"
+    exit 1
+fi
+
+cp -a $TMPDIR/staging/${TARGET_SYS}/{include,lib} ${TMPDIR}/cross/${TARGET_SYS}/ 
+
+echo -n "Creating CDK...      "
+tar -zPC / -cf $OUTPUT $TMPDIR/cross $TMPDIR/staging/*-linux 
+
+which color > /dev/null
+
+if [ $? -eq 0 ]
+then
+	SUCCESS="[$(color green) Success $(color off) ]"
+	FAIL="[$(color red) Failed $(color off) ]"
+else
+	SUCCESS="[ Success ]"
+	FAIL="[ Failed ]"
+fi
+
+
+if [ $? -eq 0 ]; then
+	echo "$SUCCESS"
+else
+	echo "$FAIL" 
+fi

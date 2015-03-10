@@ -1,0 +1,246 @@
+Index: opie-2.4/opielogin.c
+===================================================================
+--- opie-2.4.orig/opielogin.c	2007-09-24 12:47:09.000000000 -0700
++++ opie-2.4/opielogin.c	2007-09-24 12:47:09.000000000 -0700
+@@ -151,6 +151,10 @@
+ #include <ttyent.h>
+ #endif /* HAVE_GETTTYNAM */
+ 
++/* GSP Events */
++#include <event_def.h>
++#include <event_connect.h>
++
+ #include "opie.h"
+ 
+ #define TTYGID(gid)	tty_gid(gid)	/* gid that owns all ttys */
+@@ -162,6 +166,8 @@
+ #include <lastlog.h>
+ #endif /* HAVE_LASTLOG_H */
+ 
++#include <gsp_auth.h>
++
+ static int rflag = 0;
+ static int usererr = -1;
+ static int stopmotd = 0;
+@@ -307,7 +313,9 @@
+     if (++d == 3)
+       exit(0);
+     if (!opiereadpass(name, sizeof(name)-1, flags)) {
++#ifdef DEBUG
+       syslog(LOG_CRIT, "End-of-file (or other error?) on stdin!");
++#endif
+       exit(0);
+     }
+     for (namep = name; *namep; namep++) {
+@@ -321,7 +329,9 @@
+ {
+   /* input variable declared just to keep the compiler quiet */
+   printf("Login timed out after %d seconds\n", timeout);
++#ifdef DEBUG
+   syslog(LOG_CRIT, "Login timed out after %d seconds!", timeout);
++#endif
+ 
+   if (need_opieverify)
+     opieverify(&opie, NULL);
+@@ -454,18 +464,24 @@
+   getstr(term, sizeof(term), "Terminal type");
+   if (getuid()) {
+     memcpy(&thisuser, &nouser, sizeof(thisuser));
++#ifdef DEBUG
+     syslog(LOG_ERR, "getuid() failed");
++#endif
+     return (-1);
+   }
+   if (lookupuser()) {
++#ifdef DEBUG
+     syslog(LOG_ERR, "lookup failed for user %s", name);
++#endif
+     return (-1);
+   }
+   rc = ruserok(host, !thisuser.pw_uid, rusername, name);
+   if (rc == -1) {
++#ifdef DEBUG
+     syslog(LOG_ERR,
+     "ruserok failed, host=%s, uid=%d, remote username=%s, local username=%s",
+ 	   host, thisuser.pw_uid, rusername, name);
++#endif
+   }
+   return rc;
+ }
+@@ -480,7 +496,9 @@
+       exit(1);
+     if (--cnt < 0) {
+       printf("%s too long\r\n", err);
++#ifdef DEBUG
+       syslog(LOG_CRIT, "%s too long", err);
++#endif
+       exit(1);
+     }
+     *buf++ = c;
+@@ -671,7 +689,9 @@
+   for (t = sysconf(_SC_OPEN_MAX); t > 2; t--)
+     close(t);
+ 
++#ifdef DEBUG
+   openlog("login", LOG_ODELAY, LOG_AUTH);
++#endif
+ 
+   /* initialisation */
+   host[0] = '\0';
+@@ -1058,8 +1078,10 @@
+ 
+   if (name[0])
+     if (name[0] == '-') {
++#ifdef DEBUG
+       fprintf(stderr, "User names can't start with '-'.\n");
+       syslog(LOG_AUTH, "Attempt to use invalid username: %s.", name);
++#endif
+       exit(1);
+     } else
+       invalid = lookupuser();
+@@ -1099,29 +1121,34 @@
+       need_opieverify = TRUE;
+ 
+       if ((i < 0) || (i > 1)) {
++#ifdef DEBUG
+         syslog(LOG_ERR, "error: opiechallenge() returned %d, errno=%d!\n", i, errno);
++#endif
+       } else {
+         printf("%s\n", opieprompt);
+ 	authsok |= 1;
+       }
+ 
+-      if (!memcmp(&thisuser, &nouser, sizeof(thisuser)))
++#ifdef DEBUG
++      if (!memcmp(&thisuser, &nouser, sizeof(thisuser))){
+ 	if (host[0])
+ 	  syslog(LOG_WARNING, "Invalid login attempt for %s on %s from %s.",
+ 		 name, tty, host);
+ 	else
+ 	  syslog(LOG_WARNING, "Invalid login attempt for %s on %s.",
+ 		 name, tty);
++      }
++#endif
+ 
+       if (af_pwok && opiealways(thisuser.pw_dir))
+ 	authsok |= 2;
+ 
+ #if DEBUG
+       syslog(LOG_DEBUG, "af_pwok = %d, authsok = %d", af_pwok, authsok);
+-#endif /* DEBUG */
+ 
+       if (!authsok)
+ 	syslog(LOG_ERR, "no authentication methods are available for %s!", name);
++#endif /* DEBUG */
+ 
+ #if NEW_PROMPTS
+       if ((authsok & 1) || !authsok)
+@@ -1180,7 +1207,9 @@
+ 	//    pp = crypt(buf, thisuser.pw_passwd);
+ 	//    invalid = strcmp(pp, thisuser.pw_passwd);
+ 	//  } else
++#ifdef DEBUG
+ 	syslog(LOG_WARNING, "Invalid login attempt for %s on %s from %s.Authentication as system user disabled.", name, tty, host);
++#endif
+             invalid = TRUE;
+ 	}
+       }
+@@ -1199,23 +1228,28 @@
+     /* If valid so far and root is logging in, see if root logins on this
+        terminal are permitted. */
+     if (!invalid && !thisuser.pw_uid && !rootterm(tty)) {
++#ifdef DEBUG
+       if (host[0])
+ 	syslog(LOG_CRIT, "ROOT LOGIN REFUSED ON %s FROM %.*s",
+ 	       tty, HMAX, host);
+       else
+ 	syslog(LOG_CRIT, "ROOT LOGIN REFUSED ON %s", tty);
++#endif
+       invalid = TRUE;
+     }
+     /* If invalid, then log failure attempt data to appropriate system
+        logfiles and close the connection. */
+     if (invalid) {
+       printf("Login incorrect\n");
++	writeevt(evt_authe_fail,"s",name);
++#ifdef DEBUG
+       if (host[0])
+ 	  syslog(LOG_ERR, "LOGIN FAILURE ON %s FROM %.*s, %.*s",
+ 		 tty, HMAX, host, sizeof(name), name);
+ 	else
+ 	  syslog(LOG_ERR, "LOGIN FAILURE ON %s, %.*s", 
+ 		 tty, sizeof(name), name);
++#endif
+       if (++t >= 5)
+ 	exit(1);
+     }
+@@ -1248,8 +1282,11 @@
+   }
+ #endif
+ 
+-  if (opielogin(tty, name, host))
++  if (opielogin(tty, name, host)) {
++#ifdef DEBUG
+     syslog(LOG_ERR, "can't record login: tty %s, name %s, host %s", tty, name, host);
++#endif
++  }
+ 
+   quietlog = !access(QUIET_LOGIN_FILE, F_OK);
+ 
+@@ -1285,6 +1322,25 @@
+   }
+ #endif /* HAVE_LASTLOG_H */
+ 
++  {
++	struct sid_data sdata;
++
++	if (gsp_auth_session_create_username(name, &sdata) == ERROR) {
++#ifdef DEBUG
++		syslog(LOG_ALERT, "Could not create session for %s", name);
++#endif
++		exit(2);
++	}
++	gsp_auth_session_set_auth_type(&sdata, "local");
++	gsp_auth_session_set_target_type(&sdata, GSP_AUTH_TARG_CLI);
++	gsp_auth_session_set_type(&sdata, GSP_AUTH_SESS_LOGIN);
++	setenv("CI_USER", name, 1);
++	setenv("CI_TGT", "", 1);
++	setenv("CI_SID", gsp_auth_session_get_sid(&sdata), 1);
++  }
++
++  writeevt(evt_usr_login,"si",name,GSP_AUTH_SESS_LOGIN);
++
+   chown(tty, thisuser.pw_uid, TTYGID(thisuser.pw_gid));
+ 
+ #ifdef TIOCSWINSZ
+@@ -1401,13 +1457,17 @@
+   else
+     namep++;
+   strcat(minusnam, namep);
++#ifdef DEBUG
+   if (tty[sizeof("tty") - 1] == 'd')
+     syslog(LOG_INFO, "DIALUP %s, %s", tty, name);
++
+   if (!thisuser.pw_uid)
+     if (host[0])
+       syslog(LOG_NOTICE, "ROOT LOGIN %s FROM %.*s", tty, HMAX, host);
+     else
+       syslog(LOG_NOTICE, "ROOT LOGIN %s", tty);
++#endif
++
+ #if !HAVE_MOTD_IN_PROFILE
+   if (!quietlog) {
+     FILE *mf;
+Index: opie-2.4/Makefile.in
+===================================================================
+--- opie-2.4.orig/Makefile.in	2007-09-24 12:47:09.000000000 -0700
++++ opie-2.4/Makefile.in	2007-09-24 12:47:09.000000000 -0700
+@@ -124,7 +124,7 @@
+ 
+ CFLAGS=$(DEBUG) -Ilibmissing
+ 
+-LFLAGS=-Llibopie -Llibmissing -lopie $(LIBS) -lmissing -lopie
++LFLAGS=-Llibopie -Llibmissing -lopie $(LIBS) -lmissing -lopie $(LDFLAGS)
+ LDEPS=libmissing/libmissing.a libopie/libopie.a
+ 
+ all:	client server

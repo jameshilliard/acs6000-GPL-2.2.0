@@ -1,0 +1,15 @@
+Index: linux-2.6-denx/Makefile
+===================================================================
+--- linux-2.6-denx.orig/Makefile	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/Makefile	2008-06-03 21:47:23.000000000 -0700
+@@ -1058,8 +1058,9 @@
+ # boot script depmod is the master version.
+ PHONY += _modinst_post
+ _modinst_post: _modinst_
++ifeq ($(CROSS_COMPILE),)
+ 	$(call cmd,depmod)
+-
++endif
+ else # CONFIG_MODULES
+ 
+ # Modules not configured

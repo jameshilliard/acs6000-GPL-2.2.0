@@ -1,0 +1,8 @@
+#
+# The PAM configuration file for the 's_nis' service
+#
+auth     requisite  pam_securetty.so
+auth     optional   pam_shm.so
+auth     required   pam_nis.so use_first_pass
+account  required   pam_nis.so 
+session  required   pam_nis.so 

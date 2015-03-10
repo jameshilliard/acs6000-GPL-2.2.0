@@ -1,0 +1,91 @@
+diff -Naupr opie-2.4/Makefile.in opie-2.4.new/Makefile.in
+--- opie-2.4/Makefile.in	2007-06-19 20:33:59.000000000 -0400
++++ opie-2.4.new/Makefile.in	2007-06-19 20:36:28.000000000 -0400
+@@ -159,81 +159,16 @@ server-install: server
+ 	@echo "Copying OPIE user programs"
+ 	@if test ! -d $(LOCALBIN); then $(MKDIR) $(LOCALBIN); chmod 755 $(LOCALBIN); fi 
+ 	@cp opiepasswd opieinfo $(LOCALBIN)
++	@cp opielogin $(LOCALBIN)/login
++	@cp opiesu $(LOCALBIN)/su
++	@cp opieftpd $(LOCALBIN)/ftpd
+ 	@echo "Changing ownership"
+-	@$(CHOWN) $(OWNER) $(LOCALBIN)/opiepasswd $(LOCALBIN)/opieinfo
+-	@chgrp $(GROUP) $(LOCALBIN)/opiepasswd $(LOCALBIN)/opieinfo
++	@$(CHOWN) $(OWNER) $(LOCALBIN)/opiepasswd $(LOCALBIN)/opieinfo $(LOCALBIN)/login $(LOCALBIN)/su $(LOCALBIN)/ftpd
++	@chgrp $(GROUP) $(LOCALBIN)/opiepasswd $(LOCALBIN)/opieinfo $(LOCALBIN)/login $(LOCALBIN)/su $(LOCALBIN)/ftpd
+ 	@echo "Changing file permissions"
+ 	@chmod 0555 $(LOCALBIN)/opieinfo
+ 	@chmod 4511 $(LOCALBIN)/opiepasswd
+-	@echo "Installing OPIE system programs..."
+-	@if test ! -z $(LOGIN); \
+-	then \
+-		if test ! $(EXISTS) $(LOGIN).$(BACKUP); \
+-		then \
+-			echo "Renaming existing $(LOGIN) to $(LOGIN).$(BACKUP)"; \
+-			mv $(LOGIN) $(LOGIN).$(BACKUP); \
+-			echo "Clearing permissions on $(LOGIN)"; \
+-			chmod 0 $(LOGIN).$(BACKUP); \
+-		fi; \
+-		echo "Copying OPIE login to $(LOGIN)"; \
+-		cp opielogin $(LOGIN); \
+-		echo "Changing ownership of $(LOGIN)"; \
+-		$(CHOWN) $(OWNER) $(LOGIN); \
+-		chgrp $(GROUP) $(LOGIN); \
+-		echo "Changing file permissions of $(LOGIN)"; \
+-		chmod 4111 $(LOGIN); \
+-	fi
+-	@if test ! -z $(SU); \
+-	then \
+-		if test ! $(EXISTS) $(SU).$(BACKUP); \
+-		then \
+-			echo "Renaming existing $(SU) to $(SU).$(BACKUP)"; \
+-			mv $(SU) $(SU).$(BACKUP); \
+-			echo "Clearing permissions on $(SU)"; \
+-			chmod 0 $(SU).$(BACKUP); \
+-		fi; \
+-		echo "Copying OPIE su to $(SU)"; \
+-		cp opiesu $(SU); \
+-		echo "Changing ownership of $(SU)"; \
+-		$(CHOWN) $(OWNER) $(SU); \
+-		chgrp $(GROUP) $(SU); \
+-		echo "Changing file permissions of $(SU)"; \
+-		chmod 4111 $(SU); \
+-	fi
+-	@if test ! -z $(ALT_SU); \
+-	then \
+-		if test ! $(EXISTS) $(ALT_SU).$(BACKUP); \
+-		then \
+-			echo "Renaming existing $(ALT_SU) to $(ALT_SU).$(BACKUP)"; \
+-			mv $(ALT_SU) $(ALT_SU).$(BACKUP); \
+-			echo "Clearing permissions on $(ALT_SU)"; \
+-			chmod 0 $(ALT_SU).$(BACKUP); \
+-		fi; \
+-		echo "Copying OPIE su to $(ALT_SU)"; \
+-		cp opiesu $(ALT_SU); \
+-		echo "Changing ownership of $(ALT_SU)"; \
+-		$(CHOWN) $(OWNER) $(ALT_SU); \
+-		chgrp $(GROUP) $(ALT_SU); \
+-		echo "Changing file permissions of $(ALT_SU)"; \
+-		chmod 4111 $(ALT_SU); \
+-	fi
+-	@if test ! -z $(FTPD); \
+-	then \
+-		if test ! $(EXISTS) $(FTPD).$(BACKUP); \
+-		then \
+-			echo "Renaming existing $(FTPD) to $(FTPD).$(BACKUP)"; \
+-			mv $(FTPD) $(FTPD).$(BACKUP); \
+-			echo "Clearing permissions on $(FTPD).$(BACKUP)"; \
+-			chmod 0 $(FTPD).$(BACKUP); \
+-		fi; \
+-		echo "Copying OPIE ftp daemon to $(FTPD)"; \
+-		cp opieftpd $(FTPD); \
+-		echo "Changing ownership of $(FTPD)"; \
+-		$(CHOWN) $(OWNER) $(FTPD); \
+-		chgrp $(GROUP) $(FTPD); \
+-		echo "Changing file permissions of $(FTPD)"; \
+-		chmod 0100 $(FTPD); \
+-	fi
++	
+ 	@echo "Making sure OPIE database file exists";
+ 	@touch $(KEY_FILE)
+ 	@echo "Changing permissions of OPIE database file"

@@ -1,0 +1,24 @@
+diff -ruNp linux-2.6.15.6/drivers/char/Kconfig cyclades-y/drivers/char/Kconfig
+--- linux-2.6.15.6/drivers/char/Kconfig	2006-03-05 11:07:54.000000000 -0800
++++ cyclades-y/drivers/char/Kconfig	2006-03-29 18:19:47.000000000 -0800
+@@ -108,7 +108,7 @@ config ROCKETPORT
+ 	  If you want to compile this driver into the kernel, say Y here.  If
+           you don't have a Comtrol RocketPort/RocketModem card installed, say N.
+ 
+-config CYCLADES
++config CYCLADESY
+ 	tristate "Cyclades async mux support"
+ 	depends on SERIAL_NONSTANDARD
+ 	---help---
+diff -ruNp linux-2.6.15.6/drivers/char/Makefile cyclades-y/drivers/char/Makefile
+--- linux-2.6.15.6/drivers/char/Makefile	2006-03-05 11:07:54.000000000 -0800
++++ cyclades-y/drivers/char/Makefile	2006-03-29 18:19:47.000000000 -0800
+@@ -22,7 +22,7 @@ obj-$(CONFIG_MVME162_SCC)	+= generic_ser
+ obj-$(CONFIG_BVME6000_SCC)	+= generic_serial.o vme_scc.o
+ obj-$(CONFIG_ROCKETPORT)	+= rocket.o
+ obj-$(CONFIG_SERIAL167)		+= serial167.o
+-obj-$(CONFIG_CYCLADES)		+= cyclades.o
++obj-$(CONFIG_CYCLADESY)		+= cyclades.o
+ obj-$(CONFIG_STALLION)		+= stallion.o
+ obj-$(CONFIG_ISTALLION)		+= istallion.o
+ obj-$(CONFIG_DIGIEPCA)		+= epca.o

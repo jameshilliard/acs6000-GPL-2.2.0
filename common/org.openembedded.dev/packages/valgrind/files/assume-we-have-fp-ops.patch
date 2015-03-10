@@ -1,0 +1,35 @@
+# This patch is a hack to prevent valgrind dying with a SIGFPE on startup.
+# The builtin test of CPU capabilities seems to trigger the SIGFPE when testing
+# for support for FP instructions, when the code only appears to expect a
+# possible SIGILL.  I'm not sure what the "correct" fix is -- here we just
+# bypass the tests altogether.
+--- valgrind-3.2.3/coregrind/m_machine.c	2007-08-14 11:59:36.000000000 -0700
++++ valgrind-3.2.3/coregrind/m_machine.c	2007-08-14 12:00:25.000000000 -0700
+@@ -390,6 +390,7 @@
+ 
+      /* General-Purpose optional (fsqrt, fsqrts) */
+      have_FX = True;
++/*
+      tmp_act.ksa_handler = handler_sigill;
+      r = VG_(sigaction)(VKI_SIGILL, &tmp_act, NULL);
+      vg_assert(r == 0);
+@@ -398,9 +399,11 @@
+      } else {
+         __asm__ __volatile__("fsqrt 0,0");
+      }
++*/
+ 
+      /* Graphics optional (stfiwx, fres, frsqrte, fsel) */
+      have_GX = True;
++/*
+      tmp_act.ksa_handler = handler_sigill;
+      r = VG_(sigaction)(VKI_SIGILL, &tmp_act, NULL);
+      vg_assert(r == 0);
+@@ -409,6 +412,7 @@
+      } else {
+         __asm__ __volatile__("frsqrte 0,0");
+      }
++*/
+ 
+      r = VG_(sigaction)(VKI_SIGILL, &saved_act, NULL);
+      vg_assert(r == 0);

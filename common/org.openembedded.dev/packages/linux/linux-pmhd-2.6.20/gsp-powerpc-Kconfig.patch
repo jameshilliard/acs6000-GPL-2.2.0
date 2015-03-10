@@ -1,0 +1,15 @@
+Index: linux-2.6.20/arch/powerpc/Kconfig
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/Kconfig	2008-01-25 10:14:55.000000000 -0800
++++ linux-2.6.20/arch/powerpc/Kconfig	2008-01-25 10:36:40.000000000 -0800
+@@ -704,6 +704,10 @@
+ 
+ endmenu
+ 
++config AVOCENT_GSP
++	bool
++	default n
++
+ source arch/powerpc/platforms/embedded6xx/Kconfig
+ source arch/powerpc/platforms/4xx/Kconfig
+ source arch/powerpc/platforms/82xx/Kconfig

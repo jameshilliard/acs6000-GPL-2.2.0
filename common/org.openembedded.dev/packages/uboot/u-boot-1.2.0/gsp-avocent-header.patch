@@ -1,0 +1,685 @@
+Index: u-boot-1.2.0/common/cmd_bootm.c
+===================================================================
+--- u-boot-1.2.0.orig/common/cmd_bootm.c	2007-01-06 15:13:11.000000000 -0800
++++ u-boot-1.2.0/common/cmd_bootm.c	2008-10-24 16:33:51.000000000 -0700
+@@ -88,6 +88,8 @@
+ static int image_info (unsigned long addr);
+ #endif
+ 
++#ifndef CONFIG_AVOCENT_GSP
++
+ #if (CONFIG_COMMANDS & CFG_CMD_IMLS)
+ #include <flash.h>
+ extern flash_info_t flash_info[]; /* info for FLASH chips */
+@@ -142,6 +144,8 @@
+ extern void lynxkdi_boot( image_header_t * );
+ #endif
+ 
++#endif /* CONFIG_AVOCENT_GSP */
++
+ #ifndef CFG_BOOTM_LEN
+ #define CFG_BOOTM_LEN	0x800000	/* use 8MByte as default max gunzip size */
+ #endif
+@@ -150,6 +154,11 @@
+ 
+ ulong load_addr = CFG_LOAD_ADDR;		/* Default Load Address */
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#include "cmd_gsp-bootm.c"
++#endif
++
++#ifndef CONFIG_AVOCENT_GSP
+ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+ {
+ 	ulong	iflag;
+@@ -460,6 +469,7 @@
+ #endif
+ 	return 1;
+ }
++#endif /* CONFIG_AVOCENT_GSP */
+ 
+ U_BOOT_CMD(
+  	bootm,	CFG_MAXARGS,	1,	do_bootm,
+@@ -476,6 +486,8 @@
+ #endif
+ );
+ 
++#ifndef CONFIG_AVOCENT_GSP
++
+ #ifdef CONFIG_SILENT_CONSOLE
+ static void
+ fixup_silent_linux ()
+@@ -1134,6 +1146,7 @@
+ }
+ #endif
+ 
++#endif /* CONFIG_AVOCENT_GSP */
+ 
+ #if (CONFIG_COMMANDS & CFG_CMD_BOOTD)
+ int do_bootd (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+@@ -1183,11 +1196,14 @@
+ 
+ static int image_info (ulong addr)
+ {
++#ifndef CONFIG_AVOCENT_GSP
+ 	ulong	data, len, checksum;
+ 	image_header_t *hdr = &header;
++#endif
+ 
+ 	printf ("\n## Checking Image at %08lx ...\n", addr);
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ 	/* Copy header so we can blank CRC field for re-calculation */
+ 	memmove (&header, (char *)addr, sizeof(image_header_t));
+ 
+@@ -1219,6 +1235,9 @@
+ 		return 1;
+ 	}
+ 	puts ("OK\n");
++#else
++	verify_avocent_header (addr, 1, NULL, NULL, NULL);
++#endif
+ 	return 0;
+ }
+ 
+@@ -1233,6 +1252,8 @@
+ 
+ #endif	/* CFG_CMD_IMI */
+ 
++#ifndef CONFIG_AVOCENT_GSP
++
+ #if (CONFIG_COMMANDS & CFG_CMD_IMLS)
+ /*-----------------------------------------------------------------------
+  * List all images found in flash.
+@@ -1391,6 +1412,7 @@
+ 
+ 	printf ("%s %s %s (%s)", arch, os, type, comp);
+ }
++#endif /* CONFIG_AVOCENT_GSP */
+ 
+ #define	ZALLOC_ALIGNMENT	16
+ 
+@@ -1481,6 +1503,7 @@
+ }
+ #endif /* CONFIG_BZIP2 */
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ static void
+ do_bootm_rtems (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[],
+ 		ulong addr, ulong *len_ptr, int verify)
+@@ -1543,3 +1566,5 @@
+ }
+ 
+ #endif /* CONFIG_LYNXKDI */
++
++#endif /* CONFIG_AVOCENT_GSP */
+Index: u-boot-1.2.0/common/cmd_gsp-bootm.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/common/cmd_gsp-bootm.c	2008-10-24 16:37:15.000000000 -0700
+@@ -0,0 +1,531 @@
++#include <avocent/types.h>
++#include <avocent/flashhdr.h>
++#include <avocent/checksum.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++static struct OemTable
++{
++  char *name;
++  int code;
++}
++oemTable[] =
++{
++  {"Avocent",            OPTREC_OEM_AVOCENT},
++  {"Avo",                OPTREC_OEM_AVOCENT},
++  {"Compaq",             OPTREC_OEM_COMPAQ},
++  {"Dell",               OPTREC_OEM_DELL},
++  {"HP",                 OPTREC_OEM_HP},
++  {"IBM",                OPTREC_OEM_IBM},
++  {"Siemens",            OPTREC_OEM_SMS},
++  {"FSC",                OPTREC_OEM_SMS},
++  {"WL",                 OPTREC_OEM_WL},
++  {"BLACKBOX",           OPTREC_OEM_BLACKBOX},
++  {"BBOX",               OPTREC_OEM_BLACKBOX},
++  {"FCL",                OPTREC_OEM_FCL},
++  {"TEST",               OPTREC_OEM_TESTRACK},
++};
++
++
++static struct ProductTable
++{
++  char *name;
++  int code;
++}
++prodTable[] =
++{
++  {"DS1800",             OPTREC_PRODUCT_TYPE_DS1800},
++  {"DSR1",               OPTREC_PRODUCT_TYPE_DSR},
++  {"DSR",                OPTREC_PRODUCT_TYPE_DSR},
++  {"DSR2",               OPTREC_PRODUCT_TYPE_AVR},
++  {"AVR",                OPTREC_PRODUCT_TYPE_AVR},
++  {"DSR800",             OPTREC_PRODUCT_TYPE_DSR800},
++  {"DSR3",               OPTREC_PRODUCT_TYPE_DSR3},
++  {"BV",                 OPTREC_PRODUCT_TYPE_BVIEW},
++  {"TWIG",               OPTREC_PRODUCT_TYPE_TWIG},
++  {"ATLANTIS_D",         OPTREC_PRODUCT_TYPE_ATLANTIS_D},
++  {"ATLANTIS_A",         OPTREC_PRODUCT_TYPE_ATLANTIS_A},
++  {"IPMI_APP",           OPTREC_PRODUCT_TYPE_IPMI_APP},
++  {"ATL_D_PHASE_B",      OPTREC_PRODUCT_TYPE_ATL_D_PHASE_B},
++  {"ATL_D_8020",         OPTREC_PRODUCT_TYPE_ATL_D_8020},
++  {"ATLANTIS_AHI",       OPTREC_PRODUCT_TYPE_ATLANTIS_AHI},
++  {"BV_AHI",             OPTREC_PRODUCT_TYPE_BV_AHI},
++  {"TWIG_AHI",           OPTREC_PRODUCT_TYPE_TWIG_AHI},
++  {"STINGRAY",           OPTREC_PRODUCT_TYPE_STINGRAY},
++  {"NAUTILUS_D",         OPTREC_PRODUCT_TYPE_NAUTILUS_D},
++  {"TRIDENT",            OPTREC_PRODUCT_TYPE_TRIDENT},
++  {"AV3x00",             OPTREC_PRODUCT_TYPE_AV_3x00},
++  {"CYC_TSxK",           OPTREC_PRODUCT_TYPE_CYC_TSxK},
++  {"CYC_TS1H",           OPTREC_PRODUCT_TYPE_CYC_TS1H},
++  {"CYC_TS3K",           OPTREC_PRODUCT_TYPE_CYC_TS3K},
++  {"CYC_ACS",            OPTREC_PRODUCT_TYPE_CYC_ACS},
++  {"CYC_ONBOARD",        OPTREC_PRODUCT_TYPE_CYC_ONBOARD},
++  {"CYC_PM",             OPTREC_PRODUCT_TYPE_CYC_PM},
++  {"CYC_KVMNET",         OPTREC_PRODUCT_TYPE_CYC_KVMNET},
++  {"CYC_KVMPLUS",        OPTREC_PRODUCT_TYPE_CYC_KVMPLUS},
++  {"DSI5200",            OPTREC_PRODUCT_TYPE_DSI5200},
++  {"CYC_ONSITE",         OPTREC_PRODUCT_TYPE_CYC_ONSITE},
++  {"ACS6000",            OPTREC_PRODUCT_TYPE_ACS6000},
++
++};
++
++static int verify_kernel_header(DsFlashHdr *khdr, int quiet, int verify)
++{
++	ulong chksum;
++	unsigned char *ptr;
++	int i;
++
++	if (! quiet)
++		puts  ("        checking kernel header ... ");
++	if (ntohl(khdr->magic) !=  DS_FLASH_MAGIC ) {
++		if (! quiet)
++			printf("wrong magic number [%08x].\n",
++				ntohl(khdr->magic));
++		return 0;
++	}
++	if (strncmp(khdr->signature, DS_FLASH_SIGNATURE, 32)) {
++		if (! quiet)
++			printf("invalid signature [%s].\n", khdr->signature);
++		return 0;
++	}
++	if (ntohl(khdr->hdrVers) != 1) {
++		if (! quiet)
++			printf("header v%d not supported.\n",
++				ntohl(khdr->hdrVers));
++		return 0;
++	}
++	if (verify) {
++		chksum = 0;
++		ptr = (unsigned char *)khdr + ntohl(khdr->flashOffset);
++		for (i = 0; i < ntohl(khdr->flashLength); i ++)
++			chksum += ptr[i];
++
++		if (chksum != ntohl(khdr->flashSum)) {
++			if (! quiet)
++				puts("checksum error.\n");
++			return 0;
++		}
++	}
++	if (! quiet) {
++		puts("OK.\n");
++	} else {
++		printf ("    Kernel from %08x (%d bytes).\n",
++			ntohl(khdr->flashOffset),
++			ntohl(khdr->flashLength));
++	}
++	return 1;
++}
++
++int verify_avocent_header (ulong addr, int verify,
++	DsFlashHdr **khdr, ulong *rddata, ulong *rdlen)
++{
++	DsFlashFileHdr1 *hdr;
++	DsHwPartNumber *pn;
++	OptRecHdr *opt;
++	int i, j;
++	int oemCount = sizeof( oemTable ) / sizeof( struct OemTable );
++	int prodCount = sizeof( prodTable ) / sizeof( struct ProductTable );
++	ushort val, oemval = 0, prodFamily = 0, checksumType = 0;
++	bd_t *bd = gd->bd;
++	char *pcrc = "checksum";
++
++	/* Check first if it is only a kernel package */
++	if (verify_kernel_header((DsFlashHdr *)addr, 1, verify)) {
++		if (khdr) *khdr = (DsFlashHdr *)addr;
++		if (rddata) *rddata = 0;
++		if (rdlen) *rdlen = 0;
++		return 1;
++	}
++
++	hdr = (DsFlashFileHdr1 *)addr;
++
++	/* Check file header */
++	if (ntohl(hdr->hdrMagic) != DS_FLASH_HDR1_MAGIC) {
++		printf ("Bad Magic Number [%08x].\n", ntohl(hdr->hdrMagic));
++		return 0;
++	}
++	if (ntohl(hdr->hdrVers) != 2) {
++		printf ("Header v%d not supported.\n", ntohl(hdr->hdrVers));
++		return 0;
++	}
++
++	/* Print information about the header */
++	printf("    File version %s.\n", hdr->flashFileVersion.version);
++	printf("    Created on %s at %s.\n",
++		hdr->image_create_date, hdr->image_create_time);
++	puts  ("    Option headers: ");
++	for (i = 0; i < ntohl(hdr->optRecLength); ) {
++		opt = (OptRecHdr *)(addr + ntohl(hdr->optRecOffset) + i);
++		if (ntohs(opt->recType) == OPTREC_TYPE_END) {
++			break;
++		}
++		switch (ntohs(opt->recType)) {
++		case OPTREC_TYPE_OEM:
++			puts ("OEM");
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				oemval *= 0x100;
++				oemval += ((unsigned char *)(opt + 1))[j];
++			}
++			for (j = 0; j < oemCount; j ++) {
++				if (oemTable[j].code == oemval) {
++					printf("[%s] ", oemTable[j].name);
++					break;
++				}
++			}
++			if (j == oemCount) {
++				printf("[%d] ", oemval);
++			}
++		break;
++		case OPTREC_TYPE_FAMILY:
++			puts ("FAMILY");
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				prodFamily *= 0x100;
++				prodFamily += ((unsigned char *)(opt + 1))[j];
++			}
++			for (j = 0; i < prodCount; j ++) {
++				if (prodTable[j].code == prodFamily) {
++					printf("[%s] ", prodTable[j].name);
++					break;
++				}
++			}
++			if (j == prodCount) {
++				printf("[%d] ", prodFamily);
++			}
++			break;
++		case OPTREC_TYPE_CHECKSUM:
++			puts ("CHECKSUM");
++			val = 0;
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				val *= 0x100;
++				val += ((unsigned char *)(opt + 1))[j];
++			}
++			switch (val) {
++			case 0:
++				puts ("[cksum] ");
++				pcrc = "checksum";
++				break;
++			case 1:
++				puts ("[crc32] ");
++				pcrc = "CRC32";
++				break;
++			case 2:
++				puts ("[crc16] ");
++				pcrc = "CRC16";
++				break;
++			default:
++				printf("[%d] ", val);
++			}
++			checksumType = val;
++			break;
++		case OPTREC_TYPE_SIGNATURE:
++			puts ("SIGNATURE");
++			val = ((unsigned char *)(opt + 1))[0] * 0x100 +
++				((unsigned char *)(opt + 1))[1];
++			switch (val) {
++			case SIGNATURE_METHOD_SHA1_RSA:
++				printf ("[SHA1+RSA] ");
++				break;
++			default:
++				printf("[%d] ", val);
++				break;
++			}
++			break;
++		default:
++			printf ("unknown(%d)", ntohs(opt->recType));
++			break;
++		}
++		i += sizeof(OptRecHdr) + ntohs(opt->recLength);
++	}
++	puts("\n");
++
++	//check OEM
++	if (oemval != OPTREC_OEM_AVOCENT) {
++		printf("\nHardware doesn't support this firmware (wrong OEM code).\n\n");
++		return 0;
++	}
++
++	//check product family
++	if (prodFamily != bd->family) {
++		printf("\nHardware doesn't support this firmware (wrong product family).\n\n");
++		return 0;
++	}
++
++	puts  ("    Part Numbers: ");
++	/* Check part numbers */
++	pn = (DsHwPartNumber *)(addr + ntohl(hdr->partNumOffset));
++	for (i = 0; i < ntohl(hdr->partNumCount); i ++) {
++		printf("%s ", (pn + i)->partNumber);
++	}
++	puts("\n");
++
++	printf("    Kernel Image from %08x (%d bytes).\n",
++		ntohl(hdr->zImageOffset), ntohl(hdr->zImageLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->zImageChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->zImageOffset)),
++			ntohl(hdr->zImageLength))) {
++			puts("NOK.\n");
++			return 0;
++			}
++		puts("OK.\n");
++	}
++	if (! verify_kernel_header(
++		(DsFlashHdr *)(addr + ntohl(hdr->zImageOffset)), 0, verify)) {
++		return 0;
++	}
++	if (khdr) *khdr = (DsFlashHdr *)(addr + ntohl(hdr->zImageOffset));
++	printf("    CRAM filesystem from %08x (%d bytes).\n",
++		ntohl(hdr->cramfsOffset), ntohl(hdr->cramfsLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->cramfsChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->cramfsOffset)),
++			ntohl(hdr->cramfsLength))) {
++			puts("NOK.\n");
++			return 0;
++		}
++		puts("OK.\n");
++	}
++	if (rddata) *rddata = addr + ntohl(hdr->cramfsOffset);
++	if (rdlen) *rdlen = ntohl(hdr->cramfsLength);
++
++	printf("    RMON from %08x (%d bytes).\n",
++		ntohl(hdr->rmonOffset), ntohl(hdr->rmonLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->rmonChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->rmonOffset)),
++			ntohl(hdr->rmonLength))) {
++			puts("NOK.\n");
++			return 0;
++		}
++		puts("OK.\n");
++	}
++	return 1;
++}
++
++static void convert_clocks_in_mhz(bd_t *kbd)
++{
++	/* convert all clock information to MHz */
++	kbd->bi_intfreq /= 1000000L;
++	kbd->bi_busfreq /= 1000000L;
++#if defined(CONFIG_MPC8220)
++	kbd->bi_inpfreq /= 1000000L;
++	kbd->bi_pcifreq /= 1000000L;
++	kbd->bi_pevfreq /= 1000000L;
++	kbd->bi_flbfreq /= 1000000L;
++	kbd->bi_vcofreq /= 1000000L;
++#endif
++#if defined(CONFIG_CPM2)
++	kbd->bi_cpmfreq /= 1000000L;
++	kbd->bi_brgfreq /= 1000000L;
++	kbd->bi_sccfreq /= 1000000L;
++	kbd->bi_vco     /= 1000000L;
++#endif
++#if defined(CONFIG_MPC5xxx)
++	kbd->bi_ipbfreq /= 1000000L;
++	kbd->bi_pcifreq /= 1000000L;
++#endif /* CONFIG_MPC5xxx */
++}
++
++static void load_initrd(ulong initrd_start, ulong data, ulong len)
++{
++	printf ("   Loading Ramdisk to %08lx, end %08lx ... ",
++		initrd_start, initrd_start + len);
++#if defined(CONFIG_HW_WATCHDOG) || defined(CONFIG_WATCHDOG)
++	{
++		size_t l = len;
++		void *to = (void *)initrd_start;
++		void *from = (void *)data;
++
++		while (l > 0) {
++			size_t tail = (l > CHUNKSZ) ? CHUNKSZ : l;
++			WATCHDOG_RESET();
++			memmove (to, from, tail);
++			to += tail;
++			from += tail;
++			l -= tail;
++		}
++	}
++#else	/* !(CONFIG_HW_WATCHDOG || CONFIG_WATCHDOG) */
++	memmove ((void *)initrd_start, (void *)data, len);
++#endif	/* CONFIG_HW_WATCHDOG || CONFIG_WATCHDOG */
++	puts ("OK\n");
++}
++
++int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
++{
++	ulong	iflag;
++	ulong	addr;
++	ulong	data, len, kerneldata, kernellen;
++	uint	unc_len = CFG_BOOTM_LEN;
++	int	verify;
++	char	*s;
++	ulong	sp;
++	ulong	initrd_start, initrd_end;
++	ulong	cmd_start, cmd_end;
++	ulong	initrd_high;
++	int	initrd_copy_to_ram;
++	char    *cmdline;
++	bd_t	*kbd;
++	void	(*kernel)(bd_t *, ulong, ulong, ulong, ulong);
++	DsFlashHdr *khdr;
++
++	s = getenv ("verify");
++	verify = (s && (*s == 'n')) ? 0 : 1;
++
++	if (argc < 2) {
++		addr = load_addr;
++	} else {
++		addr = simple_strtoul(argv[1], NULL, 16);
++	}
++
++	printf ("## Booting image at %08lx ...\n", addr);
++
++	/* Check first if it is only a kernel package */
++	if (! verify_avocent_header (addr, verify, &khdr, &data, &len)) {
++		return 1;
++	}
++
++	/*
++	 * We have reached the point of no return: we are going to
++	 * overwrite all exception vector code, so we cannot easily
++	 * recover from any failures any more...
++	 */
++
++	iflag = disable_interrupts();
++
++	printf ("   Uncompressing Kernel Image ... ");
++	kerneldata = (ulong)khdr + ntohl(khdr->flashOffset);
++	kernellen = ntohl(khdr->flashLength);
++	if (gunzip ((void *)0, unc_len, (uchar *)kerneldata, &kernellen) != 0) {
++		puts ("GUNZIP ERROR - must RESET board to recover\n");
++		do_reset (cmdtp, flag, argc, argv);
++	}
++	puts ("OK.\n");
++
++	/* Allocate RAMDISK space */
++
++	initrd_copy_to_ram = 1;
++	if ((s = getenv ("initrd_high")) != NULL) {
++		/* a value of "no" or a similar string will act like 0,
++		 * turning the "load high" feature off. This is intentional.
++		 */
++		initrd_high = simple_strtoul(s, NULL, 16);
++		if (initrd_high == ~0)
++			initrd_copy_to_ram = 0;
++	} else {	/* not set, no restrictions to load high */
++		initrd_high = ~0;
++	}
++
++	/*
++	 * Booting a (Linux) kernel image
++	 *
++	 * Allocate space for command line and board info - the
++	 * address should be as high as possible within the reach of
++	 * the kernel (see CFG_BOOTMAPSZ settings), but in unused
++	 * memory, which means far enough below the current stack
++	 * pointer.
++	 */
++
++	asm( "mr %0,1": "=r"(sp) : );
++
++	debug ("## Current stack ends at 0x%08lX ", sp);
++
++	sp -= 2048;		/* just to be sure */
++	if (sp > CFG_BOOTMAPSZ)
++		sp = CFG_BOOTMAPSZ;
++	sp &= ~0xF;
++
++	debug ("=> set upper limit to 0x%08lX\n", sp);
++
++	cmdline = (char *)((sp - CFG_BARGSIZE) & ~0xF);
++	kbd = (bd_t *)(((ulong)cmdline - sizeof(bd_t)) & ~0xF);
++
++	if ((s = getenv("bootargs")) == NULL)
++		s = "";
++
++	strcpy (cmdline, s);
++
++	cmd_start    = (ulong)&cmdline[0];
++	cmd_end      = cmd_start + strlen(cmdline);
++
++	*kbd = *(gd->bd);
++
++#ifdef	DEBUG
++	printf ("## cmdline at 0x%08lX ... 0x%08lX\n", cmd_start, cmd_end);
++
++	do_bdinfo (NULL, 0, 0, NULL);
++#endif
++
++	if ((s = getenv ("clocks_in_mhz")) != NULL) {
++		convert_clocks_in_mhz(kbd);
++	}
++
++	kernel = (void (*)(bd_t *, ulong, ulong, ulong, ulong)) ntohl(0);
++
++	if (data) {
++	    if (!initrd_copy_to_ram) {	/* zero-copy ramdisk support */
++		initrd_start = data;
++		initrd_end = initrd_start + len;
++	    } else {
++		initrd_start  = (ulong)kbd - len;
++		initrd_start &= ~(4096 - 1);	/* align on page */
++
++		if (initrd_high) {
++			ulong nsp;
++
++			/*
++			 * the inital ramdisk does not need to be within
++			 * CFG_BOOTMAPSZ as it is not accessed until after
++			 * the mm system is initialised.
++			 *
++			 * do the stack bottom calculation again and see if
++			 * the initrd will fit just below the monitor stack
++			 * bottom without overwriting the area allocated
++			 * above for command line args and board info.
++			 */
++			asm( "mr %0,1": "=r"(nsp) : );
++			nsp -= 2048;		/* just to be sure */
++			nsp &= ~0xF;
++			if (nsp > initrd_high)	/* limit as specified */
++				nsp = initrd_high;
++			nsp -= len;
++			nsp &= ~(4096 - 1);	/* align on page */
++			if (nsp >= sp)
++				initrd_start = nsp;
++		}
++
++
++		debug ("## initrd at 0x%08lX ... 0x%08lX (len=%ld=0x%lX)\n",
++			data, data + len - 1, len, len);
++
++		initrd_end    = initrd_start + len;
++		load_initrd(initrd_start, data, len);
++	    }
++	} else {
++		initrd_start = 0;
++		initrd_end = 0;
++	}
++
++	debug ("## Transferring control to Linux (at address %08lx) ...\n",
++		(ulong)kernel);
++
++
++	/*
++	 * Linux Kernel Parameters (passing board info data):
++	 *   r3: ptr to board info data
++	 *   r4: initrd_start or 0 if no initrd
++	 *   r5: initrd_end - unused if r4 is 0
++	 *   r6: Start of command line string
++	 *   r7: End   of command line string
++	 */
++	(*kernel) (kbd, initrd_start, initrd_end, cmd_start, cmd_end);
++	/* does not return */
++
++	return 1;
++}
+Index: u-boot-1.2.0/common/cmd_nand.c
+===================================================================
+--- u-boot-1.2.0.orig/common/cmd_nand.c	2007-01-06 15:13:11.000000000 -0800
++++ u-boot-1.2.0/common/cmd_nand.c	2008-10-24 16:33:51.000000000 -0700
+@@ -472,6 +472,7 @@
+ 	"nand lock [tight] [status] - bring nand to lock state or display locked pages\n"
+ 	"nand unlock [offset] [size] - unlock section\n");
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ static int nand_load_image(cmd_tbl_t *cmdtp, nand_info_t *nand,
+ 			   ulong offset, ulong addr, char *cmd)
+ {
+@@ -606,6 +607,7 @@
+ U_BOOT_CMD(nboot, 4, 1, do_nandboot,
+ 	"nboot   - boot from NAND device\n",
+ 	"[partition] | [[[loadAddr] dev] offset]\n");
++#endif /* CONFIG_AVOCENT_GSP */
+ 
+ #endif				/* (CONFIG_COMMANDS & CFG_CMD_NAND) */
+ 
+Index: u-boot-1.2.0/config.mk
+===================================================================
+--- u-boot-1.2.0.orig/config.mk	2007-01-06 15:13:11.000000000 -0800
++++ u-boot-1.2.0/config.mk	2008-10-24 16:33:51.000000000 -0700
+@@ -155,6 +155,9 @@
+ endif
+ 
+ CPPFLAGS += -I$(TOPDIR)/include
++ifdef STAGING_DIR
++CPPFLAGS += -I$(STAGING_DIR)/include
++endif
+ CPPFLAGS += -fno-builtin -ffreestanding -nostdinc 	\
+ 	-isystem $(gccincdir) -pipe $(PLATFORM_CPPFLAGS)
+ 

@@ -1,0 +1,70 @@
+diff -ruN wide-dhcpv6-20070507.orig/dhcp6c.c wide-dhcpv6-20070507/dhcp6c.c
+--- wide-dhcpv6-20070507.orig/dhcp6c.c	2007-03-23 00:21:14.000000000 -0700
++++ wide-dhcpv6-20070507/dhcp6c.c	2009-03-24 15:15:23.000000000 -0700
+@@ -1349,7 +1349,7 @@
+ 
+ 	if (sendto(sock, buf, len, 0, (struct sockaddr *)&dst,
+ 	    sysdep_sa_len((struct sockaddr *)&dst)) == -1) {
+-		dprintf(LOG_ERR, FNAME,
++		dprintf(LOG_WARNING, FNAME,
+ 		    "transmit failed: %s", strerror(errno));
+ 		goto end;
+ 	}
+diff -ruN wide-dhcpv6-20070507.orig/dhcp6_ctl.c wide-dhcpv6-20070507/dhcp6_ctl.c
+--- wide-dhcpv6-20070507.orig/dhcp6_ctl.c	2005-11-30 22:34:50.000000000 -0800
++++ wide-dhcpv6-20070507/dhcp6_ctl.c	2009-03-24 15:13:20.000000000 -0700
+@@ -159,18 +159,18 @@
+ 	*digestlenp = MD5_DIGESTLENGTH;
+ 
+ 	if ((fp = fopen(keyfile, "r")) == NULL) {
+-		dprintf(LOG_ERR, FNAME, "failed to open %s: %s", keyfile,
++		dprintf(LOG_WARNING, FNAME, "failed to open %s: %s", keyfile,
+ 		    strerror(errno));
+ 		return (-1);
+ 	}
+ 	if (fgets(line, sizeof(line), fp) == NULL && ferror(fp)) {
+-		dprintf(LOG_ERR, FNAME, "failed to read key file: %s",
++		dprintf(LOG_WARNING, FNAME, "failed to read key file: %s",
+ 		    strerror(errno));
+ 		goto fail;
+ 	}
+ 	if ((secretlen = base64_decodestring(line, secret, sizeof(secret)))
+ 	    < 0) {
+-		dprintf(LOG_ERR, FNAME, "failed to decode base64 string");
++		dprintf(LOG_WARNING, FNAME, "failed to decode base64 string");
+ 		goto fail;
+ 	}
+ 	if ((ctlkey = malloc(sizeof(*ctlkey))) == NULL) {
+diff -ruN wide-dhcpv6-20070507.orig/Makefile.in wide-dhcpv6-20070507/Makefile.in
+--- wide-dhcpv6-20070507.orig/Makefile.in	2007-02-27 06:47:11.000000000 -0800
++++ wide-dhcpv6-20070507/Makefile.in	2009-03-24 15:13:20.000000000 -0700
+@@ -42,7 +42,7 @@
+ LIBOBJS=@LIBOBJS@
+ LIBS=	@LIBS@ @LEXLIB@
+ CC=	@CC@
+-TARGET=	dhcp6c dhcp6s dhcp6relay dhcp6ctl
++TARGET=	dhcp6c dhcp6ctl
+ 
+ INSTALL=@INSTALL@
+ INSTALL_PROGRAM=@INSTALL_PROGRAM@
+@@ -103,13 +103,13 @@
+ 
+ install::
+ 	-mkdir -p $(sbindir) $(mandir)/man5 $(mandir)/man8
+-	$(INSTALL_PROGRAM) -s -o $(user) -g $(group) $(TARGET) $(sbindir)
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6c.8 $(mandir)/man8
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6s.8 $(mandir)/man8
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6relay.8 $(mandir)/man8
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6ctl.8 $(mandir)/man8
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6c.conf.5 $(mandir)/man5
+-	$(INSTALL_DATA) -o $(user) -g $(group) dhcp6s.conf.5 $(mandir)/man5
++	$(INSTALL_PROGRAM) $(TARGET) $(sbindir)
++	$(INSTALL_DATA) dhcp6c.8 $(mandir)/man8
++	$(INSTALL_DATA) dhcp6s.8 $(mandir)/man8
++	$(INSTALL_DATA) dhcp6relay.8 $(mandir)/man8
++	$(INSTALL_DATA) dhcp6ctl.8 $(mandir)/man8
++	$(INSTALL_DATA) dhcp6c.conf.5 $(mandir)/man5
++	$(INSTALL_DATA) dhcp6s.conf.5 $(mandir)/man5
+ 
+ includes::
+ 

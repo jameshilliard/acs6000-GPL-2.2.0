@@ -1,0 +1,64 @@
+Index: ppp-2.4.3/pppd/Makefile.linux
+===================================================================
+--- ppp-2.4.3.orig/pppd/Makefile.linux	2007-08-24 17:16:40.000000000 -0700
++++ ppp-2.4.3/pppd/Makefile.linux	2007-08-24 17:30:42.000000000 -0700
+@@ -37,18 +37,18 @@
+ 
+ # Uncomment the next 2 lines to include support for Microsoft's
+ # MS-CHAP authentication protocol.  Also, edit plugins/radius/Makefile.linux.
+-CHAPMS=y
++#CHAPMS=y
+ USE_CRYPT=y
+ # Don't use MSLANMAN unless you really know what you're doing.
+ #MSLANMAN=y
+ # Uncomment the next line to include support for MPPE.  CHAPMS (above) must
+ # also be enabled.  Also, edit plugins/radius/Makefile.linux.
+-MPPE=y
++#MPPE=y
+ 
+ # Uncomment the next line to include support for PPP packet filtering.
+ # This requires that the libpcap library and headers be installed
+ # and that the kernel driver support PPP packet filtering.
+-FILTER=y
++#FILTER=y
+ 
+ # Uncomment the next line to enable multilink PPP (enabled by default)
+ # Linux distributions: Please leave multilink ENABLED in your builds
+@@ -61,7 +61,7 @@
+ USE_TDB=y
+ 
+ HAS_SHADOW=y
+-#USE_PAM=y
++USE_PAM=y
+ HAVE_INET6=y
+ 
+ # Enable plugins
+@@ -71,7 +71,7 @@
+ #CBCP=y
+ 
+ # Enable EAP SRP-SHA1 authentication (requires libsrp)
+-#USE_SRP=y
++USE_SRP=y
+ 
+ MAXOCTETS=y
+ 
+@@ -96,8 +96,8 @@
+ 
+ # EAP SRP-SHA1
+ ifdef USE_SRP
+-CFLAGS	+= -DUSE_SRP -DOPENSSL -I/usr/local/ssl/include
+-LIBS	+= -lsrp -L/usr/local/ssl/lib -lcrypto
++CFLAGS	+= -DUSE_SRP -DOPENSSL 
++LIBS	+= -lsrp -lcrypto
+ TARGETS	+= srp-entry
+ EXTRAINSTALL = $(INSTALL) -c -m 555 srp-entry $(BINDIR)/srp-entry
+ MANPAGES += srp-entry.8
+@@ -211,7 +211,7 @@
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o pppd $(PPPDOBJS) $(LIBS)
+ 
+ srp-entry:	srp-entry.c
+-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ srp-entry.c $(LIBS)
++	$(CPP) $(CFLAGS) $(LDFLAGS) -I$(OE_INCDIR) -o $@ srp-entry.c $(LIBS)
+ 
+ install-devel:
+ 	mkdir -p $(INCDIR)/pppd

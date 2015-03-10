@@ -1,0 +1,23 @@
+diff -Naupr pam_tacplus/libtac/lib/Makefile pam_tacplus.new/libtac/lib/Makefile
+--- pam_tacplus/libtac/lib/Makefile	1998-11-30 13:02:59.000000000 -0500
++++ pam_tacplus.new/libtac/lib/Makefile	2007-06-20 17:54:37.000000000 -0400
+@@ -1,7 +1,7 @@
+-CC = gcc
+-AR = ar
++#CC = gcc
++#AR = ar
+ #DEBUG = -ggdb3 #-DDEBUGTAC
+-DEBUG = -s -O -m486
++DEBUG = -s -O 
+ CFLAGS = -pipe -fPIC -I../include $(DEBUG)
+ LIBRARY = libtac.a
+ 
+@@ -45,7 +45,7 @@ LIBOBJS = 	connect.o \
+ 
+ $(LIBRARY): $(LIBOBJS) Makefile
+ 	$(AR) rc $(LIBRARY) $(LIBOBJS)
+-	ranlib $(LIBRARY)
++	$(RANLIB) $(LIBRARY)
+ 
+ clean: 
+ 	rm -f core $(LIBRARY) $(LIBOBJS)

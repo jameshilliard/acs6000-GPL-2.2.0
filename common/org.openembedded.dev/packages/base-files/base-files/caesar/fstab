@@ -1,0 +1,7 @@
+/dev/sda1            /boot               ext2        defaults              0 1
+/dev/sda7            swap                swap        defaults              0 0
+/dev/sda8            /storage            ext3        defaults              0 0
+/dev/sda10           /log            	 ext3        defaults              0 0
+none                 /proc               proc        defaults              0 0
+none                 /dev/shm            tmpfs       defaults              0 0
+none                 /dev/pts            devpts      mode=0620,gid=5       0 0

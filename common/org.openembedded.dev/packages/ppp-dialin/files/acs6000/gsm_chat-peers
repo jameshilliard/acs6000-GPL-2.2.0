@@ -1,0 +1,27 @@
+# Connection script for Wireless GSM/UMTS modems
+#
+# Abort String ------------------------------
+ABORT 'NO DIAL TONE' ABORT 'NO ANSWER' ABORT 'NO CARRIER' ABORT DELAYED
+
+# Modem Initialization 
+'' AT
+OK ATZ
+
+#######################################
+# Access Point Name (APN) 
+# Incorrect APN or CGDCONT can often cause errors in connection.
+# Below are a bunch of different popular APNs
+
+#REG:\s1 AT+cgdcont=1,"IP","proxy"
+#OK     'AT+CGDCONT=0,"IP","proxy"'
+#OK     'AT+CGDCONT=1,"IP","proxy"'
+#OK     'AT+CGDCONT=2,"IP","proxy"'
+#OK     'AT+CGDCONT=0,"IP","ISP.CINGULAR"'
+OK     'AT+CGDCONT=1,"IP","ISP.CINGULAR"'
+#OK     'AT+CGDCONT=2,"IP","ISP.CINGULAR"'
+
+#######################################
+# Dial the ISP, this is the common Cingular dial string
+
+OK ATD*99#
+CONNECT ''

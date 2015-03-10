@@ -1,0 +1,247 @@
+#!/bin/sh
+#
+# This program is for checking out and build gsp(onbaord) image.
+# History:
+#          Updated on Jun 28, 2007 to support -q option.
+
+
+# to check out the sources
+if [ ! -d common ]; then
+    mkdir common
+fi
+
+function printusage
+{
+	    echo "Usage:"
+	    echo "    $0 --to do on trunk"
+	    echo "    $0 -h to print this information"
+	    echo "    $0 -n to only dry run, not implemented"
+	    echo "    $0 -t tagname to init on tag"
+	    echo "    $0 -b branchname to init with branch"
+	    echo "    $0 -q to execute quietly with out prompt, will remove the exist ones and re check them out"
+	    echo "    $0 -k keep the exist codes, do not remove and re check"
+	    echo "    $0 -w check code from shanghai or fremont"
+	    echo "    $0 -r svn revision number to init with"
+	    echo "    $0 -u update code from shanghai or fremont"
+}
+
+TAGOPT="trunk"
+TESTFLAG=0
+VERBOSE=0
+QUIET=0
+KEEP=0
+UPDATE=0
+WHERE="shanghai"
+SVNREV=0
+while getopts ":hnvt:w:b:qkr:u" opt; do
+    case $opt in
+        h)
+	    printusage
+	    exit 0
+	    ;;
+	n)
+	    TESTFLAG=1
+	    ;;
+	v)
+	    VERBOSE=1
+	    ;;
+	t)
+	    TAGOPT=tags/${OPTARG}
+	    ;;
+	w)
+	    WHERE=${OPTARG}
+	    ;;
+	b)
+	    TAGOPT=branches/${OPTARG}
+	    ;;
+	q)
+	    QUIET=1
+	    ;;
+	k)
+	    KEEP=1
+	    ;;
+	r)
+	    SVNREV=${OPTARG}
+	    ;;
+	u)
+	    UPDATE=1
+	    ;;
+        \?)
+	    printusage
+	    exit 0
+	    ;;
+    esac
+done
+
+# If TESTFLAG ==0, just print the command, or, execute it.
+function docmd() {
+    if [ 1 -eq $TESTFLAG ]
+    then
+	echo "test:  $1"
+    else
+	$1
+    fi
+}
+
+
+# to do initialize environment here.
+PUBDL_DIR=/opt/sources
+USRDL_DIR=${HOME}/sources
+
+if [ ! -d ${USRDL_DIR} ]; then
+	docmd "mkdir ${USRDL_DIR}"
+fi
+
+pushd ${USRDL_DIR} > /dev/null
+for f in `ls ${PUBDL_DIR}`
+do
+	if [ ! -L $f -a ! -d $f ]; then
+		docmd "ln -s ${PUBDL_DIR}/$f $f"
+	fi
+done
+popd > /dev/null
+
+SVNCMD="svn co"
+if [ 0 -ne ${SVNREV} ]
+then
+    SVNCMD="svn co -r ${SVNREV}"
+fi
+
+SVNURL="https://sha-scm.corp.avocent.com/svn/avocent-sha"
+SVNFN="$SVNCMD ${SVNURL}"
+
+function checkDir () {
+        project="$1"
+        workdir="$2"
+
+        if [ -d "$workdir" ]; then
+                echo "$workdir already exists."
+		if [ 1 = $KEEP ]; then
+		    echo "keep $workdir"
+		else
+		    if [ 0 = $QUIET ]; then
+			docmd "echo -n \"Do you want to remove it and check out from $TAGOPT?[y/n]: \""
+			docmd "read reply"
+		    else
+			reply="yes"
+		    fi
+                    if [ "yes" = "$reply" -o "y" = "$reply" ]; then
+			if [ 1 = $UPDATE ]; then
+			   docmd "pushd $workdir > /dev/null"
+			   docmd "svn up"
+			   docmd "popd > /dev/null"
+			else
+			   docmd "echo \"remove $workdir \""
+			   docmd "rm -rf $workdir"
+			   docmd "${SVNFN}/$project $workdir"
+			fi
+                    else
+                        echo "keep $workdir"
+                    fi
+		fi
+        else
+                docmd "${SVNFN}/$project $workdir"
+        fi
+}
+
+pushd common > /dev/null
+checkDir "common/org.openembedded.dev/$TAGOPT"\
+         "org.openembedded.dev"
+checkDir "common/com.avocent.dev/$TAGOPT"\
+         "com.avocent.dev"
+popd > /dev/null
+
+checkDir "utils/$TAGOPT" "utils"
+
+if [ -d mergepoint/prebuilt/tmp/work/powerpc-linux/mergepoint-package-1.0-r1/install/mergepoint-package/var/empty ]
+then
+    chmod +x mergepoint/prebuilt/tmp/work/powerpc-linux/mergepoint-package-1.0-r1/install/mergepoint-package/var/empty
+fi
+checkDir "projects/mergepoint/$TAGOPT" "mergepoint"
+checkDir "bitbake/$TAGOPT/bitbake-1.6.2" "bitbake"
+if test -e mergepoint/com.avocent.dev/packages/mergepoint-dsi5200-package/files/version-mp ; then
+        content="MergePoint SP5300 Application version:1.0.0.${SVNREV}"
+        if [ 0 -ne ${SVNREV} ] ; then
+                echo ${content} > mergepoint/com.avocent.dev/packages/mergepoint-dsi5200-package/files/version-mp
+        fi
+	if [ ! "trunk" = ${TAGOPT} ] ; then
+		PRETAGS=`echo ${TAGOPT} | cut -d "/" -f1`
+		if [ "tags" = ${PRETAGS} ] ; then
+			TAGS=`echo ${TAGOPT} | cut -d "/" -f2`
+			Tag1=`echo ${TAGS} | cut -d "_" -f4`
+			Tag2=`echo ${TAGS} | cut -d "_" -f5`
+			Tag3=`echo ${TAGS} | cut -d "_" -f6`
+			Tag4=`echo ${TAGS} | cut -d "_" -f7`
+	        	content="MergePoint SP5300 Application version:${Tag1}.${Tag2}.${Tag3}.${Tag4}"
+	                echo ${content} > mergepoint/com.avocent.dev/packages/mergepoint-dsi5200-package/files/version-mp
+		fi
+	fi
+fi
+
+checkDir "sources/generic/lzma/$TAGOPT" "$HOME/sources/lzma"
+checkDir "sources/generic/cmd-uboot/$TAGOPT" "$HOME/sources/cmd-uboot"
+checkDir "sources/generic/cpkg-tool/$TAGOPT" "$HOME/sources/cpkg-tool"
+
+# Add mergepoint application packages
+apppackages=`svn list ${SVNURL}/sources/mergepoint | sed "s/\// /"`
+for package in $apppackages
+do
+    checkDir "sources/mergepoint/$package/$TAGOPT" "$HOME/sources/$package"
+done
+
+# record version number
+if test -e ${HOME}/sources/trans-manager/src/tm_mp_version.h ; then
+pushd ${HOME}/sources/trans-manager/src
+	if [ 0 -ne ${SVNREV} ] ; then
+		sed "/BUILD_VERSION/ s/1/${SVNREV}/" tm_mp_version.h > backup_tm_mp_version.h
+		mv backup_tm_mp_version.h tm_mp_version.h
+	fi
+	PRETAGS=`echo ${TAGOPT} | cut -d "/" -f1`
+	if [ "tags" = ${PRETAGS} ] ; then
+		TAGS=`echo ${TAGOPT} | cut -d "/" -f2`
+		Tag1=`echo ${TAGS} | cut -d "_" -f4`
+		Tag2=`echo ${TAGS} | cut -d "_" -f5`
+		Tag3=`echo ${TAGS} | cut -d "_" -f6`
+		Tag4=`echo ${TAGS} | cut -d "_" -f7`
+		sed -e "s/.*MAJOR_VERSION.*/#define MAJOR_VERSION ${Tag1}/" tm_mp_version.h > backup_tm_mp_version.h
+		mv backup_tm_mp_version.h tm_mp_version.h
+		sed -e "s/.*MINOR_VERSION.*/#define MINOR_VERSION ${Tag2}/" tm_mp_version.h > backup_tm_mp_version.h
+		mv backup_tm_mp_version.h tm_mp_version.h
+		sed -e "s/.*RELEASE_VERSION.*/#define RELEASE_VERSION ${Tag3}/" tm_mp_version.h > backup_tm_mp_version.h
+		mv backup_tm_mp_version.h tm_mp_version.h
+		sed -e "s/.*BUILD_VERSION.*/#define BUILD_VERSION ${Tag4}/" tm_mp_version.h > backup_tm_mp_version.h
+		mv backup_tm_mp_version.h tm_mp_version.h
+	fi
+popd
+fi
+
+thirdpartypkgs=`svn list ${SVNURL}/sources/thirdparty | sed "s/\// /"`
+for thirdpartypkg in $thirdpartypkgs
+do
+    checkDir "sources/thirdparty/$thirdpartypkg/$TAGOPT" "$HOME/sources/$thirdpartypkg"
+done
+
+builduser=`id -nu`
+
+if [ "x86builder" = ${builduser} -o  "ppcbuilder" = ${builduser} ] ; then
+	pushd /opt/sources
+	sudo svn up 
+	popd
+	pushd /opt/mergepoint-x86-share-ipk-repository
+	if [ 0 -ne ${SVNREV} ] ; then
+		sudo svn switch ${SVNURL}/prebuilt/i686-linux/mergepoint-x86-share-ipk-repository/branches/branch_gsp_mergepoint_1_0_2
+		sudo svn up -r ${SVNREV}
+	else
+		sudo svn switch ${SVNURL}/prebuilt/i686-linux/mergepoint-x86-share-ipk-repository/${TAGOPT}
+	fi
+	popd
+	pushd /opt/mergepoint-ppc-share-ipk-repository
+	if [ 0 -ne ${SVNREV} ] ; then
+		sudo svn switch ${SVNURL}/prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository/branches/branch_gsp_mergepoint_1_0_2
+		sudo svn up -r ${SVNREV}
+	else
+		sudo svn switch ${SVNURL}/prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository/${TAGOPT}
+	fi
+	popd
+fi
+

@@ -1,0 +1,13 @@
+Index: pam-nis/configure.ac
+===================================================================
+--- pam-nis.orig/configure.ac
++++ pam-nis/configure.ac
+@@ -39,7 +39,7 @@ fi
+ 
+ #AC_SUBST(PACKAGE_URL, [http://0pointer.de/lennart/projects/pam_dotfile/])
+ 
+-CFLAGS="$CFLAGS -L/lib"
++#CFLAGS="$CFLAGS -L/lib"
+ 
+ # Checks for libraries.
+ AC_CHECK_HEADER([security/pam_modules.h],, [AC_MSG_ERROR([*** Sorry, you have to install the PAM development files ***])])

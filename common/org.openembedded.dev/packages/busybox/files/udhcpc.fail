@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+[ -z "$1" ] && echo "Error: should be called from udhcpc" && exit 1
+
+RESOLV_CONF="/etc/resolv.conf"
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+
+case "$1" in
+	leasefail)
+		ip_address=$(llconf ifupdown get iface/$interface/address)
+		netmask=$(llconf ifupdown get iface/$interface/netmask)
+		broadcast=$(llconf ifupdown get iface/$interface/broadcast)
+		if [ x$ip_address != x ] ; then
+			if [ x$netmask != x ] ; then
+				if [ x$broadcast != x -a x$broadcast != x+ ] ; then
+					ifconfig $interface $ip_address netmask $netmask broadcast $broadcast
+				else
+					ifconfig $interface $ip_address netmask $netmask
+				fi
+			else
+				ifconfig $interface $ip_address
+			fi
+			gateway=$(llconf ifupdown get iface/$interface/gateway)
+			if [ x$gateway != x ] ; then
+				ip route add default via $gateway
+			fi
+		fi
+		;;
+
+esac
+
+exit 0

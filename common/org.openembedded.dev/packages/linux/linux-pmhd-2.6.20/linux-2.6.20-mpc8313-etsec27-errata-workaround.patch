@@ -1,0 +1,19 @@
+diff --exclude CVS -uNr linux-2.6.20/drivers/net/gianfar.c linux-2.6.20.modified/drivers/net/gianfar.c
+--- linux-2.6.20/drivers/net/gianfar.c	2007-07-01 12:14:30.000000000 -0400
++++ linux-2.6.20.modified/drivers/net/gianfar.c	2007-07-01 12:13:36.000000000 -0400
+@@ -299,7 +299,15 @@
+ 	/* Reset MAC layer */
+ 	gfar_write(&priv->regs->maccfg1, MACCFG1_SOFT_RESET);
+ 
++#ifdef CONFIG_PPC_MPC831x
++	/* do not enable flow control due to errata eTSEC27 for MPC8313 */
++	/* bring the MAC out of reset by clearing the soft reset bit */
++	tempval = gfar_read(&priv->regs->maccfg1);
++	tempval &= ~MACCFG1_SOFT_RESET;
++#else
+ 	tempval = (MACCFG1_TX_FLOW | MACCFG1_RX_FLOW);
++#endif 
++
+ 	gfar_write(&priv->regs->maccfg1, tempval);
+ 
+ 	/* Initialize MACCFG2. */

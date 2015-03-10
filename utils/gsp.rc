@@ -1,0 +1,9 @@
+#!/bin/bash 
+if [ -e ${HOME}/.bashrc ]
+then
+    . ${HOME}/.bashrc
+fi
+  
+export PS1='\[\033[01;32m\]\u@GSP\[\033[01;34m\] \W \>\[\033[00m\] '
+
+echo -e "\n*** Avocent Generic Software Platform (GSP), press Ctrl+D to exit ***\n"

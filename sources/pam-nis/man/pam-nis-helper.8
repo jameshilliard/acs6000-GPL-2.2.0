@@ -1,0 +1,13 @@
+.TH pam-nis-helper 8 User Manuals
+.SH NAME
+pam-nis-helper \- check password for libpam-nis
+.SH SYNOPSIS
+\fB <not invoked manually> \f1
+.SH DESCRIPTION
+A helper binary for the pam_nis module, pam-nis-helper, is provided to check the user's password. This binary is very simple and will only check the password of the user invoking it. It is called transparently on behalf of the user by the authenticating component of the pam_nis module. In this way it is possible for applications to work without being setuid root. 
+.SH USAGE
+This program is not intended to be called directly by users and will log to syslog if it is called improperly (i.e., by someone trying to exploit it). 
+.SH AUTHOR
+pam-nis was written by Lennart Poettering and slightly modified for nis by Oliver Kurth. Its initial name was pam-dotfile-helper. 
+.SH COMMENTS
+This man page was written using \fBxmltoman(1)\f1 by Oliver Kurth.

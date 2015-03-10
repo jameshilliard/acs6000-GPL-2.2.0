@@ -1,0 +1,10 @@
+#!/bin/sh
+
+UPDATEPATH="/opt/utils"
+UPDATESCRIPT="updatesources"
+SUDOUSER=`ls -dl $UPDATEPATH | awk '{ print $3 }'`
+
+if [ -n "$SUDOUSER" ]
+then
+	sudo -H -u "$SUDOUSER" "$UPDATEPATH/$UPDATESCRIPT"
+fi

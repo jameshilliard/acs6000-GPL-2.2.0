@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# This program is for checking out and build gsp(onbaord) image.
+
+# to do initialize environment here.
+PUBDL_DIR=/opt/sources
+USRDL_DIR=${HOME}/sources
+
+if [ ! -d ${USRDL_DIR} ]; then
+	mkdir ${USRDL_DIR}
+fi
+
+pushd ${USRDL_DIR} > /dev/null
+for f in `ls ${PUBDL_DIR}`
+do
+	if [ ! -L $f ]; then
+		ln -s ${PUBDL_DIR}/$f $f
+	fi
+done
+popd > /dev/null
+
+# to check out the sources
+if [ ! -d common ]; then
+    mkdir common
+fi
+
+SVNCMD="svn co"
+#SVNURL="https://fre-svn.corp.avocent.com/svn/"
+SVNURL="https://fre-svn.corp.avocent.com/svn/avocent-gsp"
+# Final SVN command to be appended with the repository infor.
+SVNFN="$SVNCMD $SVNURL"
+
+function checkDir () {
+        project="$1"
+        workdir="$2"
+
+        if [ -d "$workdir" ]; then
+                echo "$workdir already exists."
+                echo -n "Do you want to remove it?[y/n]: "
+                read r
+                if [ "$r" = "y" ]; then
+                        echo "remove $workdir "
+                        rm -rf $workdir
+                        ${SVNFN}/$project $workdir
+                else
+                        echo "keep $workdir"
+                fi
+        else
+                ${SVNFN}/$project $workdir
+        fi
+}
+
+pushd common > /dev/null
+checkDir "common/org.openembedded.dev/trunk"\
+         "org.openembedded.dev"
+checkDir "common/com.avocent.dev/trunk"\
+         "com.avocent.dev"
+popd > /dev/null
+
+checkDir "projects/dtview/trunk" "dtview"
+checkDir "utils/trunk"  "utils"
+checkDir "bitbake/branches/bitbake-ide_1_6_2" "bitbake"

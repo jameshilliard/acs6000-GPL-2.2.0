@@ -1,0 +1,45 @@
+# /etc/network/interfaces -- configuration file for ifup(8), ifdown(8)
+
+# Currently has eth0 and eth1 set to manual.. eventually these should be bonded by default
+
+# Bring up the physical interfaces 
+auto lo eth0 eth1 priv0 priv1
+
+# The loopback interface
+iface lo inet loopback
+
+iface lo inet6 loopback
+
+# Wired or wireless interfaces
+iface eth0 inet manual
+iface eth0 inet6 manual
+
+iface eth1 inet manual
+iface eth1 inet6 manual
+
+iface bond0 inet static
+	address 0.0.0.0
+	netmask 255.255.255.255
+	broadcase +
+	slaves eth0 eth1
+
+iface bond0 inet6 static
+	address ::
+	netmask 64
+
+iface priv0 inet static
+	address 0.0.0.0
+	netmask 255.255.255.255
+
+iface priv0 inet6 static
+	address ::
+	netmask 64
+
+iface priv1 inet static
+	address 0.0.0.0
+	netmask 255.255.255.255
+
+iface priv1 inet6 static
+	address ::
+	netmask 64
+

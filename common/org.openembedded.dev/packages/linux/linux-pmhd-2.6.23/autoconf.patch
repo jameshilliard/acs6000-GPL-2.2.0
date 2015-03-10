@@ -1,0 +1,59 @@
+Index: linux-2.6.23/fs/jffs2/scan.c
+===================================================================
+--- linux-2.6.23.orig/fs/jffs2/scan.c
++++ linux-2.6.23/fs/jffs2/scan.c
+@@ -219,7 +219,7 @@ int jffs2_scan_medium(struct jffs2_sb_in
+ 			break;
+ 
+ 		case BLK_STATE_BADBLOCK:
+-			D1(printk(KERN_NOTICE "JFFS2: Block at 0x%08x is bad\n", jeb->offset));
++			printk(KERN_NOTICE "JFFS2: Block at 0x%08x is bad\n", jeb->offset);
+ 			list_add(&jeb->list, &c->bad_list);
+ 			c->bad_size += c->sector_size;
+ 			c->free_size -= c->sector_size;
+Index: linux-2.6.23/drivers/mtd/nand/fsl_elbc.c
+===================================================================
+--- linux-2.6.23.orig/drivers/mtd/nand/fsl_elbc.c
++++ linux-2.6.23/drivers/mtd/nand/fsl_elbc.c
+@@ -43,6 +43,7 @@
+ 
+ #define PFX "fsl-elbc: "
+ 
++#define CFG_FCM_DEBUG
+ #define CFG_FCM_DEBUG_LVL 1
+ #ifdef CFG_FCM_DEBUG
+ static int fcm_debug_level = CFG_FCM_DEBUG_LVL;
+@@ -199,6 +200,8 @@ static int fsl_elbc_run_command(struct m
+ 	if (ctrl->use_mdr)
+ 		lbc->mdr = ctrl->mdr;
+ 
++uint32_t fmr=lbc->fmr, fir=lbc->fir, fcr=lbc->fcr, fbar=lbc->fbar, fpar=lbc->fpar, fbcr=lbc->fbcr;
++
+ 	FCM_DEBUG(5, "fsl_elbc_run_command: fmr= %08X fir= %08X fcr= %08X\n",
+ 		lbc->fmr, lbc->fir, lbc->fcr);
+ 	FCM_DEBUG(5, "fsl_elbc_run_command: fbar=%08X fpar=%08X fbcr=%08X "
+@@ -244,6 +247,11 @@ static int fsl_elbc_run_command(struct m
+ 		ctrl->status, ctrl->mdr, lbc->fmr);
+ 
+ 	/* returns 0 on success otherwise non-zero) */
++if (ctrl->status != LTESR_CC) {
++printk("fsl_elbc_run_command: fmr= %08X fir= %08X fcr= %08X\n", fmr, fir, fcr);
++printk("fsl_elbc_run_command: fbar=%08X fpar=%08X fbcr=%08X\n", fbar, fpar, fbcr);
++printk("fsl_elbc_run_command: stat=%08X mdr= %08X fmr= %08X\n", ctrl->status, ctrl->mdr, lbc->fmr);
++}
+ 	return (ctrl->status == LTESR_CC ? 0 : EFAULT);
+ }
+ 
+Index: linux-2.6.23/drivers/mtd/nand/nand_base.c
+===================================================================
+--- linux-2.6.23.orig/drivers/mtd/nand/nand_base.c
++++ linux-2.6.23/drivers/mtd/nand/nand_base.c
+@@ -1812,6 +1812,8 @@ static int nand_do_write_oob(struct mtd_
+ 	if (nand_check_wp(mtd))
+ 		return -EROFS;
+ 
++nand_read_oob_std(mtd, chip, page, 1);
++
+ 	/* Invalidate the page cache, if we write to the cached page */
+ 	if (page == chip->pagebuf)
+ 		chip->pagebuf = -1;

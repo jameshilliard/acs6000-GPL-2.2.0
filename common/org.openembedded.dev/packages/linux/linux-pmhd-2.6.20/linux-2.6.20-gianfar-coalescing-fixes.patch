@@ -1,0 +1,173 @@
+diff --exclude CVS -uNr linux-2.6.20/drivers/net/gianfar.c linux-2.6.20.modified/drivers/net/gianfar.c
+--- linux-2.6.20/drivers/net/gianfar.c	2007-07-01 10:39:00.000000000 -0400
++++ linux-2.6.20.modified/drivers/net/gianfar.c	2007-07-03 16:24:31.000000000 -0400
+@@ -1322,17 +1322,19 @@
+ 	phy_start(priv->phydev);
+ 
+ 	/* Configure the coalescing support */
++	priv->txic = 0;
+ 	if (priv->txcoalescing)
+-		gfar_write(&regs->txic,
+-			   mk_ic_value(priv->txcount, priv->txtime));
+-	else
+-		gfar_write(&regs->txic, 0);
++		priv->txic = mk_ic_value(priv->txcount, priv->txtime);
++
++	gfar_write(&regs->txic, 0);
++	gfar_write(&regs->txic, priv->txic);
+ 
++	priv->rxic = 0;
+ 	if (priv->rxcoalescing)
+-		gfar_write(&regs->rxic,
+-			   mk_ic_value(priv->rxcount, priv->rxtime));
+-	else
+-		gfar_write(&regs->rxic, 0);
++		priv->rxic = mk_ic_value(priv->rxcount, priv->rxtime);
++
++	gfar_write(&regs->rxic, 0);
++	gfar_write(&regs->rxic, priv->rxic);
+ 
+ 	if (priv->rx_csum_enable)
+ 		rctrl |= RCTRL_CHECKSUMMING;
+@@ -1863,19 +1865,9 @@
+ 	spin_lock(&priv->txlock);
+ 	gfar_clean_tx_ring(dev);
+ #endif
+-  	/* If we are coalescing the interrupts, reset the timer */
+-
+-	/* If we are coalescing the interrupts, reset the timer */
+-	/* Otherwise, clear it */
+-	if (priv->txcoalescing)
+-		gfar_write(&priv->regs->txic,
+-			   mk_ic_value(priv->txcount, priv->txtime));
+-	else
+-		gfar_write(&priv->regs->txic, 0);
+-
+-#ifdef CONFIG_GFAR_SKBUFF_RECYCLING
++	/* reset the interrupt coalescing values */
++	gfar_write(&priv->regs->txic, 0);
+ 	gfar_write(&priv->regs->txic, priv->txic);
+-#endif
+ 
+ 	spin_unlock(&priv->txlock);
+ 
+@@ -2114,15 +2106,8 @@
+ 
+ 	/* If we are coalescing interrupts, update the timer */
+ 	/* Otherwise, clear it */
+-	if (priv->rxcoalescing)
+-		gfar_write(&priv->regs->rxic,
+-			   mk_ic_value(priv->rxcount, priv->rxtime));
+-	else
+-		gfar_write(&priv->regs->rxic, 0);
+-
+-#ifdef CONFIG_GFAR_SKBUFF_RECYCLING
++	gfar_write(&priv->regs->rxic, 0);
+ 	gfar_write(&priv->regs->rxic, priv->rxic);
+-#endif
+ 
+ 	spin_unlock_irqrestore(&priv->rxlock, flags);
+ #endif
+@@ -2321,22 +2306,11 @@
+ 		/* Clear the halt bit in RSTAT */
+ 		gfar_write(&priv->regs->rstat, RSTAT_CLEAR_RHALT);
+ 
+-#ifndef CONFIG_GFAR_SKBUFF_RECYCLING
+-		gfar_write(&priv->regs->imask, IMASK_DEFAULT);
+-#endif
+ 		/* If we are coalescing interrupts, update the timer */
+ 		/* Otherwise, clear it */
+-#ifndef CONFIG_GFAR_SKBUFF_RECYCLING
+-		if (priv->rxcoalescing)
+-			gfar_write(&priv->regs->rxic,
+-				mk_ic_value(priv->rxcount, priv->rxtime));
+-		else
+-#endif
+-			gfar_write(&priv->regs->rxic, 0);
+-#ifdef CONFIG_GFAR_SKBUFF_RECYCLING
++		gfar_write(&priv->regs->rxic, 0);
+ 		gfar_write(&priv->regs->rxic, priv->rxic);
+ 		gfar_write(&priv->regs->imask, IMASK_DEFAULT);
+-#endif
+ 	}
+ 
+ 	/* Return 1 if there's more work to do */
+diff --exclude CVS -uNr linux-2.6.20/drivers/net/gianfar.h linux-2.6.20.modified/drivers/net/gianfar.h
+--- linux-2.6.20/drivers/net/gianfar.h	2007-07-01 10:39:00.000000000 -0400
++++ linux-2.6.20.modified/drivers/net/gianfar.h	2007-07-03 16:22:10.000000000 -0400
+@@ -140,12 +140,12 @@
+ #define GFAR_10_TIME    25600
+ 
+ #define DEFAULT_TX_COALESCE 1
+-#define DEFAULT_TXCOUNT	16
+-#define DEFAULT_TXTIME	4
++#define DEFAULT_TXCOUNT	24
++#define DEFAULT_TXTIME	64
+ 
+ #define DEFAULT_RX_COALESCE 1
+-#define DEFAULT_RXCOUNT	16
+-#define DEFAULT_RXTIME	4
++#define DEFAULT_RXCOUNT	2
++#define DEFAULT_RXTIME	64
+ 
+ #define TBIPA_VALUE		0x1f
+ #define MIIMCFG_INIT_VALUE	0x00000007
+@@ -806,9 +806,9 @@
+ 	unsigned short rxcount;
+ 	unsigned short rxtime;
+ 
+-#ifdef CONFIG_GFAR_SKBUFF_RECYCLING
+ 	unsigned long txic;
+ 	unsigned long rxic;
++#ifdef CONFIG_GFAR_SKBUFF_RECYCLING
+ 	/* Buffer size for Advanced SKB Handling */
+ 	unsigned long skbuff_truesize;
+ 	unsigned long skbuff_buffsize;
+diff --exclude CVS -uNr linux-2.6.20/drivers/net/gianfar_ethtool.c linux-2.6.20.modified/drivers/net/gianfar_ethtool.c
+--- linux-2.6.20/drivers/net/gianfar_ethtool.c	2007-07-01 10:39:00.000000000 -0400
++++ linux-2.6.20.modified/drivers/net/gianfar_ethtool.c	2007-07-03 16:25:19.000000000 -0400
+@@ -362,6 +362,10 @@
+ 
+ 	priv->rxtime = gfar_usecs2ticks(priv, cvals->rx_coalesce_usecs);
+ 	priv->rxcount = cvals->rx_max_coalesced_frames;
++	if (priv->rxcoalescing)
++		priv->rxic = mk_ic_value(priv->rxcount, priv->rxtime);
++	else
++		priv->rxic = 0;
+ 
+ 	/* Set up tx coalescing */
+ 	if ((cvals->tx_coalesce_usecs == 0) ||
+@@ -370,6 +374,11 @@
+ 	else
+ 		priv->txcoalescing = 1;
+ 
++	if (priv->txcoalescing)
++		priv->txic = mk_ic_value(priv->txcount, priv->txtime);
++	else
++		priv->txic = 0;
++	
+ 	/* Check the bounds of the values */
+ 	if (cvals->tx_coalesce_usecs > GFAR_MAX_COAL_USECS) {
+ 		pr_info("Coalescing is limited to %d microseconds\n",
+@@ -386,17 +395,11 @@
+ 	priv->txtime = gfar_usecs2ticks(priv, cvals->tx_coalesce_usecs);
+ 	priv->txcount = cvals->tx_max_coalesced_frames;
+ 
+-	if (priv->rxcoalescing)
+-		gfar_write(&priv->regs->rxic,
+-			   mk_ic_value(priv->rxcount, priv->rxtime));
+-	else
+-		gfar_write(&priv->regs->rxic, 0);
++	gfar_write(&priv->regs->rxic, 0);
++	gfar_write(&priv->regs->rxic, priv->rxic);
+ 
+-	if (priv->txcoalescing)
+-		gfar_write(&priv->regs->txic,
+-			   mk_ic_value(priv->txcount, priv->txtime));
+-	else
+-		gfar_write(&priv->regs->txic, 0);
++	gfar_write(&priv->regs->txic, 0);
++	gfar_write(&priv->regs->txic, priv->txic);
+ 
+ 	return 0;
+ }

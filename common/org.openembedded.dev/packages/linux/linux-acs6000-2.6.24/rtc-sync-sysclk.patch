@@ -1,0 +1,67 @@
+Index: linux-2.6-denx/arch/ppc/kernel/time.c
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/kernel/time.c	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/arch/ppc/kernel/time.c	2008-06-14 09:05:26.000000000 -0700
+@@ -66,6 +66,11 @@
+ 
+ #include <asm/time.h>
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#include <asm/ppcboot.h>
++extern bd_t __res;
++#endif
++
+ unsigned long disarm_decr[NR_CPUS];
+ 
+ extern struct timezone sys_tz;
+@@ -84,6 +89,19 @@
+ /* used for timezone offset */
+ static long timezone_offset;
+ 
++#ifdef CONFIG_AVOCENT_GSP
++int watchdog_config;
++
++void avocent_gsp_watchdog_reset(void)
++{
++	if (watchdog_config) {
++#ifdef CONFIG_BOOKE
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++#endif
++	}
++}
++#endif
++
+ DEFINE_SPINLOCK(rtc_lock);
+ 
+ EXPORT_SYMBOL(rtc_lock);
+@@ -172,7 +190,7 @@
+ 		 * We should have an rtc call that only sets the minutes and
+ 		 * seconds like on Intel to avoid problems with non UTC clocks.
+ 		 */
+-		if ( ppc_md.set_rtc_time && ntp_synced() &&
++		if ( ppc_md.set_rtc_time && 
+ 		     xtime.tv_sec - last_rtc_update >= 659 &&
+ 		     abs((xtime.tv_nsec / 1000) - (1000000-1000000/HZ)) < 500000/HZ) {
+ 		  	if (ppc_md.set_rtc_time(xtime.tv_sec+1 + timezone_offset) == 0)
+@@ -190,6 +208,10 @@
+ 	if (ppc_md.heartbeat && !ppc_md.heartbeat_count--)
+ 		ppc_md.heartbeat();
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	avocent_gsp_watchdog_reset();
++#endif
++
+ 	irq_exit();
+ 	set_irq_regs(old_regs);
+ }
+@@ -339,6 +361,10 @@
+         }
+         set_normalized_timespec(&wall_to_monotonic,
+                                 -xtime.tv_sec, -xtime.tv_nsec);
++#ifdef CONFIG_AVOCENT_GSP
++	watchdog_config = __res.wdt;
++#endif
++
+ }
+ 
+ #define FEBRUARY		2

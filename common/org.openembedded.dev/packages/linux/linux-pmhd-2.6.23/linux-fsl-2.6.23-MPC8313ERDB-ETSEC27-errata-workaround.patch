@@ -1,0 +1,44 @@
+From 1b356d8724422393e1fe41575e49ad7b67248f23 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Thu, 5 Jun 2008 21:36:56 +0800
+Subject: [PATCH] ETSEC27 errata workaround
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ drivers/net/gianfar.c |   13 ++++++++++++-
+ 1 files changed, 12 insertions(+), 1 deletions(-)
+
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index 62fcb10..ccffccb 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -180,6 +180,7 @@ static int gfar_probe(struct platform_device *pdev)
+ 	struct resource *r;
+ 	int idx;
+ 	int err = 0;
++	u32 svr;
+ 
+ 	einfo = (struct gianfar_platform_data *) pdev->dev.platform_data;
+ 
+@@ -255,7 +256,17 @@ static int gfar_probe(struct platform_device *pdev)
+ 	/* Reset MAC layer */
+ 	gfar_write(&priv->regs->maccfg1, MACCFG1_SOFT_RESET);
+ 
+-	tempval = (MACCFG1_TX_FLOW | MACCFG1_RX_FLOW);
++	svr = mfspr(SPRN_SVR);
++	/* MPC8315E Rev1.2 or MPC8313E Rev2.1 */
++	if (svr == 0x80B40012 || svr == 0x80B00021) {
++		tempval = (MACCFG1_TX_FLOW | MACCFG1_RX_FLOW);
++	} else {
++		/* do not enable flow control due to errata eTSEC27 for MPC8313 */
++		/* bring the MAC out of reset by clearing the soft reset bit */
++		tempval = gfar_read(&priv->regs->maccfg1);
++		tempval &= ~MACCFG1_SOFT_RESET;
++	}
++
+ 	gfar_write(&priv->regs->maccfg1, tempval);
+ 
+ 	/* Initialize MACCFG2. */
+-- 
+1.5.5.1.248.g4b17
+

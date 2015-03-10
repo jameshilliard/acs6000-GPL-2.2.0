@@ -1,0 +1,41 @@
+Index: sysvinit-2.86/src/init.c
+===================================================================
+--- sysvinit-2.86.orig/src/init.c	2004-07-30 05:16:20.000000000 -0700
++++ sysvinit-2.86/src/init.c	2008-08-12 16:56:13.000000000 -0700
+@@ -2425,6 +2425,19 @@
+ 	 */
+   	initlog(L_CO, bootmsg, "booting");
+ 
++	/* PMHD - init process */
++	{
++		CHILD pmhdinit;
++		strcpy(pmhdinit.process,"/bin/init_pmhd.sh");
++		pmhdinit.action = SYSINIT;
++		pmhdinit.flags = 0; strcpy(pmhdinit.rlevel,"#");
++		initlog(L_CO, bootmsg, "PMHD init");
++		startup(&pmhdinit);
++		while ((rc = waitpid(pmhdinit.pid,&st,0)) != pmhdinit.pid) {
++			if ((rc < 0) && (errno == ECHILD)) break;
++		}
++	}
++
+   	/*
+ 	 *	See if we have to start an emergency shell.
+ 	 */
+Index: sysvinit-2.86/src/init.h
+===================================================================
+--- sysvinit-2.86.orig/src/init.h	2004-07-29 04:21:01.000000000 -0700
++++ sysvinit-2.86/src/init.h	2008-08-12 16:59:24.000000000 -0700
+@@ -19,9 +19,9 @@
+ #define STATE_PIPE 11			/* used to pass state through exec */
+ 
+ /* Failsafe configuration */
+-#define MAXSPAWN   10			/* Max times respawned in.. */
+-#define TESTTIME   120			/* this much seconds */
+-#define SLEEPTIME  300			/* Disable time */
++#define MAXSPAWN   30	//Original 10		/* Max times respawned in.. */
++#define TESTTIME   120						/* this much seconds */
++#define SLEEPTIME  60	//Original 300		/* Disable time */
+ 
+ /* Default path inherited by every child. */
+ #define PATH_DFL   "PATH=/bin:/usr/bin:/sbin:/usr/sbin"

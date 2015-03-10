@@ -1,0 +1,509 @@
+Index: linux-2.6-denx/arch/x86/mach-default/Makefile
+===================================================================
+--- linux-2.6-denx.orig/arch/x86/mach-default/Makefile
++++ linux-2.6-denx/arch/x86/mach-default/Makefile
+@@ -2,4 +2,4 @@
+ # Makefile for the linux kernel.
+ #
+ 
+-obj-y				:= setup.o
++obj-y				:= setup.o gsp-sysctl.o
+Index: linux-2.6-denx/arch/x86/mach-default/gsp-sysctl.c
+===================================================================
+--- /dev/null
++++ linux-2.6-denx/arch/x86/mach-default/gsp-sysctl.c
+@@ -0,0 +1,494 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/fs.h>
++#include <linux/delay.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++
++static int goldengate_sysctl_init(int init);
++
++static int numberOfPorts = 0;
++
++static int proc_handle_ports(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = {0};
++	int val;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++    }
++	if (!write) {
++		snprintf(string, sizeof(string), "%02d", numberOfPorts);
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	} else {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && val >= 0 && val <= 48) {
++			numberOfPorts = val;
++			goldengate_sysctl_init(0);
++		}
++	}
++	return 0;
++}
++
++static int proc_handle_oem(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_modem(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_aux(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_power(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "1";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_fpgaver(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[6] = "01.00";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, 6))
++			return -EFAULT;
++		*lenp = 6;
++		*ppos += 6;
++	}
++	return 0;
++}
++
++static int proc_handle_gpioread(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos+= sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_buzzer(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_led(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_pinout(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[4] = "0";
++	//int port = (unsigned long)table->data;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static char pinout_port_names[48][3];
++static struct ctl_table pinout_dir_table[49];
++static char pinout_name[]="pinout";
++
++#define NUM_ELEM_BOARD_DIR 3
++
++static struct ctl_table board_dir_table[NUM_ELEM_BOARD_DIR+2] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "power1",
++		.maxlen = sizeof(int),
++		.data = (void *)0x00000400L,
++		.mode = 0644,
++		.proc_handler = &proc_handle_gpioread,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "buzzer",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_buzzer,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "led",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_led,
++	},
++	{0}
++};
++
++static int goldengate_sysctl_init(int init)
++{
++	int index = NUM_ELEM_BOARD_DIR;
++	int i;
++
++	if (init) {
++		board_dir_table[index].procname = pinout_name;
++		board_dir_table[index].ctl_name = CTL_UNNUMBERED;
++		board_dir_table[index].mode = 0555;
++		board_dir_table[index].child = pinout_dir_table;
++	}
++
++	memset(pinout_dir_table, 0, sizeof(pinout_dir_table));
++
++	for (i = 0; i < numberOfPorts; i++) {
++		snprintf(pinout_port_names[i], 3, "%d", i + 1);
++		pinout_dir_table[i].ctl_name = CTL_UNNUMBERED;
++		pinout_dir_table[i].procname = pinout_port_names[i];
++		pinout_dir_table[i].maxlen = sizeof(int);
++		pinout_dir_table[i].mode = 0644;
++		pinout_dir_table[i].proc_handler = proc_handle_pinout;
++		pinout_dir_table[i].data = (void *)i;
++	}
++	return 0;
++}
++
++static int proc_handle_mac(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[19];
++	unsigned char mac[] = {0x00, 0xe0, 0x86, 0xed, 0x30, 0x00};
++
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		memset(string, 0, 18);
++		sprintf(string, "%02X:%02X:%02X:%02X:%02X:%02X",
++			mac[0], mac[1], mac[2], mac[3], mac[4], (unsigned int)table->data);
++		if (copy_to_user(buffer, string, 18)) {
++			return -EFAULT;
++		}
++		*lenp = 18;
++		*ppos += 18;
++	}
++	return 0;
++}
++
++static int proc_handle_serial(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[11] ;
++	unsigned char serial[] = {0x01, 0x02, 0x03, 0x04, 0x5};
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		memset(string, 0, 11);
++		sprintf(string, "%02X%02X%02X%02X%02X",
++			serial[0], serial[1], serial[2],
++			serial[3], serial[4]);
++		if (copy_to_user(buffer, string, 11)) {
++			return -EFAULT;
++		}
++		*lenp = 11;
++		*ppos += 11;
++	}
++	return 0;
++}
++
++static int proc_handle_family(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int)] = "38";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static struct ctl_table bdinfo_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "mac1",
++		.maxlen = 18,
++		.data = (void *)0,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "mac2",
++		.maxlen = 18,
++		.data = (void *)1,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "serial#",
++		.maxlen = 11,
++		.mode = 0644,
++		.proc_handler = &proc_handle_serial,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "family",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_family,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "ports",
++		.data = &numberOfPorts,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_ports,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "modem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_modem,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "aux",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_aux,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "power",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_power,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "fpgaver",
++		.maxlen = 6,
++		.mode = 0644,
++		.proc_handler = &proc_handle_fpgaver,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "oem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_oem,
++	},
++	{0}
++};
++
++static int watchdog_config = 0;
++
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1] = "0";
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "control",
++		.data = &watchdog_config,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_dointvec,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_wdt,
++	},
++	{0}
++};
++
++static struct ctl_table avocent_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "bdinfo",
++		.mode = 0555,
++		.child = bdinfo_dir_table,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "board",
++		.mode = 0555,
++		.child = board_dir_table,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "wdt",
++		.mode = 0555,
++		.child = wdt_dir_table,
++	},
++	{0}
++};
++
++static struct ctl_table avocent_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "avocent",
++		.mode = 0555,
++		.child = avocent_dir_table,
++	},
++	{0}
++};
++
++static int __init gsp_avocent_init(void)
++{
++	printk("sysctl initialization\n");
++
++ 	goldengate_sysctl_init(1);
++	register_sysctl_table(avocent_table);
++	return 0;
++}
++
++__initcall(gsp_avocent_init);

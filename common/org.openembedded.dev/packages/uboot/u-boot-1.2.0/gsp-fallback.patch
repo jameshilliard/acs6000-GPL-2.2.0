@@ -1,0 +1,228 @@
+Index: u-boot-1.2.0/common/Makefile
+===================================================================
+--- u-boot-1.2.0.orig/common/Makefile	2007-01-06 15:13:11.000000000 -0800
++++ u-boot-1.2.0/common/Makefile	2007-10-22 09:26:46.000000000 -0700
+@@ -29,7 +29,7 @@
+ 
+ COBJS	= main.o ACEX1K.o altera.o bedbug.o circbuf.o \
+ 	  cmd_ace.o cmd_autoscript.o \
+-	  cmd_bdinfo.o cmd_bedbug.o cmd_bmp.o cmd_boot.o cmd_bootm.o \
++	  cmd_bdinfo.o cmd_bedbug.o cmd_bmp.o cmd_boot.o cmd_bootm.o cmd_gsp-bootcmd.o \
+ 	  cmd_cache.o cmd_console.o \
+ 	  cmd_date.o cmd_dcr.o cmd_diag.o cmd_display.o cmd_doc.o cmd_dtt.o \
+ 	  cmd_eeprom.o cmd_elf.o cmd_ext2.o \
+Index: u-boot-1.2.0/common/cmd_gsp-bootcmd.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/common/cmd_gsp-bootcmd.c	2007-10-26 18:35:37.000000000 -0700
+@@ -0,0 +1,210 @@
++#include <common.h>
++#include <command.h>
++#include <net.h>
++
++#ifdef CONFIG_BOOT_FROM_NAND
++#include <nand.h>
++extern nand_info_t nand_info[];       /* info for NAND chips */
++#endif
++#ifdef CONFIG_BOOT_FROM_FAT
++#include <fat.h>
++extern block_dev_desc_t * ide_get_dev(int dev);
++#endif
++
++#ifdef CONFIG_AVOCENT_GSP
++extern int do_bootm (cmd_tbl_t *, int, int, char *[]);
++
++static int hw_boot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[], char *baud, int image)
++{
++	char arg[256];
++	char *local_args[2];
++	int i;
++#ifdef CONFIG_BOOT_FROM_NAND
++	unsigned long size;
++	nand_read_options_t opts;
++	int ret;
++#endif
++#ifdef CONFIG_BOOT_FROM_FAT
++	unsigned long size;
++	block_dev_desc_t *dev_desc = NULL;
++#endif
++
++	printf("Booting from image #%d ...\n", image);
++#ifdef CONFIG_BOOT_FROM_NAND
++	sprintf(arg, "root=/dev/mtdblock%d rw rootfstype=jffs2", 4 + image);
++#endif
++#ifdef CONFIG_BOOT_FROM_FAT
++	sprintf(arg, "root=/dev/hda%d rw", 4 + image, baud);
++#endif
++	sprintf(arg + strlen(arg), " console=ttyS0,%s", baud);
++	for (i = 1; i < argc; i ++) {
++		sprintf(arg + strlen(arg), " %s", argv[i]);
++        }
++
++
++	setenv("bootargs", arg);
++	load_addr = CFG_LOAD_ADDR;
++#ifdef CONFIG_BOOT_FROM_NAND
++	printf("\nNAND read: ");
++	size = CFG_KERNEL_SIZE;
++	memset(&opts, 0, sizeof(opts));
++	opts.buffer	= (u_char*) load_addr;
++	opts.length	= size;
++	opts.offset	= size * (image - 1);
++	opts.quiet	= 1;
++	ret = nand_read_opts(nand_info, &opts);
++	printf(" %d bytes read: %s\n", size, ret ? "ERROR" : "OK");
++	if (ret) {
++		return 1;
++	}
++#endif
++#ifdef CONFIG_BOOT_FROM_FAT
++	dev_desc = ide_get_dev(0);
++	if (! dev_desc) {
++		printf("\nInvalid boot device: ide.\n");
++		return 1;
++	}
++	if (fat_register_device(dev_desc, image) != 0) {
++		printf("\nUnable to use image %d.\n", image);
++		return 1;
++	}
++	size = file_fat_read("*", (unsigned long)load_addr, 0);
++	if (size == -1) {
++		printf("\nUnable to read kernel file from image %d.\n", image);
++		return 1;
++	}
++	printf("\n%ld bytes read\n", size);
++#endif
++	local_args[0] = argv[0];
++	local_args[1] = NULL;
++	return do_bootm (cmdtp, 0, 1, local_args);
++}
++
++static int net_boot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[], char *baud)
++{
++	char arg[256];
++	char *local_args[2];
++	int size;
++	int i;
++
++	printf("Booting from network ...\n");
++	sprintf(arg, "root=/dev/ram0 rw console=ttyS0,%s", baud);
++	for (i = 1; i < argc; i ++) {
++		sprintf(arg + strlen(arg), " %s", argv[i]);
++        }
++	setenv("bootargs", arg);
++	load_addr = CFG_LOAD_ADDR;
++	if ((size = NetLoop(TFTP)) <= 0) {
++		return 1;
++	}
++	flush_cache(load_addr, size);
++	local_args[0] = argv[0];
++	local_args[1] = NULL;
++	return do_bootm (cmdtp, 0, 1, local_args);
++}
++
++static int do_hw_boot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
++{
++	char *fb;
++	int current;
++	char *baud = getenv("baudrate");
++#ifdef CONFIG_TWO_IMAGES
++	char *image;
++#endif
++
++	if (baud == NULL) {
++		baud = "9600";
++	}
++#ifdef CONFIG_TWO_IMAGES
++	image = getenv("currentimage");
++	if (image == NULL || *image != '2') {
++		current = 1;
++	} else {
++		current = 2;
++	}
++#else
++	current = 1;
++#endif
++	if (hw_boot (cmdtp, flag, argc, argv, baud, current) == 0) {
++		return 0;
++	}
++	fb = getenv("fallback");
++	if (fb == NULL || strcmp(fb, "yes")) {
++		return 1;
++	}
++#ifdef CONFIG_TWO_IMAGES
++	if (current == 1) {
++		current = 2;
++	} else {
++		current = 1;
++	}
++	if (hw_boot (cmdtp, flag, argc, argv, baud, current) == 0) {
++		return 0;
++	}
++#endif
++	if (net_boot (cmdtp, flag, argc, argv, baud) == 0) {
++		return 0;
++	}
++	return 1;
++}
++
++static int do_net_boot (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
++{
++	char *fb;
++	int current;
++	char *baud = getenv("baudrate");
++#ifdef CONFIG_TWO_IMAGES
++	char *image;
++#endif
++
++	if (baud == NULL) {
++		baud = "9600";
++	}
++	if (net_boot (cmdtp, flag, argc, argv, baud) == 0) {
++		return 0;
++	}
++	if (had_ctrlc()) {
++		return 1;
++	}
++	fb = getenv("fallback");
++	if (fb == NULL || strcmp(fb, "yes")) {
++		return 1;
++	}
++#ifdef CONFIG_TWO_IMAGES
++	image = getenv("currentimage");
++	if (image == NULL || *image != '2') {
++		current = 1;
++	} else {
++		current = 2;
++	}
++	if (hw_boot (cmdtp, flag, argc, argv, baud, current) == 0) {
++		return 0;
++	}
++	if (current == 1) {
++		current = 2;
++	} else {
++		current = 1;
++	}
++#else
++	current = 1;
++#endif
++	if (hw_boot (cmdtp, flag, argc, argv, baud, current) == 0) {
++		return 0;
++	}
++	return 1;
++}
++
++U_BOOT_CMD(
++	hw_boot,	CFG_MAXARGS,	1,	do_hw_boot,
++	"hw_boot - Boots from internal flash\n",
++	"\n"
++	"    - Boots from internal flash\n"
++);
++
++U_BOOT_CMD(
++	net_boot,	CFG_MAXARGS,	1,	do_net_boot,
++	"net_boot- Boots from network\n",
++	"\n"
++	"    - Boots from network, through TFTP\n"
++);
++#endif

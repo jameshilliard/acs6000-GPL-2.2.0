@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ -n "$IF_SLAVES" ] ; then
+	for S in $IF_SLAVES ; do
+		ifconfig $S down || true
+	done
+	ifconfig $IFACE down || true
+	modprobe -r bonding || true
+fi
+

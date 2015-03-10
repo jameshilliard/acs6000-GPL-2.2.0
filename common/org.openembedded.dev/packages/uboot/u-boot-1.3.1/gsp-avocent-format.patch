@@ -1,0 +1,506 @@
+Index: u-boot-1.3.1/config.mk
+===================================================================
+--- u-boot-1.3.1.orig/config.mk	2007-12-06 01:21:19.000000000 -0800
++++ u-boot-1.3.1/config.mk	2008-03-06 18:33:21.000000000 -0800
+@@ -154,6 +154,9 @@
+ endif
+ 
+ CPPFLAGS += -I$(TOPDIR)/include
++ifdef STAGING_DIR
++CPPFLAGS += -I$(STAGING_DIR)/include
++endif
+ CPPFLAGS += -fno-builtin -ffreestanding -nostdinc 	\
+ 	-isystem $(gccincdir) -pipe $(PLATFORM_CPPFLAGS)
+ 
+Index: u-boot-1.3.1/include/asm-ppc/u-boot.h
+===================================================================
+--- u-boot-1.3.1.orig/include/asm-ppc/u-boot.h	2008-03-06 18:33:19.000000000 -0800
++++ u-boot-1.3.1/include/asm-ppc/u-boot.h	2008-03-06 18:33:21.000000000 -0800
+@@ -142,6 +142,10 @@
+ 	int 		bi_phymode[1];          /* Determines phy mode */
+ #endif
+ #endif /* defined(CONFIG_4xx) */
++#ifdef CONFIG_AVOCENT_GSP
++       unsigned char   family;
++#endif
++
+ } bd_t;
+ 
+ #endif /* __ASSEMBLY__ */
+Index: u-boot-1.3.1/common/cmd_bootm.c
+===================================================================
+--- u-boot-1.3.1.orig/common/cmd_bootm.c	2007-12-06 01:21:19.000000000 -0800
++++ u-boot-1.3.1/common/cmd_bootm.c	2008-03-06 18:48:17.000000000 -0800
+@@ -43,6 +43,12 @@
+ #include <ft_build.h>
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#include <avocent/types.h>
++#include <avocent/flashhdr.h>
++#include <avocent/checksum.h>
++#endif
++
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ /*cmd_boot.c*/
+@@ -67,7 +73,6 @@
+ #ifdef CONFIG_HAS_DATAFLASH
+ #include <dataflash.h>
+ #endif
+-
+ /*
+  * Some systems (for example LWMON) have very short watchdog periods;
+  * we must make sure to split long operations like memmove() or
+@@ -98,6 +103,306 @@
+ image_header_t *fake_header(image_header_t *hdr, void *ptr, int size);
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++static struct OemTable
++{
++  char *name;
++  int code;
++}
++oemTable[] =
++{
++  {"Avocent",            OPTREC_OEM_AVOCENT},
++  {"Avo",                OPTREC_OEM_AVOCENT},
++  {"Compaq",             OPTREC_OEM_COMPAQ},
++  {"Dell",               OPTREC_OEM_DELL},
++  {"HP",                 OPTREC_OEM_HP},
++  {"IBM",                OPTREC_OEM_IBM},
++  {"Siemens",            OPTREC_OEM_SMS},
++  {"FSC",                OPTREC_OEM_SMS},
++  {"WL",                 OPTREC_OEM_WL},
++  {"BLACKBOX",           OPTREC_OEM_BLACKBOX},
++  {"BBOX",               OPTREC_OEM_BLACKBOX},
++  {"TEST",               OPTREC_OEM_TESTRACK},
++};
++
++
++static struct ProductTable
++{
++  char *name;
++  int code;
++}
++prodTable[] =
++{
++  {"DS1800",             OPTREC_PRODUCT_TYPE_DS1800},
++  {"DSR1",               OPTREC_PRODUCT_TYPE_DSR},
++  {"DSR",                OPTREC_PRODUCT_TYPE_DSR},
++  {"DSR2",               OPTREC_PRODUCT_TYPE_AVR},
++  {"AVR",                OPTREC_PRODUCT_TYPE_AVR},
++  {"DSR800",             OPTREC_PRODUCT_TYPE_DSR800},
++  {"DSR3",               OPTREC_PRODUCT_TYPE_DSR3},
++  {"BV",                 OPTREC_PRODUCT_TYPE_BVIEW},
++  {"TWIG",               OPTREC_PRODUCT_TYPE_TWIG},
++  {"ATLANTIS_D",         OPTREC_PRODUCT_TYPE_ATLANTIS_D},
++  {"ATLANTIS_A",         OPTREC_PRODUCT_TYPE_ATLANTIS_A},
++  {"IPMI_APP",           OPTREC_PRODUCT_TYPE_IPMI_APP},
++  {"ATL_D_PHASE_B",      OPTREC_PRODUCT_TYPE_ATL_D_PHASE_B},
++  {"ATL_D_8020",         OPTREC_PRODUCT_TYPE_ATL_D_8020},
++  {"ATLANTIS_AHI",       OPTREC_PRODUCT_TYPE_ATLANTIS_AHI},
++  {"BV_AHI",             OPTREC_PRODUCT_TYPE_BV_AHI},
++  {"TWIG_AHI",           OPTREC_PRODUCT_TYPE_TWIG_AHI},
++  {"STINGRAY",           OPTREC_PRODUCT_TYPE_STINGRAY},
++  {"NAUTILUS_D",         OPTREC_PRODUCT_TYPE_NAUTILUS_D},
++  {"TRIDENT",            OPTREC_PRODUCT_TYPE_TRIDENT},
++  {"AV3x00",             OPTREC_PRODUCT_TYPE_AV_3x00},
++  {"CYC_TSxK",           OPTREC_PRODUCT_TYPE_CYC_TSxK},
++  {"CYC_TS1H",           OPTREC_PRODUCT_TYPE_CYC_TS1H},
++  {"CYC_TS3K",           OPTREC_PRODUCT_TYPE_CYC_TS3K},
++  {"CYC_ACS",            OPTREC_PRODUCT_TYPE_CYC_ACS},
++  {"CYC_ONBOARD",        OPTREC_PRODUCT_TYPE_CYC_ONBOARD},
++  {"CYC_PM",             OPTREC_PRODUCT_TYPE_CYC_PM},
++  {"CYC_KVMNET",         OPTREC_PRODUCT_TYPE_CYC_KVMNET},
++  {"CYC_KVMPLUS",        OPTREC_PRODUCT_TYPE_CYC_KVMPLUS},
++  {"DSI5200",            OPTREC_PRODUCT_TYPE_DSI5200},
++  {"CYC_ONSITE",         OPTREC_PRODUCT_TYPE_CYC_ONSITE},
++  {"ACS6000",            OPTREC_PRODUCT_TYPE_ACS6000},
++  {"PMHD",               OPTREC_PRODUCT_TYPE_PMHD},
++};
++
++static int verify_kernel_header(DsFlashHdr *khdr, int quiet, int verify)
++{
++	ulong chksum;
++	unsigned char *ptr;
++	int i;
++
++	if (! quiet)
++		puts  ("        checking kernel header ... ");
++	if (ntohl(khdr->magic) !=  DS_FLASH_MAGIC ) {
++		if (! quiet)
++			printf("wrong magic number [%08x].\n",
++				ntohl(khdr->magic));
++		return 0;
++	}
++	if (strncmp(khdr->signature, DS_FLASH_SIGNATURE, 32)) {
++		if (! quiet)
++			printf("invalid signature [%s].\n", khdr->signature);
++		return 0;
++	}
++	if (ntohl(khdr->hdrVers) != 1) {
++		if (! quiet)
++			printf("header v%d not supported.\n",
++				ntohl(khdr->hdrVers));
++		return 0;
++	}
++	if (verify) {
++		chksum = 0;
++		ptr = (unsigned char *)khdr + ntohl(khdr->flashOffset);
++		for (i = 0; i < ntohl(khdr->flashLength); i ++)
++			chksum += ptr[i];
++
++		if (chksum != ntohl(khdr->flashSum)) {
++			if (! quiet)
++				puts("checksum error.\n");
++			return 0;
++		}
++	}
++	if (! quiet) {
++		puts("OK.\n");
++	} else {
++		printf ("    Kernel from %08x (%d bytes).\n",
++			ntohl(khdr->flashOffset),
++			ntohl(khdr->flashLength));
++	}
++	return 1;
++}
++
++int verify_avocent_header (ulong addr, int verify,
++	DsFlashHdr **khdr, ulong *rddata, ulong *rdlen)
++{
++	DsFlashFileHdr1 *hdr;
++	DsHwPartNumber *pn;
++	OptRecHdr *opt;
++	int i, j;
++	int oemCount = sizeof( oemTable ) / sizeof( struct OemTable );
++	int prodCount = sizeof( prodTable ) / sizeof( struct ProductTable );
++	ushort val, checksumType = 0, prodFamily = 0;
++	bd_t *bd = gd->bd;
++	char *pcrc = "checksum";
++
++	/* Check first if it is only a kernel package */
++	if (verify_kernel_header((DsFlashHdr *)addr, 1, verify)) {
++		if (khdr) *khdr = (DsFlashHdr *)addr;
++		if (rddata) *rddata = 0;
++		if (rdlen) *rdlen = 0;
++		return 1;
++	}
++
++	hdr = (DsFlashFileHdr1 *)addr;
++
++	/* Check file header */
++	if (ntohl(hdr->hdrMagic) != DS_FLASH_HDR1_MAGIC) {
++		printf ("Bad Magic Number [%08x].\n", ntohl(hdr->hdrMagic));
++		return 0;
++	}
++	if (ntohl(hdr->hdrVers) != 2) {
++		printf ("Header v%d not supported.\n", ntohl(hdr->hdrVers));
++		return 0;
++	}
++
++	/* Print information about the header */
++	printf("    File version %s.\n", hdr->flashFileVersion.version);
++	printf("    Created on %s at %s.\n",
++		hdr->image_create_date, hdr->image_create_time);
++	puts  ("    Option headers: ");
++	for (i = 0; i < ntohl(hdr->optRecLength); ) {
++		opt = (OptRecHdr *)(addr + ntohl(hdr->optRecOffset) + i);
++		if (ntohs(opt->recType) == OPTREC_TYPE_END) {
++			break;
++		}
++		switch (ntohs(opt->recType)) {
++		case OPTREC_TYPE_OEM:
++			puts ("OEM");
++			val = 0;
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				val *= 0x100;
++				val += ((unsigned char *)(opt + 1))[j];
++			}
++			for (j = 0; j < oemCount; j ++) {
++				if (oemTable[j].code == val) {
++					printf("[%s] ", oemTable[j].name);
++					break;
++				}
++			}
++			if (j == oemCount) {
++				printf("[%d] ", val);
++			}
++			break;
++		case OPTREC_TYPE_FAMILY:
++			puts ("FAMILY");
++			val = 0;
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				val *= 0x100;
++				val += ((unsigned char *)(opt + 1))[j];
++			}
++			for (j = 0; i < prodCount; j ++) {
++				if (prodTable[j].code == val) {
++					printf("[%s] ", prodTable[j].name);
++					break;
++				}
++			}
++			if (j == prodCount) {
++				printf("[%d] ", val);
++			}
++			prodFamily = val;
++			break;
++		case OPTREC_TYPE_CHECKSUM:
++			puts ("CHECKSUM");
++			val = 0;
++			for (j = 0; j < ntohs(opt->recLength); j ++) {
++				val *= 0x100;
++				val += ((unsigned char *)(opt + 1))[j];
++			}
++			switch (val) {
++			case 0:
++				puts ("[cksum] ");
++				pcrc = "checksum";
++				break;
++			case 1:
++				puts ("[crc32] ");
++				pcrc = "CRC32";
++				break;
++			case 2:
++				puts ("[crc16] ");
++				pcrc = "CRC16";
++				break;
++			default:
++				printf("[%d] ", val);
++			}
++			checksumType = val;
++			break;
++		case OPTREC_TYPE_SIGNATURE:
++			puts ("SIGNATURE");
++			val = ((unsigned char *)(opt + 1))[0] * 0x100 +
++				((unsigned char *)(opt + 1))[1];
++			switch (val) {
++			case SIGNATURE_METHOD_SHA1_RSA:
++				printf ("[SHA1+RSA] ");
++				break;
++			default:
++				printf("[%d] ", val);
++				break;
++			}
++			break;
++		default:
++			printf ("unknown(%d)", ntohs(opt->recType));
++			break;
++		}
++		i += sizeof(OptRecHdr) + ntohs(opt->recLength);
++	}
++	puts("\n");
++
++	if (prodFamily != bd->family) {
++		puts("Firmware doesn't support this hardware.\n");
++		return 0;
++	}
++
++	puts  ("    Part Numbers: ");
++	/* Check part numbers */
++	pn = (DsHwPartNumber *)(addr + ntohl(hdr->partNumOffset));
++	for (i = 0; i < ntohl(hdr->partNumCount); i ++) {
++		printf("%s ", (pn + i)->partNumber);
++	}
++	puts("\n");
++
++	printf("    Kernel Image from %08x (%d bytes).\n",
++		ntohl(hdr->zImageOffset), ntohl(hdr->zImageLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->zImageChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->zImageOffset)),
++			ntohl(hdr->zImageLength))) {
++			puts("NOK.\n");
++			return 0;
++			}
++		puts("OK.\n");
++	}
++	if (! verify_kernel_header(
++		(DsFlashHdr *)(addr + ntohl(hdr->zImageOffset)), 0, verify)) {
++		return 0;
++	}
++	if (khdr) *khdr = (DsFlashHdr *)(addr + ntohl(hdr->zImageOffset));
++	printf("    CRAM filesystem from %08x (%d bytes).\n",
++		ntohl(hdr->cramfsOffset), ntohl(hdr->cramfsLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->cramfsChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->cramfsOffset)),
++			ntohl(hdr->cramfsLength))) {
++			puts("NOK.\n");
++			return 0;
++		}
++		puts("OK.\n");
++	}
++	if (rddata) *rddata = addr + ntohl(hdr->cramfsOffset);
++	if (rdlen) *rdlen = ntohl(hdr->cramfsLength);
++
++	printf("    RMON from %08x (%d bytes).\n",
++		ntohl(hdr->rmonOffset), ntohl(hdr->rmonLength));
++	if (verify) {
++		printf  ("        checking %s ... ", pcrc);
++		if (ntohl(hdr->rmonChkSum) != computeBufferChecksum(
++			checksumType, 0,
++			(char *)(addr + ntohl(hdr->rmonOffset)),
++			ntohl(hdr->rmonLength))) {
++			puts("NOK.\n");
++			return 0;
++		}
++		puts("OK.\n");
++	}
++	return 1;
++}
++#endif /* CONFIG_AVOCENT_GSP */
+ /*
+  *  Continue booting an OS image; caller already has:
+  *  - copied image header to global variable `header'
+@@ -117,7 +422,16 @@
+ #endif
+ 
+ #ifdef CONFIG_PPC
++#ifdef CONFIG_AVOCENT_GSP
++static void do_bootm_gsp_linux (cmd_tbl_t *cmdtp, int flag,
++	int	argc, char *argv[],
++	ulong	addr,
++	ulong ftdata,
++	ulong rddata, ulong rdlen
++	);
++#else
+ static boot_os_Fcn do_bootm_linux;
++#endif
+ #else
+ extern boot_os_Fcn do_bootm_linux;
+ #endif
+@@ -158,7 +472,12 @@
+ 	int	i, verify;
+ 	char	*name, *s;
+ 	int	(*appl)(int, char *[]);
++#ifdef CONFIG_AVOCENT_GSP
++	DsFlashHdr *khdr;
++	ulong	kerneldata, kernellen;
++#else
+ 	image_header_t *hdr = &header;
++#endif
+ 
+ 	s = getenv ("verify");
+ 	verify = (s && (*s == 'n')) ? 0 : 1;
+@@ -172,6 +491,11 @@
+ 	show_boot_progress (1);
+ 	printf ("## Booting image at %08lx ...\n", addr);
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	if (! verify_avocent_header (addr, verify, &khdr, &data, &len)) {
++		return 1;
++	}
++#else /* CONFIG_AVOCENT_GSP */
+ 	/* Copy header so we can blank CRC field for re-calculation */
+ #ifdef CONFIG_HAS_DATAFLASH
+ 	if (addr_dataflash(addr)){
+@@ -300,6 +624,7 @@
+ 	 * overwrite all exception vector code, so we cannot easily
+ 	 * recover from any failures any more...
+ 	 */
++#endif /* CONFIG_AVOCENT_GSP */
+ 
+ 	iflag = disable_interrupts();
+ 
+@@ -314,6 +639,19 @@
+ 	dcache_disable();
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	printf ("   Uncompressing Kernel Image ... ");
++	kerneldata = (ulong)khdr + ntohl(khdr->flashOffset);
++	kernellen = ntohl(khdr->flashLength);
++	if (gunzip ((void *)0, unc_len, (uchar *)kerneldata, &kernellen) != 0) {
++		puts ("GUNZIP ERROR - must RESET board to recover\n");
++		do_reset (cmdtp, flag, argc, argv);
++	}
++	puts ("OK.\n");
++	do_bootm_gsp_linux  (cmdtp, flag, argc, argv, addr, 
++		(ulong)khdr + ntohl(khdr->flashOffset) + ntohl(khdr->flashLength), 
++		data, len);
++#else /* CONFIG_AVOCENT_GSP */
+ 	switch (hdr->ih_comp) {
+ 	case IH_COMP_NONE:
+ 		if(ntohl(hdr->ih_load) == addr) {
+@@ -451,6 +789,7 @@
+ 	}
+ 
+ 	show_boot_progress (-9);
++#endif /* CONFIG_AVOCENT_GSP */
+ #ifdef DEBUG
+ 	puts ("\n## Control returned to monitor - resetting...\n");
+ 	do_reset (cmdtp, flag, argc, argv);
+@@ -507,12 +846,21 @@
+ #endif /* CONFIG_SILENT_CONSOLE */
+ 
+ #ifdef CONFIG_PPC
++#ifdef CONFIG_AVOCENT_GSP
++static void do_bootm_gsp_linux (cmd_tbl_t *cmdtp, int flag,
++		int	argc, char *argv[],
++		ulong	addr,
++		ulong ftdata,
++		ulong rddata, ulong rdlen
++		)
++#else
+ static void  __attribute__((noinline))
+ do_bootm_linux (cmd_tbl_t *cmdtp, int flag,
+ 		int	argc, char *argv[],
+ 		ulong	addr,
+ 		ulong	*len_ptr,
+ 		int	verify)
++#endif
+ {
+ 	ulong	sp;
+ 	ulong	len, checksum;
+@@ -615,6 +963,14 @@
+ 
+ 	kernel = (void (*)(bd_t *, ulong, ulong, ulong, ulong)) ntohl(hdr->ih_ep);
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	data = rddata;
++	len = rdlen;
++#if defined(CONFIG_OF_FLAT_TREE) || defined(CONFIG_OF_LIBFDT)
++	of_flat_tree = (char *)ftdata;
++	of_data = (ulong)of_flat_tree;
++#endif
++#else /* CONFIG_AVOCENT_GSP */
+ 	/*
+ 	 * Check if there is an initrd image
+ 	 */
+@@ -864,6 +1220,9 @@
+ 		}
+ 	}
+ #endif
++
++#endif /* CONFIG_AVOCENT_GSP*/
++
+ 	if (!data) {
+ 		debug ("No initrd\n");
+ 	}
+@@ -909,6 +1268,9 @@
+ 		printf ("   Loading Ramdisk to %08lx, end %08lx ... ",
+ 			initrd_start, initrd_end);
+ #if defined(CONFIG_HW_WATCHDOG) || defined(CONFIG_WATCHDOG)
++#ifdef CONFIG_AVOCENT_GSP
++		if (watchdog_enabled())
++#endif /* CONFIG_AVOCENT_GSP */
+ 		{
+ 			size_t l = len;
+ 			void *to = (void *)initrd_start;
+@@ -923,6 +1285,9 @@
+ 				l -= tail;
+ 			}
+ 		}
++#ifdef CONFIG_AVOCENT_GSP
++		else memmove ((void *)initrd_start, (void *)data, len);
++#endif /* CONFIG_AVOCENT_GSP */
+ #else	/* !(CONFIG_HW_WATCHDOG || CONFIG_WATCHDOG) */
+ 		memmove ((void *)initrd_start, (void *)data, len);
+ #endif	/* CONFIG_HW_WATCHDOG || CONFIG_WATCHDOG */

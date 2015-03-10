@@ -1,0 +1,17 @@
+root::0:
+bin::1:
+daemon::2:
+sys::3:
+adm::4:
+tty::5:
+disk::6:
+lp::7:
+mem::8:
+kmem::9:
+wheel::10:
+sshd::90:
+dialout::91:
+pam::93:
+nobody::99:
+users::100:
+admin::101:root,admin

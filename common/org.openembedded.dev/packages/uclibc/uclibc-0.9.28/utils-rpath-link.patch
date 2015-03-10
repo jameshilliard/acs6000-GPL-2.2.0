@@ -1,0 +1,22 @@
+Index: uClibc-0.9.28/utils/Makefile
+===================================================================
+--- uClibc-0.9.28.orig/utils/Makefile
++++ uClibc-0.9.28/utils/Makefile
+@@ -43,7 +43,7 @@ headers:
+ readelf.c ldconfig.c ldd.c:	headers
+ 
+ readelf: readelf.c
+-	$(CC) $(CFLAGS) $^ -o $@
++	$(CC) $(CFLAGS) -Wl,-rpath-link=../lib $^ -o $@
+ 	$(STRIPTOOL) -s -x -R .note -R .comment $@
+ 
+ ifeq ($(strip $(UCLIBC_STATIC_LDCONFIG)),y)
+@@ -59,7 +59,7 @@ ldconfig: ldconfig.c
+ 	$(STRIPTOOL) -s -x -R .note -R .comment $@
+ 
+ ldd: ldd.c
+-	$(CC) $(CFLAGS) $(PIEFLAG) $(LDPIEFLAG) \
++	$(CC) $(CFLAGS) $(PIEFLAG) $(LDPIEFLAG) -Wl,-rpath-link=../lib\
+ 		-DUCLIBC_RUNTIME_PREFIX=\"$(RUNTIME_PREFIX)\" \
+ 		-DUCLIBC_LDSO=$(UCLIBC_LDSO) -I. -I../ldso/include \
+ 		$^ -o $@

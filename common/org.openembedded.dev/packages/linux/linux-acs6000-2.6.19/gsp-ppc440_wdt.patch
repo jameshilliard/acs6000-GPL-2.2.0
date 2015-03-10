@@ -1,0 +1,64 @@
+Index: linux-2.6.19/arch/ppc/kernel/time.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/kernel/time.c	2007-08-15 14:11:50.000000000 -0700
++++ linux-2.6.19/arch/ppc/kernel/time.c	2007-08-15 14:12:54.000000000 -0700
+@@ -95,6 +95,9 @@
+ void avocent_gsp_watchdog_reset(void)
+ {
+ 	if (watchdog_config) {
++#ifdef CONFIG_BOOKE
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++#endif
+ 	}
+ }
+ #endif
+Index: linux-2.6.19/arch/ppc/syslib/ibm44x_common.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/syslib/ibm44x_common.c	2007-08-15 14:11:50.000000000 -0700
++++ linux-2.6.19/arch/ppc/syslib/ibm44x_common.c	2007-08-15 14:12:54.000000000 -0700
+@@ -72,7 +72,7 @@
+ 	mtspr(SPRN_TSR, TSR_ENW | TSR_WIS | TSR_DIS | TSR_FIS);
+ 
+ 	/* Enable decrementer interrupt */
+-	mtspr(SPRN_TCR, TCR_DIE);
++	mtspr(SPRN_TCR, mfspr(SPRN_TCR) | TCR_DIE);
+ }
+ 
+ extern void abort(void);
+Index: linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/gsp-sysctl.c	2007-08-15 14:12:16.000000000 -0700
++++ linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c	2007-08-15 14:15:07.000000000 -0700
+@@ -136,16 +136,32 @@
+ 	void *buffer, size_t *lenp, loff_t *ppos)
+ {
+ 	char string[sizeof(int) + 1];
++#ifdef CONFIG_BOOKE
++	unsigned long aux;
++	int val;
++#endif
+ 
+ 	if (!table->maxlen || !*lenp || (*ppos && !write)) {
+ 		*lenp = 0;
+ 		return 0;
+         }
++#ifdef CONFIG_BOOKE
++	aux = mfspr(SPRN_TSR);
++#endif
+ 	if (write) {
+ 		if (copy_from_user(string, buffer, sizeof(int)))
+ 			return -EFAULT;
++#ifdef CONFIG_BOOKE
++		if (sscanf(string, "%d", &val) && val > 0 && val < 4) {
++			aux = (aux & ~(3<<30)) | (val<<30);
++			mtspr(SPRN_TSR, aux);
++		}
++#endif
+ 	} else {
+ 		memset(string, 0, sizeof(int));
++#ifdef CONFIG_BOOKE
++		snprintf(string, sizeof(int), "%d", (int)(aux >> 30));
++#endif
+ 		if (copy_to_user(buffer, string, sizeof(int)))
+ 			return -EFAULT;
+ 		*lenp = sizeof(int);

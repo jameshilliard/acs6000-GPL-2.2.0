@@ -1,0 +1,88 @@
+Index: linux-2.6.20/arch/powerpc/boot/dts/avocent-pmhd.dts
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/boot/dts/avocent-pmhd.dts
++++ linux-2.6.20/arch/powerpc/boot/dts/avocent-pmhd.dts
+@@ -61,6 +61,12 @@
+ 			reg = <200 100>;
+ 		};
+ 
++		reset@200 {
++			device_type = "reset";
++			compatible = "mpc83xx_rst";
++			reg = <900 100>;
++		};
++
+ 		i2c@3000 {
+ 			device_type = "i2c";
+ 			compatible = "fsl-i2c";
+Index: linux-2.6.20/arch/powerpc/kernel/time.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/time.c
++++ linux-2.6.20/arch/powerpc/kernel/time.c
+@@ -130,6 +130,7 @@ static long timezone_offset;
+ extern int gsp_watchdog_enabled;
+ #ifdef CONFIG_PPC_83xx
+ unsigned long wdt_base;
++unsigned long reset_base = 0;
+ #endif
+ static void
+ rtc_get_work(struct work_struct *unusable)
+@@ -1132,14 +1133,21 @@ void __init time_init(void)
+ 	{
+ #ifdef CONFIG_PPC_83xx
+ 		struct device_node *np;
++		struct resource r;
+ 		wdt_base = 0xe0000200L; /* Value when something doesn't work out */
+ 		np = of_find_compatible_node(NULL, "watchdog", "mpc83xx_wdt");
+ 		if (np) {
+-			struct resource r;
+ 			memset(&r, 0, sizeof(r));
+ 			if (! of_address_to_resource(np, 0, &r))
+ 				wdt_base = ioremap(r.start, 16);
+ 		}
++		reset_base = 0xe0000900L; /* Value when something doesn't work out */
++		np = of_find_compatible_node(NULL, "reset", "mpc83xx_rst");
++		if (np) {
++			memset(&r, 0, sizeof(r));
++			if (! of_address_to_resource(np, 0, &r))
++				reset_base = ioremap(r.start, 16);
++		}
+ #endif
+ 	}
+ #endif
+Index: linux-2.6.20/arch/powerpc/platforms/83xx/misc.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/platforms/83xx/misc.c
++++ linux-2.6.20/arch/powerpc/platforms/83xx/misc.c
+@@ -18,6 +18,13 @@
+ 
+ #include "mpc83xx.h"
+ 
++
++#ifdef CONFIG_AVOCENT_GSP
++#ifdef CONFIG_PPC_83xx
++extern unsigned long reset_base;
++#endif
++#endif
++
+ void mpc83xx_restart(char *cmd)
+ {
+ #define RST_OFFSET	0x00000900
+@@ -25,8 +32,17 @@ void mpc83xx_restart(char *cmd)
+ #define RST_CTRL_REG	0x0000001c
+ 	__be32 __iomem *reg;
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#ifdef CONFIG_PPC_83xx
++
++	if (reset_base) {
++		reg = reset_base;
++	}
++#endif
++#else
+ 	/* map reset register space */
+ 	reg = ioremap(get_immrbase() + 0x900, 0xff);
++#endif
+ 
+ 	local_irq_disable();
+ 

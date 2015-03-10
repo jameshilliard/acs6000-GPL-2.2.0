@@ -1,0 +1,78 @@
+diff -rc builds/source/conshare/ipmikcons/solite/Makefile builds_new/source/conshare/ipmikcons/solite/Makefile
+*** builds/source/conshare/ipmikcons/solite/Makefile	Tue Apr 11 15:58:18 2006
+--- builds_new/source/conshare/ipmikcons/solite/Makefile	Wed Nov  8 14:21:03 2006
+***************
+*** 9,15 ****
+  # MPC Command:
+  # /home/dan/install/ACE_wrappers/MPC/mwc.pl solite.mwc -type make -relative SRC_ROOT=/home/dan/workspaces/CAESAR/builds/source
+  #----------------------------------------------------------------------------
+! 
+  
+  all: soliteerrmap solite
+  
+--- 9,15 ----
+  # MPC Command:
+  # /home/dan/install/ACE_wrappers/MPC/mwc.pl solite.mwc -type make -relative SRC_ROOT=/home/dan/workspaces/CAESAR/builds/source
+  #----------------------------------------------------------------------------
+! MAKE=make
+  
+  all: soliteerrmap solite
+  
+diff -rc builds/source/conshare/shserver_2/Makefile builds_new/source/conshare/shserver_2/Makefile
+*** builds/source/conshare/shserver_2/Makefile	Wed Jul  5 21:10:05 2006
+--- builds_new/source/conshare/shserver_2/Makefile	Wed Nov  8 14:21:28 2006
+***************
+*** 9,15 ****
+  # MPC Command:
+  # /home/dan/bin/ACE_wrappers/MPC/mwc.pl -type make -relative SRC_ROOT=/home/dan/workspaces/CAESAR/builds/source/ sol.mwc
+  #----------------------------------------------------------------------------
+! 
+  
+  all: confrontsvc conshare dbglogger historysvc lastscreensvc sharingsvc statussvc
+  
+--- 9,15 ----
+  # MPC Command:
+  # /home/dan/bin/ACE_wrappers/MPC/mwc.pl -type make -relative SRC_ROOT=/home/dan/workspaces/CAESAR/builds/source/ sol.mwc
+  #----------------------------------------------------------------------------
+! MAKE=make
+  
+  all: confrontsvc conshare dbglogger historysvc lastscreensvc sharingsvc statussvc
+  
+diff -rc builds/thirdparty/osasshd/source/osasshd/Makefile builds_new/thirdparty/osasshd/source/osasshd/Makefile
+*** builds/thirdparty/osasshd/source/osasshd/Makefile	Mon Jan  9 15:47:01 2006
+--- builds_new/thirdparty/osasshd/source/osasshd/Makefile	Wed Nov  8 14:20:27 2006
+***************
+*** 55,61 ****
+  XAUTH_PATH=/usr/X11R6/bin/xauth
+  LDFLAGS=-L. -Lopenbsd-compat/
+  EXEEXT=
+! 
+  INSTALL_SSH_PRNG_CMDS=
+  INSTALL_SSH_RAND_HELPER=
+  
+--- 55,61 ----
+  XAUTH_PATH=/usr/X11R6/bin/xauth
+  LDFLAGS=-L. -Lopenbsd-compat/
+  EXEEXT=
+! MAKE=make
+  INSTALL_SSH_PRNG_CMDS=
+  INSTALL_SSH_RAND_HELPER=
+  
+diff -rc builds/thirdparty/telnetd/netkit-telnet-0.17/Makefile builds_new/thirdparty/telnetd/netkit-telnet-0.17/Makefile
+*** builds/thirdparty/telnetd/netkit-telnet-0.17/Makefile	Mon Apr 24 18:32:53 2006
+--- builds_new/thirdparty/telnetd/netkit-telnet-0.17/Makefile	Wed Nov  8 14:21:49 2006
+***************
+*** 1,6 ****
+  # You can do "make SUB=blah" to make only a few, or edit here, or both
+  # You can also run make directly in the subdirs you want.
+! 
+  SUB =   telnet telnetd
+  # not yet: telnetlogin
+  
+--- 1,6 ----
+  # You can do "make SUB=blah" to make only a few, or edit here, or both
+  # You can also run make directly in the subdirs you want.
+! MAKE=make
+  SUB =   telnet telnetd
+  # not yet: telnetlogin
+  

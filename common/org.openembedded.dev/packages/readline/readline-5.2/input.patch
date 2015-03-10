@@ -1,0 +1,13 @@
+Index: readline-5.2/input.c
+===================================================================
+--- readline-5.2.orig/input.c
++++ readline-5.2/input.c
+@@ -503,6 +503,8 @@ rl_getc (stream)
+ 	 Otherwise, some error ocurred, also signifying EOF. */
+       if (errno != EINTR)
+ 	return (RL_ISSTATE (RL_STATE_READCMD) ? READERR : EOF);
++      else if (rl_done == 1)
++        return(0);
+     }
+ }
+ 

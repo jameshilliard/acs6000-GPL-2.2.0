@@ -1,0 +1,108 @@
+Index: ntp-4.2.0/include/ntp_stdlib.h
+===================================================================
+--- ntp-4.2.0.orig/include/ntp_stdlib.h	2003-07-17 03:27:16.000000000 -0700
++++ ntp-4.2.0/include/ntp_stdlib.h	2007-08-14 12:03:52.000000000 -0700
+@@ -9,6 +9,7 @@
+ #include "ntp_string.h"
+ #include "l_stdlib.h"
+ 
++#include "ntp_refclock.h"
+ /*
+  * Handle gcc __attribute__ if available.
+  */
+@@ -134,7 +135,7 @@
+ extern u_int	cache_keylen;		/* key length */
+ 
+ /* clocktypes.c */
+-struct clktype;
++//struct clktype;
+ extern struct clktype clktypes[];
+ 
+ /* getopt.c */
+Index: ntp-4.2.0/include/ntp.h
+===================================================================
+--- ntp-4.2.0.orig/include/ntp.h	2003-09-12 10:19:40.000000000 -0700
++++ ntp-4.2.0/include/ntp.h	2007-08-14 12:03:52.000000000 -0700
+@@ -10,6 +10,7 @@
+ #include "ntp_crypto.h"
+ #endif /* OPENSSL */
+ 
++#include "ntp_fp.h"
+ /*
+  * Calendar arithmetic - contributed by G. Healton
+  */
+Index: ntp-4.2.0/include/ntpd.h
+===================================================================
+--- ntp-4.2.0.orig/include/ntpd.h	2003-09-12 20:08:04.000000000 -0700
++++ ntp-4.2.0/include/ntpd.h	2007-08-14 12:03:52.000000000 -0700
+@@ -8,6 +8,7 @@
+ #include "ntp_select.h"
+ #include "ntp_malloc.h"
+ #include "ntp_refclock.h"
++#include "ntp_control.h"
+ #include "recvbuff.h"
+ 
+ #ifdef SYS_WINNT
+@@ -226,7 +227,7 @@
+ #endif
+ 
+ /* ntp_control.c */
+-struct ctl_trap;
++//struct ctl_trap;
+ extern struct ctl_trap ctl_trap[];
+ extern int	num_ctl_traps;
+ extern keyid_t	ctl_auth_keyid;		/* keyid used for authenticating write requests */
+Index: ntp-4.2.0/ntpd/ntp_control.c
+===================================================================
+--- ntp-4.2.0.orig/ntpd/ntp_control.c	2003-10-07 14:10:38.000000000 -0700
++++ ntp-4.2.0/ntpd/ntp_control.c	2007-08-14 12:03:52.000000000 -0700
+@@ -8,7 +8,6 @@
+ #include "ntpd.h"
+ #include "ntp_io.h"
+ #include "ntp_refclock.h"
+-#include "ntp_control.h"
+ #include "ntp_stdlib.h"
+ 
+ #include <stdio.h>
+Index: ntp-4.2.0/ntpd/ntp_proto.c
+===================================================================
+--- ntp-4.2.0.orig/ntpd/ntp_proto.c	2003-10-07 03:21:39.000000000 -0700
++++ ntp-4.2.0/ntpd/ntp_proto.c	2007-08-14 12:03:52.000000000 -0700
+@@ -11,7 +11,6 @@
+ #include "ntpd.h"
+ #include "ntp_stdlib.h"
+ #include "ntp_unixtime.h"
+-#include "ntp_control.h"
+ #include "ntp_string.h"
+ 
+ #include <stdio.h>
+Index: ntp-4.2.0/include/ntp_control.h
+===================================================================
+--- ntp-4.2.0.orig/include/ntp_control.h	2003-08-14 00:31:47.000000000 -0700
++++ ntp-4.2.0/include/ntp_control.h	2007-08-14 12:07:15.000000000 -0700
+@@ -1,6 +1,8 @@
+ /*
+  * ntp_control.h - definitions related to NTP mode 6 control messages
+  */
++#ifndef NTP_CONTROL
++#define NTP_CONTROL
+ 
+ #include "ntp_types.h"
+ 
+@@ -281,3 +283,4 @@
+ #define	TYPE_SYS	1
+ #define	TYPE_PEER	2
+ #define	TYPE_CLOCK	3
++#endif
+Index: ntp-4.2.0/ntpd/ntp_request.c
+===================================================================
+--- ntp-4.2.0.orig/ntpd/ntp_request.c	2003-10-07 04:02:33.000000000 -0700
++++ ntp-4.2.0/ntpd/ntp_request.c	2007-08-14 12:05:16.000000000 -0700
+@@ -9,7 +9,6 @@
+ #include "ntpd.h"
+ #include "ntp_io.h"
+ #include "ntp_request.h"
+-#include "ntp_control.h"
+ #include "ntp_refclock.h"
+ #include "ntp_if.h"
+ #include "ntp_stdlib.h"

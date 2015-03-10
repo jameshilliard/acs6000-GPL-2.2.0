@@ -1,0 +1,52 @@
+Index: u-boot-1.2.0/common/cmd_flash.c
+===================================================================
+--- u-boot-1.2.0.orig/common/cmd_flash.c	2007-01-06 15:13:11.000000000 -0800
++++ u-boot-1.2.0/common/cmd_flash.c	2007-05-31 12:59:14.000000000 -0700
+@@ -306,6 +306,7 @@
+ 	return 0;
+ }
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ int do_flerase (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+ {
+ 	flash_info_t *info;
+@@ -400,6 +401,7 @@
+ 	rcode = flash_sect_erase(addr_first, addr_last);
+ 	return rcode;
+ }
++#endif
+ 
+ int flash_sect_erase (ulong addr_first, ulong addr_last)
+ {
+@@ -442,6 +444,7 @@
+ 	return rcode;
+ }
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ int do_protect (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+ {
+ 	flash_info_t *info;
+@@ -615,6 +618,7 @@
+ 	rcode = flash_sect_protect (p, addr_first, addr_last);
+ 	return rcode;
+ }
++#endif
+ 
+ 
+ int flash_sect_protect (int p, ulong addr_first, ulong addr_last)
+@@ -689,6 +693,7 @@
+ 	"flinfo N\n    - print information for FLASH memory bank # N\n"
+ );
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ U_BOOT_CMD(
+ 	erase,   3,   1,  do_flerase,
+ 	"erase   - erase FLASH memory\n",
+@@ -727,6 +732,7 @@
+ 	TMP_PROT_OFF
+ 	"protect off all\n    - make all FLASH banks writable\n"
+ );
++#endif
+ 
+ #undef	TMP_ERASE
+ #undef	TMP_PROT_ON

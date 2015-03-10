@@ -1,0 +1,47 @@
+# Patch the "configure" scripts to allow us to specify a default suppressions
+# file.  This is used by the ".bb" file so that each machine in the GSP build
+# system may specify its own default suppressions file.
+--- valgrind-3.2.3/configure	2007-08-31 21:51:47.000000000 -0700
++++ valgrind-3.2.3/configure	2007-08-31 21:52:53.000000000 -0700
+@@ -886,6 +886,8 @@
+   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+   --with-vex=/path/to/vex/dir    Vex directory
++  --with-default-suppressions=file
++                          add default suppression file
+   --with-x                use the X Window System
+   --with-mpicc=           Specify name of MPI2-ised C compiler
+ 
+@@ -4279,7 +4281,15 @@
+ 
+ # This variable will collect the individual suppression files
+ # depending on the results of autoconf
+-DEFAULT_SUPP=""
++
++# Check whether --with-default-suppressions or --without-default-suppressions was given.
++if test "${with_default_suppressions+set}" = set; then
++  withval="$with_default_suppressions"
++  DEFAULT_SUPP="$withval"
++else
++  DEFAULT_SUPP=""
++
++fi;
+ 
+ 
+ 
+--- valgrind-3.2.3/configure.in	2007-08-31 21:51:47.000000000 -0700
++++ valgrind-3.2.3/configure.in	2007-08-31 21:52:50.000000000 -0700
+@@ -313,7 +313,12 @@
+ 
+ # This variable will collect the individual suppression files
+ # depending on the results of autoconf
+-DEFAULT_SUPP=""
++AC_ARG_WITH([default-suppressions],
++[  --with-default-suppressions=file
++                          add default suppression file],
++	DEFAULT_SUPP="$withval",
++	DEFAULT_SUPP=""
++)
+ AC_SUBST(DEFAULT_SUPP)
+ 
+ 

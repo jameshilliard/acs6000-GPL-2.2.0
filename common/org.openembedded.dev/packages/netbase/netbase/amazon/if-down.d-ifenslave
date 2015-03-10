@@ -1,0 +1,8 @@
+#!/bin/sh
+
+if [ -n "$IF_SLAVES" ] ; then
+	for S in $IF_SLAVES ; do
+		/sbin/ifenslave -d $IFACE $S
+	done
+fi
+

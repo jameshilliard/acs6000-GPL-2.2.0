@@ -1,0 +1,50 @@
+#! /bin/sh
+set -e
+
+INTFTPD_PATH="/tftproot"
+
+# For more options, see tftpd(8)
+INTFTPD_OPTS="-s ${INTFTPD_PATH}"
+
+test -x /usr/sbin/in.tftpd || exit 0
+
+case "$1" in
+  start)
+	echo "Starting tftpd"
+	[ -d ${INTFTPD_PATH} ] || mkdir -p ${INTFTPD_PATH}
+	/usr/sbin/in.tftpd -l ${INTFTPD_OPTS}
+	echo "done."
+	;;
+  stop)
+	echo -n "Stopping tftpd"
+	start-stop-daemon -K -x /usr/sbin/in.tftpd
+	echo "."
+	;;
+
+  restart)
+	echo "Restarting tftpd"
+	start-stop-daemon -K -x /usr/sbin/in.tftpd
+	sleep 2
+	/usr/sbin/in.tftpd -l ${INTFTPD_OPTS}
+	echo "."
+	;;
+
+	status)
+	echo -n "Checking for tftpd's status:"
+	pidof in.tftpd > /dev/null 2>&1
+	retval=$?
+	if [ $retval = 0 ]; then
+		echo "running"
+	else
+		echo "stopped"
+	fi
+	exit $retval
+	;;
+
+  *)
+	echo "Usage: /etc/init.d/tftpd {start|stop|restart|status}"
+	exit 1
+esac
+
+exit 0
+

@@ -1,0 +1,49 @@
+Index: event-notify-headers/GSP-TRAP-MIB.temp
+===================================================================
+--- event-notify-headers.orig/GSP-TRAP-MIB.temp	2009-04-21 10:34:35.000000000 -0700
++++ event-notify-headers/GSP-TRAP-MIB.temp	2009-05-06 15:47:55.000000000 -0700
+@@ -1,5 +1,5 @@
+ --------------------------------------------------------------------------------
+---  Avocent _#MODEL_ TRAP MIB
++--  Fujitsu _#MODEL_ TRAP MIB
+ --  Copyright 2007 Avocent Corporation
+ --  Revision: 1.0.1
+ --  Last Modified: Dec 19, 2008
+@@ -22,26 +22,27 @@
+ -- TrapObjectoid 6
+ --------------------------------------------------------------------------------
+ 
+--- avocent                 OBJECT IDENTIFIER ::= { enterprises 10418 }
++-- fujitsu                 OBJECT IDENTIFIER ::= { enterprises 19078 }
+ 
+ _#FAMILY_PREFIX_    MODULE-IDENTITY
+         LAST-UPDATED    "_#REVISION_"
+-        ORGANIZATION    "Avocent Corporation"
+-        CONTACT-INFO    "postal : Avocent Corporation
+-                                  3541 Gateway Boulevard
+-                                  Fremont, CA 94538, USA
++        ORGANIZATION    "Fujitsu Component Limited"
++        CONTACT-INFO    "postal : Fujitsu Component Limited
++                                  Gotanda-Chuo Bldg.,3-5,
++                                  Higashi-Gotanda 2-chome,
++                                  Shinagawa-ku, Tokyo 141-0022 Japan
+                          e-mail : Technical Support
+-                                  techsupport@avocent.com"
+-        DESCRIPTION      
+-        "This module defines the Avocent TRAP MIB extensions to
++                                  servis-center@fcl.fujitsu.com"
++        DESCRIPTION
++        "This module defines the FCL MIB extensions to 
+          _#FAMILY_PREFIX_ products."
+         REVISION        "_#REVISION_"
+ 		DESCRIPTION     "Updating traps"
+-::= { enterprises 10418 _#FAMILY_OID_ }
++::= { enterprises 19078 _#FAMILY_OID_ }
+ 
+ _#FAMILY_PREFIX_Products             OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_ 1 }
+ _#FAMILY_PREFIX_Management           OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_ 2 }
+-_#FAMILY_PREFIX_TrapObject           OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_Management 6 }  -- 10418.16.2.6
++_#FAMILY_PREFIX_TrapObject           OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_Management 6 }  -- 19078.16.2.6
+ 
+ -------------------------------------------------------------------------------
+ -- _#FAMILY_TYPE_ Trap Object

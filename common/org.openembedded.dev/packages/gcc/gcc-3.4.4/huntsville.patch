@@ -1,0 +1,12 @@
+diff -Naur gcc-3.4.4/gcc/config/rs6000/rs6000.h gcc-3.4.4-changed/gcc/config/rs6000/rs6000.h
+--- gcc-3.4.4/gcc/config/rs6000/rs6000.h	2007-06-08 08:29:37.000000000 -0500
++++ gcc-3.4.4-changed/gcc/config/rs6000/rs6000.h	2007-06-08 08:27:54.000000000 -0500
+@@ -561,7 +561,7 @@
+ 
+ #define TARGET_SPE_ABI 0
+ #define TARGET_SPE 0
+-#define TARGET_E500 0
++#define TARGET_E500 1
+ #define TARGET_ISEL 0
+ #define TARGET_FPRS 1
+ 

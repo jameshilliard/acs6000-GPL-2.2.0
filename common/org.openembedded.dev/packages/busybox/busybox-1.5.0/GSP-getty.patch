@@ -1,0 +1,116 @@
+--- busybox-1.5.0-old/loginutils/getty.c
++++ busybox-1.5.0/loginutils/getty.c
+@@ -93,7 +93,7 @@
+ 	int speeds[MAX_SPEED];          /* baud rates to be tried */
+ };
+ 
+-static const char opt_string[] = "I:LH:f:hil:mt:wn";
++static const char opt_string[] = "I:LH:f:hil:mt:wnp";
+ #define F_INITSTRING    (1<<0)          /* initstring is set */
+ #define F_LOCAL         (1<<1)          /* force local */
+ #define F_FAKEHOST      (1<<2)          /* force fakehost */
+@@ -105,6 +105,7 @@
+ #define F_TIMEOUT       (1<<8)          /* time out */
+ #define F_WAITCRLF      (1<<9)          /* wait for CR or LF */
+ #define F_NOPROMPT      (1<<10)         /* don't ask for login name! */
++#define F_NOPARITY      (1<<11)         /* don't check parity */
+ 
+ /* Storage for things detected while the login name was read. */
+ struct chardata {
+@@ -174,6 +175,37 @@
+ 	debug("exiting parsespeeds\n");
+ }
+ 
++void getty_speed(struct options *op)
++{
++	int fd, len;
++	char buf[128];
++
++	snprintf(buf,sizeof(buf),"/etc/getty_%s",op->tty);
++
++	if ((fd = open(buf, O_RDWR)) < 0) {
++		goto exit_rot;
++	}
++	if ((len=read(fd,buf,sizeof(buf)-1)) <= 0) {
++		close(fd);
++		goto exit_rot;
++	}
++
++	close(fd);
++	for (;len > 0; len--) 
++		if (isdigit(buf[len])) {
++	            buf[len+1]=0;
++		    break;
++	        }
++//       bb_error_msg("speed [%s]",buf);
++	parse_speeds(op,buf); // baud
++	if (op->numspeed)
++		return;
++
++exit_rot:
++	op->numspeed = 1;
++	op->speeds[FIRST_SPEED] = B9600;
++
++}
+ 
+ /* parse_args - parse command-line arguments */
+ static void parse_args(int argc, char **argv, struct options *op)
+@@ -207,21 +239,32 @@
+ 	argv += optind;
+ 	argc -= optind;
+ 	debug("after getopt loop\n");
+-	if (argc < 2)          /* check parameter count */
+-		bb_show_usage();
++	op->numspeed = 0;
++	if (argc >= 2) {    
++		/* we loosen up a bit and accept both "baudrate tty" and "tty baudrate" */
++		if (isdigit(argv[0][0])) {
++			/* a number first, assume it's a speed (BSD style) */
++			parse_speeds(op, argv[0]);       /* baud rate(s) */
++			op->tty = argv[1]; /* tty name */
++		} else {
++			op->tty = argv[0];       /* tty name */
++			parse_speeds(op, argv[1]); /* baud rate(s) */
++		}
++		if (argv[2])
++			setenv("TERM", argv[2], 1);
+ 
+-	/* we loosen up a bit and accept both "baudrate tty" and "tty baudrate" */
+-	if (isdigit(argv[0][0])) {
+-		/* a number first, assume it's a speed (BSD style) */
+-		parse_speeds(op, argv[0]);       /* baud rate(s) */
+-		op->tty = argv[1]; /* tty name */
+ 	} else {
++		if (argc < 1) 
++			bb_show_usage();
++		
+ 		op->tty = argv[0];       /* tty name */
+-		parse_speeds(op, argv[1]); /* baud rate(s) */
++		if (argv[1])
++			setenv("TERM", argv[1], 1);
+ 	}
+ 
+-	if (argv[2])
+-		setenv("TERM", argv[2], 1);
++	if (op->numspeed == 0) {
++		getty_speed(op);
++	}
+ 
+ 	debug("exiting parseargs\n");
+ }
+@@ -523,6 +566,7 @@
+ 
+ 			/* Do parity bit handling. */
+ 			ascval = c & 0177;
++			if (!(op->flags & F_NOPARITY)) {
+ 			if (c != ascval) {       /* "parity" bit on ? */
+ 				bits = 1;
+ 				mask = 1;
+@@ -534,6 +578,7 @@
+ 				/* ... |= 2 - even, 1 - odd */
+ 				cp->parity |= 2 - (bits & 1);
+ 			}
++			}
+ 
+ 			/* Do erase, kill and end-of-line processing. */
+ 			switch (ascval) {

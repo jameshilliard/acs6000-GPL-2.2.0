@@ -1,0 +1,17 @@
+Index: u-boot-1.3.1/include/asm-ppc/u-boot.h
+===================================================================
+--- u-boot-1.3.1.orig/include/asm-ppc/u-boot.h	2007-12-06 01:21:19.000000000 -0800
++++ u-boot-1.3.1/include/asm-ppc/u-boot.h	2008-01-29 20:23:57.000000000 -0800
+@@ -107,6 +107,12 @@
+ #ifdef CONFIG_HAS_ETH3
+ 	unsigned char   bi_enet3addr[6];
+ #endif
++#ifdef CONFIG_AVOCENT_GSP
++	unsigned char   wdt;
++	unsigned char   mii_operation[2];
++	unsigned short	family;
++	unsigned char	serialnb[6];
++#endif
+ 
+ #if defined(CONFIG_405GP) || defined(CONFIG_405EP) || \
+     defined(CONFIG_405EZ) || defined(CONFIG_440GX) || \

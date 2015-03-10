@@ -1,0 +1,283 @@
+Index: linux-2.6.16/arch/ppc/platforms/Makefile
+===================================================================
+--- linux-2.6.16.orig/arch/ppc/platforms/Makefile	2006-03-20 00:53:29.000000000 -0500
++++ linux-2.6.16/arch/ppc/platforms/Makefile	2007-06-07 11:19:07.000000000 -0400
+@@ -37,6 +37,7 @@
+ obj-$(CONFIG_SPRUCE)		+= spruce.o
+ obj-$(CONFIG_LITE5200)		+= lite5200.o
+ obj-$(CONFIG_EV64360)		+= ev64360.o
++obj-$(CONFIG_ALTERPATH_ONBOARD) += cyc_speaker.o
+ 
+ ifeq ($(CONFIG_SMP),y)
+ obj-$(CONFIG_PPC_CHRP)		+= chrp_smp.o
+Index: linux-2.6.16/arch/ppc/platforms/cyc_speaker.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.16/arch/ppc/platforms/cyc_speaker.c	2007-06-07 11:30:15.000000000 -0400
+@@ -0,0 +1,213 @@
++/*
++ * Cyclades: This file is to access cyclades' board alarm speaker device.
++ *           A proc dir entry named /proc/sys/speaker/ is created
++ *           and there are two entries under it:
++ *               README
++ *               speaker
++ *               
++ *
++ *           README is read-only usage description.
++ *
++ *           speaker is read-write, 0 means speaker is off,
++ *           1 means speaker is on. Writing 0 to it turn
++ *           off speaker, while writing 1 will turn on speaker.
++ *
++ *
++ * By yang.yang@cyclades.com
++ * Jan 16, 2006
++ * 
++ */
++
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/delay.h>
++#include <linux/fs.h>
++#include <asm/uaccess.h>
++#include <asm/processor.h>
++#include <asm/mpc85xx.h>
++#include <asm/ppcboot.h>
++#include <asm/cpm2.h>
++
++enum
++{
++	CTL_CYC_SPEAKER=1
++};
++
++enum
++{
++	CTL_CYC_SPEAKER_SPEAKER=1,
++	CTL_CYC_SPEAKER_README=2
++};
++
++static char cyc_speaker_readme[] = 
++"\n"
++"	Usage description:\n"
++"\n"
++"	/proc/sys/speaker/speaker is the status/control of\n"
++"	alarm speaker device. Value of 0 means speaker is\n"
++"	OFF, 1 means ON. Writing 0 or 1 to it will turn off\n"
++"	or turn on alarm speaker respectively. No other\n"
++"	value is accepted.\n"
++;
++
++static int  cyc_get_spk(void);
++static void cyc_set_spk(int val);
++
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++static void cyc_onb_init_cpm_pa25(void)
++{
++	static int PA25_configed=0;
++	volatile cpm2_map_t *immap;
++	volatile iop_cpm2_t *iop;
++
++	if (PA25_configed)
++		return;
++
++	PA25_configed = 1;
++	
++	immap = cpm2_immr;
++	iop = &immap->im_ioport;
++	
++	/* set general IO =0 */
++	iop->iop_ppara &= ~(CPM_PA_25);
++
++	/* no need to change PSORx because of general IO */
++
++	/* set open drain to be regular =0 */
++	iop->iop_podra &= ~(CPM_PA_25);
++
++	/* set direction to be output =1 */
++	iop->iop_pdira |= (CPM_PA_25);
++
++	asm("sync;isync;msync");
++	udelay(50);
++}
++
++static int cyc_onb_read_cpm_pa25(void)
++{
++	volatile cpm2_map_t *immap=cpm2_immr;
++	volatile iop_cpm2_t *iop=&immap->im_ioport;
++
++	cyc_onb_init_cpm_pa25();
++
++	return (iop->iop_pdata&CPM_PA_25) ? 1 : 0;
++}
++
++static void cyc_onb_write_cpm_pa25(int val)
++{
++	volatile cpm2_map_t *immap=cpm2_immr;
++	volatile iop_cpm2_t *iop=&immap->im_ioport;
++
++	cyc_onb_init_cpm_pa25();
++
++	if (val)
++		iop->iop_pdata |=  (CPM_PA_25);
++	else
++		iop->iop_pdata &= ~(CPM_PA_25);
++}
++
++static int cyc_get_spk(void)
++{
++	return cyc_onb_read_cpm_pa25();
++}
++
++static void cyc_set_spk(int val)
++{
++	cyc_onb_write_cpm_pa25(val);
++}
++
++#else  /* ALTERPATH_ONBOARD_V1 */
++
++static int cyc_get_spk(void)
++{
++	return 0;
++}
++
++static void cyc_set_spk(int val)
++{
++}
++
++#endif
++
++static int proc_handle_spk(ctl_table *table, int write, struct file *filp,
++		      void *buffer, size_t *lenp, loff_t *ppos)
++{
++	int spk_cur_val;
++	int val = -1;
++	int cnt;
++
++	#define SPKTMPBUFLEN 20
++	char string[SPKTMPBUFLEN+1];
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(string)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && val >= 0 && val <= 1) {
++			cyc_set_spk(val);
++		}
++	} else {
++		spk_cur_val = cyc_get_spk();
++		snprintf(string, sizeof(string), "%d\n", spk_cur_val);
++
++		cnt = *lenp;
++		if(cnt > strlen(string)+1)
++			cnt = strlen(string)+1;
++		if (copy_to_user(buffer, string, cnt))
++			return -EFAULT;
++		*lenp = cnt;
++		*ppos += cnt;
++	}
++
++	return 0;
++}
++
++static struct ctl_table spk_dir_table[] =
++{
++	{
++		.ctl_name = CTL_CYC_SPEAKER_SPEAKER,
++		.procname = "speaker",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_spk,
++		.strategy = &sysctl_intvec,
++		.extra1 = 0,
++		.extra2 = (void *) 1,
++	},
++	{
++		.ctl_name = CTL_CYC_SPEAKER_README,
++		.procname = "README",
++		.data = &cyc_speaker_readme,
++		.maxlen = sizeof(cyc_speaker_readme),
++		.mode = 0444,
++		.proc_handler = &proc_dostring,
++		.strategy = &sysctl_string,
++	},
++	{0}
++};
++
++static struct ctl_table spk_table[] =
++{
++	{
++		.ctl_name = CTL_CYC_SPEAKER,
++		.procname = "speaker",
++		.mode = 0555,
++		.child = spk_dir_table,
++	},
++	{0}
++};
++
++static int __init cyc_spk_init(void)
++{
++	printk("Avocent Alarm Speaker\n");
++	register_sysctl_table(spk_table, 1);
++	return 0;
++}
++
++__initcall(cyc_spk_init);
++
+Index: linux-2.6.16/fs/proc/proc_misc.c
+===================================================================
+--- linux-2.6.16.orig/fs/proc/proc_misc.c	2007-06-07 11:19:03.000000000 -0400
++++ linux-2.6.16/fs/proc/proc_misc.c	2007-06-07 11:19:07.000000000 -0400
+@@ -246,6 +246,38 @@
+ 	return proc_calc_metrics(page, start, off, count, eof, len);
+ }
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++#include <asm/cpm2.h>
++#include <asm/immap_cpm2.h>
++static int pws_read_proc(char *page, char **start, off_t off,
++		int count, int *eof, void *data)
++{
++	/**
++	 * cyclades: for DEBV1 board,
++	 * we use these two bits to indicate Dual Power status:
++	 *     CPM_PC_6          : Dual power:PowerA status (ReadOnly)
++	 *     CPM_PC_7          : Dual power:PowerB status (ReadOnly)
++	 */
++	volatile cpm2_map_t *immap = cpm2_immr;
++	volatile iop_cpm2_t *iop = &immap->im_ioport;
++	unsigned int tmp;
++	int len;
++
++
++	iop->iop_pdirc &= ~(CPM_PC_6 | CPM_PC_7); /* direction = 0, input */
++	iop->iop_pparc &= ~(CPM_PC_6 | CPM_PC_7); /* pin assignment = 0, general IO */
++	iop->iop_podrc &= ~(CPM_PC_6 | CPM_PC_7); /* =0, NOT open-drain */
++	tmp = iop->iop_podrc;
++	asm("sync");
++
++	sprintf(page, "PowerA: [%s]  PowerB: [%s]\n",
++			(iop->iop_pdatc&CPM_PC_6 ? "ON": "OFF"),
++			(iop->iop_pdatc&CPM_PC_7 ? "ON": "OFF"));
++	len = strlen(page);
++	return proc_calc_metrics(page, start, off, count, eof, len);
++}
++#endif
++
+ extern struct seq_operations cpuinfo_op;
+ static int cpuinfo_open(struct inode *inode, struct file *file)
+ {
+@@ -719,6 +751,9 @@
+ 		{"uptime",	uptime_read_proc},
+ 		{"meminfo",	meminfo_read_proc},
+ 		{"version",	version_read_proc},
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++		{"powerstatus", pws_read_proc},
++#endif
+ #ifdef CONFIG_PROC_HARDWARE
+ 		{"hardware",	hardware_read_proc},
+ #endif

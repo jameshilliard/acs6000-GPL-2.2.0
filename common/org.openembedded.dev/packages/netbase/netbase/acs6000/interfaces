@@ -1,0 +1,26 @@
+auto lo eth0 eth1
+
+# The loopback interface
+iface lo inet loopback
+
+# Wired or wireless interfaces
+iface eth0 inet dhcp
+	address 192.168.160.10
+	netmask 255.255.255.0
+	broadcast +
+iface eth0 inet6 manual
+
+iface eth1 inet dhcp
+	address 192.168.161.10
+	netmask 255.255.255.0
+	broadcast +
+iface eth1 inet6 manual
+
+# Bonding interface
+iface bond0 inet dhcp
+	slaves eth0 eth1
+	mode 1
+	miimon 100
+	updelay 200
+iface bond0 inet6 manual
+

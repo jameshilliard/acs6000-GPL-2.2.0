@@ -1,0 +1,219 @@
+Index: w3c-libwww-5.4.0/acinclude.m4
+===================================================================
+--- w3c-libwww-5.4.0.orig/acinclude.m4
++++ w3c-libwww-5.4.0/acinclude.m4
+@@ -21,7 +21,7 @@ dnl Use AC_PROG_INSTALL, supplementing i
+ dnl substitution.                                             ##
+ dnl --------------------------------------------------------- ##
+ 
+-dnl AC_DEFUN(fp_PROG_INSTALL,
++dnl AC_DE FUN(fp_PROG_INSTALL,
+ dnl [AC_PROG_INSTALL
+ dnl test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL} -m 755'
+ dnl AC_SUBST(INSTALL_SCRIPT)dnl
+@@ -251,19 +251,6 @@ changequote([, ])dnl
+ done
+ ])
+ 
+-dnl AC_C_VOLATILE
+-AC_DEFUN(AC_C_VOLATILE,
+-[ AC_MSG_CHECKING([for working volatile])
+-  AC_CACHE_VAL(ac_cv_c_volatile,
+-  [ AC_TRY_COMPILE(,[
+-extern volatile int errno;
+-], ac_cv_c_volatile=yes, ac_cv_c_volatile=no)])dnl
+-  AC_MSG_RESULT($ac_cv_c_volatile)
+-if test $ac_cv_c_volatile = no; then
+-  AC_DEFINE(volatile, )
+-fi
+-])
+-
+ dnl AC_C_NOSHARE
+ AC_DEFUN(AC_C_NOSHARE,
+ [ AC_MSG_CHECKING([for working noshare])
+@@ -403,23 +390,6 @@ int main()
+   fi
+ ])
+ 
+-dnl AC_HEADER_TIOCGWINSZ
+-AC_DEFUN(AC_HEADER_TIOCGWINSZ,
+-[ AC_MSG_CHECKING([for TIOCGWINSZ get-window-size capability])
+-  AC_CACHE_VAL(ac_cv_header_tiocgwinsz,
+-  [ AC_HEADER_INCLUDE(tmp_inc_termios, sys/termios.h termios.h)
+-    AC_EGREP_HEADER(yes, [
+-$tmp_inc_termios
+-#ifdef TIOCGWINSZ
+- yes
+-#endif
+-], ac_cv_header_tiocgwinsz=yes, ac_cv_header_tiocgwinsz=no)])dnl
+-  AC_MSG_RESULT($ac_cv_header_tiocgwinsz)
+-if test $ac_cv_header_tiocgwinsz = yes; then
+-  AC_DEFINE(GET_SCREEN_SIZE)
+-fi
+-])
+-
+ dnl AC_SYS_NEED_SIGNAL_RESET
+ dnl If signal handlers need to be reset, define NEED_SIGNAL_RESET
+ AC_DEFUN(AC_SYS_NEED_SIGNAL_RESET, 
+@@ -465,7 +435,8 @@ AC_DEFUN(AC_STRUCT_GMTOFF,
+   ac_cv_struct_gmtoff=yes, ac_cv_struct_gmtoff=no)])
+   AC_MSG_RESULT($ac_cv_struct_gmtoff)
+ if test $ac_cv_struct_gmtoff = yes; then
+-  AC_DEFINE(HAVE_TM_GMTOFF)
++  AC_DEFINE(HAVE_TM_GMTOFF,,
++    [Define this if tm structure includes a tm_gmtoff entry])
+ fi
+ 
+ AC_MSG_CHECKING(for time.h that defines timezone)
+@@ -475,7 +446,8 @@ AC_CACHE_VAL(ac_cv_extern_timezone,
+   ac_cv_extern_timezone=no)])
+ AC_MSG_RESULT($ac_cv_extern_timezone)
+ if test $ac_cv_extern_timezone = yes; then
+-  AC_DEFINE(HAVE_TIMEZONE)
++  AC_DEFINE(HAVE_TIMEZONE,,
++     [Define this if you have the external variable 'timezone'])
+ fi
+ 
+ dnl Borrowed from the Python distribution...
+@@ -486,7 +458,8 @@ AC_CACHE_VAL(ac_cv_extern_altzone,
+   ac_cv_extern_altzone=no)])
+ AC_MSG_RESULT($ac_cv_extern_altzone)
+ if test $ac_cv_extern_altzone = yes; then
+-  AC_DEFINE(HAVE_ALTZONE)
++  AC_DEFINE(HAVE_ALTZONE,,
++     [Define this if you have the external variable 'altzone'])
+ fi
+ 
+ AC_MSG_CHECKING(for time.h that defines daylight)
+@@ -496,7 +469,8 @@ AC_CACHE_VAL(ac_cv_extern_daylight,
+   ac_cv_extern_daylight=no)])
+ AC_MSG_RESULT($ac_cv_extern_daylight)
+ if test $ac_cv_extern_daylight = yes; then
+-  AC_DEFINE(HAVE_DAYLIGHT)
++  AC_DEFINE(HAVE_DAYLIGHT,,
++    [Define this if you have the external variable 'daylight'])
+ fi
+ 
+ if test $ac_cv_extern_timezone = yes; then
+@@ -528,7 +502,8 @@ switch( timezone/3600 )
+   ac_cv_backwards_timezone=cross-compiling)])
+   AC_MSG_RESULT($ac_cv_backwards_timezone)
+ if test $ac_cv_backwards_timezone = yes; then
+-  AC_DEFINE(NEGATIVE_TIMEZONE)
++  AC_DEFINE(NEGATIVE_TIMEZONE,,
++    [Define this if the extern timezone is negative])
+ fi
+ fi
+ ])dnl
+@@ -656,7 +631,8 @@ AC_DEFUN(AC_STRUCT_WINSIZE, 
+ ], [struct winsize foo;], 
+     ac_cv_struct_winsize=yes, ac_cv_struct_winsize=no)])
+   if test $ac_cv_struct_winsize = yes ; then
+-    AC_DEFINE(HAVE_WINSIZE)
++    AC_DEFINE(HAVE_WINSIZE,,
++      [Define this if your ioctl understands the winsize structure])
+   fi
+ ])
+ 
+@@ -669,7 +645,8 @@ int main() { exit(sizeof(time_t) == size
+ ac_cv_c_long_time_t=no, ac_cv_c_long_time_t=yes)
+ ])
+ if test $ac_cv_c_long_time_t = yes; then
+-  AC_DEFINE(HAVE_LONG_TIME_T)
++  AC_DEFINE(HAVE_LONG_TIME_T,,
++    [Define if time_t is of type long])
+ fi
+ ])
+ 
+@@ -682,7 +659,8 @@ int main() { exit(sizeof(size_t) == size
+ ac_cv_c_long_size_t=yes, ac_cv_c_long_size_t=no)
+ ])
+ if test $ac_cv_c_long_size_t = yes; then
+-  AC_DEFINE(HAVE_LONG_SIZE_T)
++  AC_DEFINE(HAVE_LONG_SIZE_T,,
++    [Define if size_t is of type long])
+ fi
+ ])
+ 
+Index: w3c-libwww-5.4.0/Makefile.am
+===================================================================
+--- w3c-libwww-5.4.0.orig/Makefile.am
++++ w3c-libwww-5.4.0/Makefile.am
+@@ -42,7 +42,6 @@ dist-hook:
+ 	chmod -R a+r $(distdir)
+ 	zip -rq $(distdir).zip $(distdir)
+ 	$(TAR) chofz $(distdir).tgz $(distdir)
+-	# gzip -f $(distdir).tar
+ 
+ # Tag before making distribution.  Also, don't make a distribution if
+ # checks fail.
+Index: w3c-libwww-5.4.0/configure.in
+===================================================================
+--- w3c-libwww-5.4.0.orig/configure.in
++++ w3c-libwww-5.4.0/configure.in
+@@ -612,25 +612,9 @@ AC_SUBST(MYEXT)
+ dnl Checks for libwww and OpenSSL:
+ AC_MSG_CHECKING(whether we can find OpenSSL)
+ dnl find the ssl library dir (empirical)
+-if test -d '/usr/local/ssl/lib'; then
+-  ssllib="-L/usr/local/ssl/lib -lssl -lcrypto"
+-else
+-  ssllib="-L/usr/lib -lssl -lcrypto"
+-fi
+-dnl find the ssl include dir (empirical)
+-if test -d '/usr/local/ssl/include'; then
+-  sslinc="-I/usr/local/ssl/include"
+-elif test -d '/usr/local/openssl/include'; then
+-  sslinc="-I/usr/local/openssl/include"
+-elif test -d '/usr/local/include/openssl'; then
+-  sslinc="-I/usr/local/include/openssl"
+-elif test -d '/usr/include/ssl'; then
+-  sslinc="-I/usr/include/ssl"
+-elif test -d '/usr/include/openssl'; then
+-  sslinc="-I/usr/include/openssl"
+-else
+-  sslinc=""
+-fi
++ssllib="-lssl -lcrypto"
++sslinc=""
++
+ WWWSSL=""
+ SSLINC=""
+ LIBSSL=""
+@@ -647,9 +631,12 @@ AC_ARG_WITH(ssl,
+     if test "x$withval" = "xyes"; then
+       withval=$ssllib
+       SSLINC=$sslinc
++	else
++	  SSLINC="-I$withval/include"
++	  withval="$ssllib -L$withval/lib"
+     fi
+     LIBS="$LIBS $withval"
+-    AC_TRY_LINK([],
++    AC_TRY_LINK([#include <openssl/ssl.h>],
+ 		[ SSL_library_init(); ],
+ 		[],
+ 		[ AC_MSG_ERROR(Could not find the $withval libraries.  You must first install openSSL.) ])
+Index: w3c-libwww-5.4.0/Library/src/SSL/Makefile.am
+===================================================================
+--- w3c-libwww-5.4.0.orig/Library/src/SSL/Makefile.am
++++ w3c-libwww-5.4.0/Library/src/SSL/Makefile.am
+@@ -45,7 +45,6 @@ LDADD = \
+ 	libwwwssl.la
+ 
+ INCLUDES = \
+-	-I/usr/local/include \
+ 	-I${top_srcdir}/modules/md5 \
+ 	-I${top_srcdir}/modules/expat/xmlparse \
+ 	-I$(top_srcdir)/Library/src \
+Index: w3c-libwww-5.4.0/Library/Makefile.am
+===================================================================
+--- w3c-libwww-5.4.0.orig/Library/Makefile.am
++++ w3c-libwww-5.4.0/Library/Makefile.am
+@@ -5,5 +5,5 @@ DOCS :=	$(wildcard *.html *.gif)
+ EXTRA_DIST = \
+ 	$(DOCS)
+ 
+-SUBDIRS = src User Examples External cvs2sql # Test
++SUBDIRS = src External cvs2sql # Test
+ 

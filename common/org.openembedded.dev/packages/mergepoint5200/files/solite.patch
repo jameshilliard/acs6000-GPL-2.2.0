@@ -1,0 +1,13 @@
+Index: project_caesar/builds/source/conshare/ipmikcons/solite/Makefile
+===================================================================
+--- project_caesar.orig/builds/source/conshare/ipmikcons/solite/Makefile	2006-04-11 03:58:18.000000000 -0400
++++ project_caesar/builds/source/conshare/ipmikcons/solite/Makefile	2006-11-13 03:41:08.000000000 -0500
+@@ -9,7 +9,7 @@
+ # MPC Command:
+ # /home/dan/install/ACE_wrappers/MPC/mwc.pl solite.mwc -type make -relative SRC_ROOT=/home/dan/workspaces/CAESAR/builds/source
+ #----------------------------------------------------------------------------
+-
++MAKE=make
+ 
+ all: soliteerrmap solite
+ 

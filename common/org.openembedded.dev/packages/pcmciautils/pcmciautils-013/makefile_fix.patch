@@ -1,0 +1,29 @@
+Hardcoded paths are bad...
+
+Index: pcmciautils-013/Makefile
+===================================================================
+--- pcmciautils-013.orig/Makefile
++++ pcmciautils-013/Makefile
+@@ -69,11 +69,11 @@ sbindir =	${exec_prefix}/sbin
+ mandir =	${prefix}/usr/share/man
+ srcdir = .
+ 
+-INSTALL = /usr/bin/install -c
++INSTALL = install -c
+ INSTALL_PROGRAM = ${INSTALL}
+ INSTALL_DATA  = ${INSTALL} -m 644
+ INSTALL_SCRIPT = ${INSTALL_PROGRAM}
+-SYMLINK = /usr/bin/ln -sf
++SYMLINK = ln -sf
+ 
+ # place to put our hotplug scripts nodes
+ hotplugdir =	${etcdir}/hotplug
+@@ -280,7 +280,7 @@ install-tools:
+ 	$(INSTALL) -d $(DESTDIR)$(sbindir)
+ 	$(INSTALL_PROGRAM) -D $(PCCARDCTL) $(DESTDIR)$(sbindir)/$(PCCARDCTL)
+ 	$(INSTALL_PROGRAM) -D $(PCMCIA_CHECK_BROKEN_CIS) $(DESTDIR)$(sbindir)/$(PCMCIA_CHECK_BROKEN_CIS)
+-	$(SYMLINK) $(DESTDIR)$(sbindir)/$(PCCARDCTL) $(DESTDIR)$(sbindir)/$(LSPCMCIA)
++	$(SYMLINK) $(PCCARDCTL) $(DESTDIR)$(sbindir)/$(LSPCMCIA)
+ 
+ uninstall-tools:
+ 	- rm -f $(DESTDIR)$(sbindir)/$(PCCARDCTL)

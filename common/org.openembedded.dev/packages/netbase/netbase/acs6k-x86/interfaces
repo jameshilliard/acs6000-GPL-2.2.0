@@ -1,0 +1,12 @@
+auto lo eth0
+
+# The loopback interface
+iface lo inet loopback
+
+# Wired or wireless interfaces
+iface eth0 inet dhcp
+	address 192.168.160.10
+	netmask 255.255.255.0
+	broadcast +
+iface eth0 inet6 manual
+

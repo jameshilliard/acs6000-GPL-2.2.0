@@ -1,0 +1,951 @@
+From 9c8ac704724de0a9372eec8e6f661c80e94f6c7a Mon Sep 17 00:00:00 2001
+From: lil <tony.li@freescale.com>
+Date: Fri, 13 Apr 2007 15:15:37 +0800
+Subject: [PATCH] MPC8313ERDB ieee 1588 support
+
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |    2 +
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |   16 ++
+ arch/powerpc/sysdev/fsl_soc.c             |    6 +
+ drivers/i2c/chips/Kconfig                 |   12 +
+ drivers/i2c/chips/Makefile                |    1 +
+ drivers/i2c/chips/ad5301.c                |  142 +++++++++++++
+ drivers/net/Kconfig                       |   29 +++
+ drivers/net/gianfar.c                     |  328 ++++++++++++++++++++++++++++-
+ drivers/net/gianfar.h                     |  108 +++++++++-
+ include/linux/fsl_devices.h               |    3 +
+ include/linux/i2c-id.h                    |    1 +
+ 11 files changed, 643 insertions(+), 5 deletions(-)
+ create mode 100644 drivers/i2c/chips/ad5301.c
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index bd71fe9..53f25ac 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -151,6 +151,7 @@
+ 			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <24000 1000>;
++			regs_1588 = <24000 24fff>;
+ 			address = [ 00 00 00 00 00 00 ];
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupts = <25 8 24 8 23 8>;
+@@ -167,6 +168,7 @@
+ 			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <25000 1000>;
++			regs_1588 = <24000 24fff>;
+ 			address = [ 00 00 00 00 00 00 ];
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupts = <22 8 21 8 20 8>;
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+index dfd102c..8c3dc25 100644
+--- a/arch/powerpc/platforms/83xx/mpc8313_rdb.c
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -40,6 +40,10 @@
+ 
+ #include "mpc83xx.h"
+ 
++#ifdef CONFIG_GFAR_PTP_VCO
++#define MPC8313_SICRH_1588_EXT_CLK	0x00000040
++#endif
++
+ #ifndef CONFIG_PCI
+ unsigned long isa_io_base = 0;
+ unsigned long isa_mem_base = 0;
+@@ -129,6 +133,10 @@ static int mpc831x_usb_cfg(void)
+ static void __init mpc8313_rdb_setup_arch(void)
+ {
+ 	struct device_node *np;
++#ifdef CONFIG_GFAR_PTP_VCO
++	void __iomem *immap;
++	unsigned long sicrh;
++#endif
+ 
+ 	if (ppc_md.progress)
+ 		ppc_md.progress("mpc8313_rdb_setup_arch()", 0);
+@@ -157,6 +165,14 @@ static void __init mpc8313_rdb_setup_arch(void)
+ #else
+ 	ROOT_DEV = Root_HDA1;
+ #endif
++
++#ifdef CONFIG_GFAR_PTP_VCO
++	immap = ioremap(get_immrbase(), 0x1000);
++	sicrh = in_be32(immap + MPC83XX_SICRH_OFFS);
++	sicrh |= MPC8313_SICRH_1588_EXT_CLK;
++	out_be32(immap + MPC83XX_SICRH_OFFS, sicrh);
++#endif
++	
+ }
+ 
+ void __init mpc8313_rdb_init_IRQ(void)
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 4735a0c..3ec4b31 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -312,6 +312,12 @@ static int __init gfar_of_init(void)
+ 		gfar_dev =
+ 		    platform_device_register_simple("fsl-gianfar", i, &r[0],
+ 						    n_res);
++#if defined(CONFIG_GFAR_PTP)
++		id = get_property(np, "regs_1588", NULL);
++		if (id) {
++			gfar_data.regs_1588 = get_immrbase() + id[0];
++		}
++#endif 
+ 
+ 		if (IS_ERR(gfar_dev)) {
+ 			ret = PTR_ERR(gfar_dev);
+diff --git a/drivers/i2c/chips/Kconfig b/drivers/i2c/chips/Kconfig
+index 87ee3ce..13f8262 100644
+--- a/drivers/i2c/chips/Kconfig
++++ b/drivers/i2c/chips/Kconfig
+@@ -25,6 +25,18 @@ config SENSORS_DS1374
+ 	  This driver can also be built as a module.  If so, the module
+ 	  will be called ds1374.
+ 
++config SENSORS_AD5301
++       boolean "Analog Device AD5301 DAC"
++       depends on I2C && EXPERIMENTAL && GFAR_PTP
++       default y
++       help
++         If you say yes here you get support for Analog Devices
++         AD5301 DAC chips.
++
++         This driver can also be built as a module.  If so, the module
++         will be called ad5301.
++
++
+ config SENSORS_EEPROM
+ 	tristate "EEPROM reader"
+ 	depends on I2C && EXPERIMENTAL
+diff --git a/drivers/i2c/chips/Makefile b/drivers/i2c/chips/Makefile
+index 779868e..2d8bf43 100644
+--- a/drivers/i2c/chips/Makefile
++++ b/drivers/i2c/chips/Makefile
+@@ -12,6 +12,7 @@ obj-$(CONFIG_SENSORS_PCF8574)	+= pcf8574.o
+ obj-$(CONFIG_SENSORS_PCF8591)	+= pcf8591.o
+ obj-$(CONFIG_ISP1301_OMAP)	+= isp1301_omap.o
+ obj-$(CONFIG_TPS65010)		+= tps65010.o
++obj-$(CONFIG_SENSORS_AD5301)	+= ad5301.o
+ 
+ ifeq ($(CONFIG_I2C_DEBUG_CHIP),y)
+ EXTRA_CFLAGS += -DDEBUG
+diff --git a/drivers/i2c/chips/ad5301.c b/drivers/i2c/chips/ad5301.c
+new file mode 100644
+index 0000000..d4c69ae
+--- /dev/null
++++ b/drivers/i2c/chips/ad5301.c
+@@ -0,0 +1,142 @@
++/*
++ * drivers/i2c/chips/ad5301.c
++ *
++ * I2C client/driver for the Analog Devices AD5301 Digital to analog Converter
++ *
++ * Author: Yashpal Dutta <yashpal.dutta@freescale.com>
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * Based on the m41t00.c by Mark Greer <mgreer@mvista.com>
++ *
++ * 2005 (c) MontaVista Software, Inc. This file is licensed under
++ * the terms of the GNU General Public License version 2. This program
++ * is licensed "as is" without any warranty of any kind, whether express
++ * or implied.
++ */
++/*
++ * This i2c client/driver wedges between the drivers/char/genrtc.c RTC
++ * interface and the SMBus interface of the i2c subsystem.
++ * It would be more efficient to use i2c msgs/i2c_transfer directly but, as
++ * recommened in .../Documentation/i2c/writing-clients section
++ * "Sending and receiving", using SMBus level communication is preferred.
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/interrupt.h>
++#include <linux/i2c.h>
++#include <linux/rtc.h>
++#include <linux/bcd.h>
++#include <linux/mutex.h>
++#include <linux/workqueue.h>
++#include <linux/delay.h>
++
++#define        AD5301_DRV_NAME         "ad5301"
++
++static DEFINE_MUTEX(ad5301_mutex);
++
++static struct i2c_driver ad5301_driver;
++static struct i2c_client *save_client;
++
++static unsigned short ignore[] = { I2C_CLIENT_END };
++static unsigned short normal_addr[] = { 0x0c, I2C_CLIENT_END };
++
++static struct i2c_client_address_data addr_data = {
++	.normal_i2c = normal_addr,
++	.probe = ignore,
++	.ignore = ignore,
++};
++
++static struct workqueue_struct *ad5301_workqueue;
++
++char ad5301_set_voltage(char voltage)
++{
++	char upper_nibble, lower_nibble;
++	upper_nibble = 0x0f & (voltage >> 4);
++	lower_nibble = 0xf0 & (voltage << 4);
++	if(save_client != NULL)
++	{
++		i2c_smbus_write_byte_data(save_client, upper_nibble, lower_nibble);
++		return 0;
++	}
++	else
++	{
++		return -1;
++	}
++}
++
++char ad5301_get_voltage(void)
++{
++	if(save_client != NULL)
++		return i2c_smbus_read_byte(save_client);
++	else
++	{
++		return -1;
++	}
++}
++
++static int ad5301_probe(struct i2c_adapter *adap, int addr, int kind)
++{
++	struct i2c_client *client;
++	int rc;
++
++	client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL);
++	if (!client)
++		return -ENOMEM;
++
++	strncpy(client->name, AD5301_DRV_NAME, I2C_NAME_SIZE);
++	client->addr = addr;
++	client->adapter = adap;
++	client->driver = &ad5301_driver;
++
++	ad5301_workqueue = create_singlethread_workqueue("ad5301");
++
++	if ((rc = i2c_attach_client(client)) != 0) {
++		kfree(client);
++		return rc;
++	}
++	ad5301_set_voltage(0x8f);
++	save_client = client;
++	return 0;
++}
++
++static int ad5301_attach(struct i2c_adapter *adap)
++{
++	return i2c_probe(adap, &addr_data, ad5301_probe);
++}
++
++static int ad5301_detach(struct i2c_client *client)
++{
++	int rc;
++
++	if ((rc = i2c_detach_client(client)) == 0) {
++		kfree(i2c_get_clientdata(client));
++		destroy_workqueue(ad5301_workqueue);
++	}
++	return rc;
++}
++
++static struct i2c_driver ad5301_driver = {
++	.driver = {
++		.name   = AD5301_DRV_NAME,
++	},
++	.id = I2C_DRIVERID_AD5301,
++	.attach_adapter = ad5301_attach,
++	.detach_client = ad5301_detach,
++};
++
++static int __init ad5301_init(void)
++{
++	return i2c_add_driver(&ad5301_driver);
++}
++
++static void __exit ad5301_exit(void)
++{
++	i2c_del_driver(&ad5301_driver);
++}
++
++module_init(ad5301_init);
++module_exit(ad5301_exit);
++MODULE_AUTHOR("Yashpal Dutta <yashpal.dutta@freescale.com>");
++MODULE_DESCRIPTION("Maxim/Dallas AD5301 DAC I2C Client Driver");
++MODULE_LICENSE("GPL");
++
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index b9181df..cdf84f3 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -2291,6 +2291,35 @@ config GFAR_SKBUFF_RECYCLING
+ 	 used for fast IPv4 packet forwarding. Select this if you would like
+ 	 to improve your latency and throughput performance.
+ 
++config GFAR_PTP
++       bool "1588 Precision Time protocol Support"
++       depends on GIANFAR
++       select SENSORS_AD5301
++       help
++         This will allow 1588 PTP support in Gianfar driver in 831x eTSEC
++         based SOC
++
++config GFAR_PTP_ETSEC1
++       bool "1588 Precision Time protocol Support on eTSEC1"
++       depends on GIANFAR && GFAR_PTP
++       help
++         This will allow 1588 PTP support in Gianfar driver over eTSEC1 in 831x eTSEC
++         based SOC. If not selected then PTP Packet will be filed on eTSEC2.
++
++config GFAR_PTP_VCO
++	bool "Use external VCO for PTP"
++	depends on GIANFAR && GFAR_PTP && !GFAR_PTP_ETSEC1
++	help
++	  This will make the PTP module use the external VCO found on some boards.
++
++config GFAR_PTP_TMR_ADD
++        int 
++	default "859176960" if GFAR_PTP_VCO
++	default "325356310" if !GFAR_PTP_VCO
++	depends on GIANFAR && GFAR_PTP 
++	help
++	  This is calculated as 2^32/(<Oscillator Freq in Hz>/10,000,000).
++
+ config UCC_GETH
+ 	tristate "Freescale QE UCC GETH"
+ 	depends on QUICC_ENGINE && UCC_FAST
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index 9d10d0f..e47cb5f 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -173,6 +173,19 @@ irqreturn_t gfar_receive(int irq, void *dev_id, struct pt_regs *regs);
+ irqreturn_t gfar_receive(int irq, void *dev_id);
+ #endif
+ 
++#if defined(CONFIG_GFAR_PTP)
++/* The function to get/set SHMOO DAC Voltage. */ 
++extern char ad5301_set_voltage(char);
++extern char ad5301_get_voltage(void);
++
++static struct gfar_ptp_time tx_time;
++static struct gfar_ptp_time rx_time;
++static struct gfar_ptp_time curr_time;
++static struct gfar __iomem *regs_1588;
++static u32 tx_txts_set;
++static int gfar_1588_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd);
++#endif
++
+ extern const struct ethtool_ops gfar_ethtool_ops;
+ 
+ MODULE_AUTHOR("Andy Fleming");
+@@ -248,6 +261,19 @@ static int gfar_probe(struct platform_device *pdev)
+ 		goto regs_fail;
+ 	}
+ 
++#if defined(CONFIG_GFAR_PTP)
++	/* 
++	 * Resource required for accessing 1588 Timer Registers. There are few 1588 
++	 * modules registers which are present in eTSEC1 memory space only. The second 
++	 * reg entry there in denotes the 1588 regs.                          
++	 */
++	regs_1588 = ioremap(einfo->regs_1588, sizeof (struct gfar));
++	if (regs_1588 == NULL) {
++		err = -ENOMEM;
++		goto regs_fail;
++	}
++#endif
++
+ 	spin_lock_init(&priv->txlock);
+ 	spin_lock_init(&priv->rxlock);
+ 	spin_lock_init(&priv->bflock);
+@@ -296,6 +322,12 @@ static int gfar_probe(struct platform_device *pdev)
+ 	dev->hard_start_xmit = gfar_start_xmit;
+ 	dev->tx_timeout = gfar_timeout;
+ 	dev->watchdog_timeo = TX_TIMEOUT;
++#if defined(CONFIG_GFAR_PTP)
++	/* Flags for enabling ptp Timestamping and ptp ioctl handler */
++	priv->ptp_timestamping = 1;
++	dev->do_ioctl = gfar_1588_ioctl;
++#endif
++
+ #ifdef CONFIG_GFAR_NAPI
+ 	dev->poll = gfar_poll;
+ 	dev->weight = GFAR_DEV_WEIGHT;
+@@ -370,7 +402,13 @@ static int gfar_probe(struct platform_device *pdev)
+ 	else
+ 		priv->padding = 0;
+ 
+-	if (dev->features & NETIF_F_IP_CSUM)
++#if defined(CONFIG_GFAR_PTP)
++	/*Check for PTP Timestamping enable flag as well for allocating */
++	/* space for FCB */
++	if (dev->features & NETIF_F_IP_CSUM  || priv->ptp_timestamping)
++#else
++		if (dev->features & NETIF_F_IP_CSUM)
++#endif
+ 		dev->hard_header_len += GMAC_FCB_LEN;
+ 
+ 	priv->rx_buffer_size = DEFAULT_RX_BUFFER_SIZE;
+@@ -428,6 +466,10 @@ static int gfar_probe(struct platform_device *pdev)
+ register_fail:
+ 	iounmap(priv->regs);
+ regs_fail:
++#if defined(CONFIG_GFAR_PTP)
++	if (regs_1588 != NULL)
++       		iounmap(regs_1588);
++#endif
+ 	free_netdev(dev);
+ 	return err;
+ }
+@@ -749,6 +791,18 @@ void stop_gfar(struct net_device *dev)
+ 	spin_unlock(&priv->rxlock);
+ 	spin_unlock_irqrestore(&priv->txlock, flags);
+ 
++	/* Stop 1588 Timer Module */
++#if defined(CONFIG_GFAR_PTP)
++#if defined(CONFIG_GFAR_PTP_ETSEC1)
++	if(!strcmp(dev->name,"eth0"))
++#else
++	if(!strcmp(dev->name,"eth1"))
++#endif
++	{
++		gfar_1588_stop(dev);
++	}
++#endif
++
+ 	/* Free the IRQs */
+ 	if (priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MULTI_INTR) {
+ 		free_irq(priv->interruptError, dev);
+@@ -906,6 +960,211 @@ void gfar_start(struct net_device *dev)
+ 	gfar_write(&regs->imask, IMASK_DEFAULT);
+ }
+ 
++#if defined(CONFIG_GFAR_PTP)
++/* 
++ * Function Needs to be updated updated once 1588 timer clock 
++ * source is finalized. Currently for test purpose
++ * gfar_time:  Time Stamp on the basis of which new clock frequency is decided
++ */ 
++static void gfar_adj_freq(signed long freq)
++{
++	char	new_v, old_v;
++	const char max_v = TMR_MAX_DAC_V;
++	const char center_v = max_v/2;
++	const long max_freq = TMR_PTPD_MAX_FREQ;
++
++	old_v = ad5301_get_voltage();
++	/* Linear interpolation for our DAC range */
++	new_v = (freq * center_v)/max_freq + center_v;
++
++	ad5301_set_voltage( new_v );
++}
++
++/* Set the 1588 timer counter registers */
++static void gfar_set_1588cnt(struct net_device *dev, struct gfar_ptp_time *gfar_time)
++{
++	u32	tempval;
++
++	/* We must write the tmr_cnt_l register first */
++	tempval = (u32)gfar_time->low;
++	gfar_write(&regs_1588->tmr_cnt_l, tempval);
++	tempval = (u32)gfar_time->high;
++	gfar_write(&regs_1588->tmr_cnt_h, tempval);
++}
++
++/* Get both the time-stamps and use the larger one */
++static void gfar_get_tx_timestamp(struct gfar __iomem *regs)
++{
++	struct gfar_ptp_time	tx_set_1, tx_set_2;
++	u32			tmp;
++
++	/* Read the low register first */
++	tx_set_1.low = gfar_read(&regs->tmr_txts1_l);
++	tx_set_1.high = gfar_read(&regs->tmr_txts1_h);
++
++	tx_set_2.low = gfar_read(&regs->tmr_txts2_l);
++	tx_set_2.high = gfar_read(&regs->tmr_txts2_h);
++
++	tmp = 0;
++	if( tx_set_2.high > tx_set_1.high )
++		tmp = 1;
++	else if( tx_set_2.high == tx_set_1.high )
++		if( tx_set_2.low > tx_set_1.low )
++			tmp = 1;
++
++	if(tmp == 0) {
++		tx_time.low = tx_set_1.low;
++		tx_time.high = tx_set_1.high;
++	} else {
++		tx_time.low = tx_set_2.low;
++		tx_time.high = tx_set_2.high;
++	}
++}
++
++static void gfar_get_curr_cnt(struct gfar __iomem * regs)
++{
++	curr_time.low = gfar_read(&regs_1588->tmr_cnt_l);
++	curr_time.high = gfar_read(&regs_1588->tmr_cnt_h);
++}
++
++static void gfar_adj_addend(signed long adj)
++{
++	unsigned long	new;
++	const long	mask = (TMR_PTPD_MAX_FREQ-1);
++	const long 	mid = mask - (TMR_ADD_VAL & mask);
++	const long	half_max = TMR_PTPD_MAX_FREQ;
++	signed long	tmp;
++
++	/* Do a linear interpolation */
++	tmp =  (((long long)adj)*((long long)mid))/((long long)half_max);
++	new = ((unsigned long)TMR_ADD_VAL) + tmp;
++
++	gfar_write(&regs_1588->tmr_add, new );
++}
++
++/* IOCTL Handler for PTP Specific IOCTL Commands coming from PTPD Application */
++static int gfar_1588_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
++{
++	struct gfar_private 	*priv = netdev_priv(dev);
++	struct gfar __iomem 	*regs = priv->regs;
++	struct gfar_ptp_time 	*cnt;
++	signed long		*freq, *addend;
++
++	switch(cmd)
++	{
++		case PTP_GET_RX_TIMESTAMP:
++			copy_to_user(ifr->ifr_data, &rx_time, sizeof(rx_time));
++			break;
++		case PTP_GET_TX_TIMESTAMP:
++			gfar_get_tx_timestamp(regs);
++			copy_to_user(ifr->ifr_data, &tx_time, sizeof(tx_time));
++			break;
++		case PTP_GET_CNT:
++			gfar_get_curr_cnt(regs);
++			copy_to_user(ifr->ifr_data, &curr_time, sizeof(curr_time));
++			break;
++		case PTP_SET_CNT:
++			cnt = (struct gfar_ptp_time *)ifr->ifr_data;
++			gfar_set_1588cnt(dev, cnt);
++			break;
++		case PTP_ADJ_FREQ:
++			freq = (signed long *)ifr->ifr_data;
++			gfar_adj_freq(*freq);
++			break;
++		case PTP_ADJ_ADDEND:
++			addend = (signed long *)ifr->ifr_data;
++			gfar_adj_addend(*addend);
++			break;
++
++		default:
++			return -EINVAL;
++	}
++	return 0;
++}
++
++/* Function to initialize Filer Entry
++ * far:   Offset in Filer Table in SRAM
++ * fcr:   Filer Control register value corresponds to table entry
++ * fpr:   Filer Entry Value
++ */
++inline void gfar_write_filer(struct net_device *dev, unsigned int far, 
++		unsigned int fcr, unsigned int fpr)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	gfar_write(&priv->regs->rqfar,far);
++	gfar_write(&priv->regs->rqfcr,fcr);
++	gfar_write(&priv->regs->rqfpr,fpr);
++}
++
++/* 1588 Module intialization and filer table populating routine*/
++void gfar_1588_start(struct net_device *dev)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++
++	/* Arbitrary Field register */
++	gfar_write(&priv->regs->rbifx,0xE8);
++
++	/*File on port number 13f to 141 */
++	gfar_write_filer(dev,0x0,0x80,0xffff);
++	gfar_write_filer(dev,0x1,0xaf,0x13f);
++	gfar_write_filer(dev,0x2,0xef,0x141);
++	/* File if type field is ipv4 packet */
++	gfar_write_filer(dev,0x3,0x87,0x800);
++
++	/* File for mulitcast address in range from 224.0.1.129 to 224.0.1.132 */
++	gfar_write_filer(dev,0x4,0x80,0xffffffff);
++	gfar_write_filer(dev,0x5,0xac,0xe0000181);
++	gfar_write_filer(dev,0x6,0xec,0xe0000185);
++
++	/* File is protocol field in UDP */
++	gfar_write_filer(dev,0x7,0x80,0xff);
++	gfar_write_filer(dev,0x8,0x8b,0x11);
++
++	/* Check for PTP Packet type being less than 5 i.e. only SYNC, 
++	 * Delay_Req, Follow-up, Delay-res, Management Packet types are 
++	 * filed with this rule
++	 */
++	gfar_write_filer(dev,0x9,0x62,0x5);
++	gfar_write_filer(dev,0xa,0x80,0xffff);
++	gfar_write_filer(dev,0xb,0x87,0x800);
++
++	/* Accept IGMP query messeges as well */
++	gfar_write_filer(dev,0xc,0x80,0xffffffff);
++	gfar_write_filer(dev,0xd,0xc,0xe0000001);
++	/* Default Rule to discard all the packets coming not matching PTP Pattern*/
++	gfar_write_filer(dev,0xe,0x420,0x0);
++
++#if defined(CONFIG_GFAR_PTP_VCO)
++	/* Select 1588 Timer source and enable module for starting Tmr Clock */
++	gfar_write(&regs_1588->tmr_ctrl, gfar_read(&regs_1588->tmr_ctrl) | 
++			TMR_CTRL_ENABLE | TMR_CTRL_EXT_CLK );
++
++#else
++	/* Select 1588 Timer source and enable module for starting Tmr Clock */
++	gfar_write(&regs_1588->tmr_ctrl, gfar_read(&regs_1588->tmr_ctrl) | 
++			TMR_CTRL_ENABLE | TMR_CTRL_SYS_CLK );
++
++#endif
++	/* Need to mask the TCLK bits as they are initialized with 1 */
++	gfar_write(&regs_1588->tmr_ctrl, (gfar_read(&regs_1588->tmr_ctrl) & ~TMR_CTRL_TCLK_MASK) |
++			TMR_CTRL_TCLK_PRD );
++
++	/* Nominal Freq = 10MHz */
++	gfar_write(&regs_1588->tmr_add, TMR_ADD_VAL);
++}
++
++/* Cleanup routine for 1588 module. When PTP is disabled this routing is called */
++void gfar_1588_stop(struct net_device * dev)
++{
++	unsigned int filer_addr_reg = 0;
++	for(; filer_addr_reg < 0xe; filer_addr_reg++){
++		gfar_write_filer(dev,filer_addr_reg,0,0);
++	}
++
++	gfar_write(&regs_1588->tmr_ctrl, gfar_read(&regs_1588->tmr_ctrl) & ~TMR_CTRL_ENABLE);
++}
++#endif
++
+ /* Bring the controller up and running */
+ int startup_gfar(struct net_device *dev)
+ {
+@@ -1093,6 +1352,26 @@ int startup_gfar(struct net_device *dev)
+ 		rctrl |= RCTRL_PADDING(priv->padding);
+ 	}
+ 
++	/*Enable Filer and Rx Packet Parsing capability of eTSEC */
++#if defined(CONFIG_GFAR_PTP)
++#if defined(CONFIG_GFAR_PTP_ETSEC1)
++       if(!strcmp(dev->name,"eth0"))
++#else
++       if(!strcmp(dev->name,"eth1"))
++#endif
++       {
++		/* Set Filer Table */
++               	gfar_1588_start(dev);
++
++		/* Enable Filer for Rx Queue */
++               	rctrl |= RCTRL_FILREN | RCTRL_PRSDEP_INIT |
++			RCTRL_TS_ENABLE | RCTRL_PADB_SIZE;
++
++		/* Set the timestamp register-set as uninitialized */
++		tx_txts_set = -1;
++       }
++#endif
++
+ 	/* Init rctrl based on our settings */
+ 	gfar_write(&priv->regs->rctrl, rctrl);
+ 
+@@ -1222,6 +1501,9 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	struct txbd8 *txbdp;
+ 	u16 status;
+ 	unsigned long flags;
++	u32	*multicast_addr;
++	char	*pkt_type;
++
+ 
+ 	/* Update transmit stats */
+ 	priv->stats.tx_bytes += skb->len;
+@@ -1253,6 +1535,28 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 		gfar_tx_vlan(skb, fcb);
+ 	}
+ 
++	/* Enable ptp flag so that Tx time stamping happens */
++#if defined(CONFIG_GFAR_PTP)
++#if defined(CONFIG_GFAR_PTP_ETSEC1)
++       if(!strcmp(dev->name,"eth0"))
++#else
++       if(!strcmp(dev->name,"eth1"))
++#endif
++       {
++		if (skb->len > 42) {
++			multicast_addr = (u32 *)(skb->data + 38);
++			pkt_type = (char *)(skb->data + 31);
++			if ((multicast_addr == 0xe0000181) && (*pkt_type == 0x11)) {
++				if(fcb == NULL) {
++					fcb = gfar_add_fcb(skb, txbdp);
++				}
++				fcb->ptp= 0x01;
++				status |= TXBD_TOE;
++			}
++		}
++       }
++#endif
++
+ 	/* Set buffer length and pointer */
+ 	txbdp->length = skb->len;
+ 	txbdp->bufPtr = dma_map_single(NULL, skb->data,
+@@ -1872,15 +2176,35 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
+ 		priv->stats.rx_dropped++;
+ 		priv->extra_stats.rx_skbmissing++;
+ 	} else {
+-		int ret;
++		int  	ret;
++#if defined(CONFIG_GFAR_PTP)
++		int 	is_not_igmp;
++#endif
+ 
+ 		/* Prep the skb for the packet */
+ 		skb_put(skb, length);
+ 
++
+ 		/* Grab the FCB if there is one */
+ 		if (gfar_uses_fcb(priv))
+ 			fcb = gfar_get_fcb(skb);
+ 
++#if defined(CONFIG_GFAR_PTP)
++		if (fcb->rq == 0) {
++			is_not_igmp = (*((char *)skb->data) + 32) != 0x2;
++#if defined(CONFIG_GFAR_PTP_ETSEC1)
++			if(!strcmp(dev->name,"eth0") && is_not_igmp)
++#else
++			if(!strcmp(dev->name,"eth1") && is_not_igmp)
++#endif
++			{
++				rx_time.high = *((u32 *)skb->data);
++				rx_time.low = *( ((u32 *)skb->data) + 1);
++			}
++		}
++		skb_pull(skb, 8);
++#endif
++
+ 		/* Remove the padded bytes, if there are any */
+ 		if (priv->padding)
+ 			skb_pull(skb, priv->padding);
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index 64eedd5..6c381d4 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -113,6 +113,15 @@ extern const char gfar_driver_version[];
+ #define DEFAULT_STASH_LENGTH	64
+ #define DEFAULT_STASH_INDEX	0
+ 
++#ifdef CONFIG_GFAR_PTP
++#define PTP_GET_RX_TIMESTAMP 	SIOCDEVPRIVATE
++#define PTP_GET_TX_TIMESTAMP 	(SIOCDEVPRIVATE + 1)
++#define PTP_SET_CNT	 	(SIOCDEVPRIVATE + 2)
++#define PTP_GET_CNT	 	(SIOCDEVPRIVATE + 3)
++#define PTP_ADJ_FREQ 		(SIOCDEVPRIVATE + 4)
++#define PTP_ADJ_ADDEND 		(SIOCDEVPRIVATE + 5)
++#endif
++
+ /* The number of Exact Match registers */
+ #define GFAR_EM_NUM	15
+ 
+@@ -203,8 +212,11 @@ extern const char gfar_driver_version[];
+ 				mk_ic_icft(count) | \
+ 				mk_ic_ictt(time))
+ 
++#define RCTRL_TS_ENABLE 	0x01000000
++#define RCTRL_PADB_SIZE		(0x8 << 16)
+ #define RCTRL_PAL_MASK		0x001f0000
+ #define RCTRL_VLEX		0x00002000
++#define RCTRL_FSQEN		0x00000800
+ #define RCTRL_FILREN		0x00001000
+ #define RCTRL_GHTX		0x00000400
+ #define RCTRL_IPCSEN		0x00000200
+@@ -369,6 +381,25 @@ extern const char gfar_driver_version[];
+ #define RXFCB_PERR_MASK		0x000c
+ #define RXFCB_PERR_BADL3	0x0008
+ 
++/* 1588 Module Registers bits */
++#ifdef CONFIG_GFAR_PTP
++
++#define TMR_CTRL_ENABLE		0x00000004
++#define TMR_CTRL_RTC_CLK	0x00000003
++#define TMR_CTRL_EXT_CLK	0x00000000
++#define TMR_CTRL_SYS_CLK	0x00000001
++#define TMR_CTRL_TCLK_PRD	0x00640000	/* Nominal Freq = 10 MHz */
++#define TMR_ADD_VAL		CONFIG_GFAR_PTP_TMR_ADD
++#define TMR_CTRL_TCLK_MASK	0x03ff0000
++#define TMR_PEVENT_TXP2		0x00000200
++#define TMR_PEVENT_TXP1		0x00000100
++#define TMR_PEVENT_RXP		0x00000001
++#define TMR_PTPD_MAX_FREQ	0x80000
++#define TMR_MAX_DAC_V		0xaf		/* We have a 8 bit DAC which */
++						/* saturates at 3.3V */
++#endif
++
++
+ struct txbd8
+ {
+ 	u16	status;	/* Status Fields */
+@@ -378,7 +409,7 @@ struct txbd8
+ 
+ struct txfcb {
+ 	u8	flags;
+-	u8	reserved;
++	u8	ptp;	/* Least Significant bit for enabling Tx TimeStamping */
+ 	u8	l4os;	/* Level 4 Header Offset */
+ 	u8	l3os; 	/* Level 3 Header Offset */
+ 	u16	phcs;	/* Pseudo-header Checksum */
+@@ -548,7 +579,20 @@ struct gfar {
+ 	u32	tbase6;		/* 0x.234 - TxBD Base Address of ring 6 */
+ 	u8	res10g[4];
+ 	u32	tbase7;		/* 0x.23c - TxBD Base Address of ring 7 */
++#ifndef CONFIG_GFAR_PTP
+ 	u8	res10[192];
++#else				/*New Registers added for Tx Timer modules */
++	u8	 res10h[64];
++	u32	tmr_txts1_id;	/* 0x.280 Tx time stamp identification*/
++	u32	tmr_txts2_id;	/* 0x.284 Tx time stamp Identification*/
++	u8	res10i[56];
++	u32	tmr_txts1_h;	/* 0x.2c0 Tx time stamp high*/
++	u32	tmr_txts1_l;	/* 0x.2c4 Tx Time Stamp low*/
++	u32	tmr_txts2_h;	/* 0x.2c8 Tx time stamp high*/
++	u32	tmr_txts2_l;	/*0x.2cc  Tx Time Stamp low */
++	u8	res10j[48];
++#endif
++
+ 	u32	rctrl;		/* 0x.300 - Receive Control Register */
+ 	u32	rstat;		/* 0x.304 - Receive Status Register */
+ 	u8	res12[8];
+@@ -595,7 +639,15 @@ struct gfar {
+ 	u32	rbase6;		/* 0x.434 - RxBD base address of ring 6 */
+ 	u8	res17g[4];
+ 	u32	rbase7;		/* 0x.43c - RxBD base address of ring 7 */
++#ifndef CONFIG_GFAR_PTP
+ 	u8	res17[192];
++#else
++	u8	res17h[128];
++	u32	tmr_rxts_h;	/* 0x.4c0 Rx Time Stamp high*/
++	u32	tmr_rxts_l;	/* 0x.4c4 Rx Time Stamp low */
++	u8	res17i[56];
++#endif
++
+ 	u32	maccfg1;	/* 0x.500 - MAC Configuration 1 Register */
+ 	u32	maccfg2;	/* 0x.504 - MAC Configuration 2 Register */
+ 	u32	ipgifg;		/* 0x.508 - Inter Packet Gap/Inter Frame Gap Register */
+@@ -664,9 +716,49 @@ struct gfar {
+ 	u8	res23c[248];
+ 	u32	attr;		/* 0x.bf8 - Attributes Register */
+ 	u32	attreli;	/* 0x.bfc - Attributes Extract Length and Extract Index Register */
++#ifndef CONFIG_GFAR_PTP
+ 	u8	res24[1024];
++#else				/* 1588 Timer Module Registers */
++	u8	res24[512];
++	u32	tmr_ctrl;	/* 0x.e00 - Timer Control Register */
++	u32	tmr_tevent;	/* 0x.e04 - Timer stamp event register */
++	u32	tmr_temask;	/* 0x.e08 - Timer event mask register */
++	u32	tmr_pevent;	/* 0x.e0c - Timer stamp event register */
++	u32	tmr_pemask;	/* 0x.e10 - Timer event mask register */
++	u32	tmr_stat;	/* 0x.e14 - Timer stamp status register */
++	u32	tmr_cnt_h;	/* 0x.e18 - Timer counter high register */
++	u32	tmr_cnt_l;	/* 0x.e1c - Timer counter low register */
++	u32	tmr_add;	/* 0x.e20 - Timer dirft compensation addend register */
++	u32	tmr_acc;	/* 0x.e24 - Timer accumulator register */
++	u32	tmr_prsc;	/* 0x.e28 - Timer prescale register */
++	u8	res24a[4];	/* 0x.e2c - 0x.e2f reserved */
++	u32	tmr_off_h;	/* 0x.e30 - Timer offset high register */
++	u32	tmr_off_l;	/* 0x.e34 - Timer offset low register */
++	u8	res24b[8];	/* 0x.e38 - 0x.e3f reserved */
++	u32	tmr_alarm1_h;	/* 0x.e40 - Timer alarm 1 high register */
++	u32	tmr_alarm1_l;	/* 0x.e44 - Timer alarm 1 low register */
++	u32	tmr_alarm2_h;	/* 0x.e48 - Timer alarm 2 high register */
++	u32	tmr_alarm2_l;	/* 0x.e4c - Timer alarm 2 low register */
++	u8	res24c[48];	/* 0x.e50 - 0x.e7f reserved */
++	u32	tmr_fiper1;	/* 0x.e80 - Timer fixed period register 1 */
++	u32	tmr_fiper2;	/* 0x.e84 - Timer fixed period register 2 */
++	u32	tmr_fiper3;	/* 0x.e88 - Timer fixed period register 3 */
++	u8	res24d[20];	/* 0x.e8c - 0x.ebf reserved */
++	u32	tmr_etts1_h;	/* 0x.ea0 - Timer stamp high of general purpose external trigger 1*/
++	u32	tmr_etts1_l;	/* 0x.ea4 - Timer stamp low of general purpose external trigger 1*/
++	u32	tmr_etts2_h;	/* 0x.ea8 - Timer stamp high of general purpose external trigger 2 */
++	u32	tmr_etts2_l;	/* 0x.eac - Timer stamp low of general purpose external trigger 2*/
++	u8	res25[336];	/* 0x.eb0 - 0x.fff */
++#endif
++};
+ 
++#ifdef CONFIG_GFAR_PTP
++/* Structure for PTP Time Stamp */
++struct gfar_ptp_time {
++	u32	high;
++	u32	low;
+ };
++#endif
+ 
+ /* Struct stolen almost completely (and shamelessly) from the FCC enet source
+  * (Ok, that's not so true anymore, but there is a family resemblence)
+@@ -751,9 +843,14 @@ struct gfar_private {
+ 	unsigned char vlan_enable:1,
+ 		rx_csum_enable:1,
+ 		extended_hash:1,
+-		bd_stash_en:1,
+ 		wol_en:1, // Wake-on-LAN enabled
+-		suspended:1;
++		suspended:1,
++#ifdef CONFIG_GFAR_PTP
++		bd_stash_en:1,
++		ptp_timestamping:1;
++#else
++		bd_stash_en:1;
++#endif
+ 	unsigned short padding;
+ 
+ 	unsigned int interruptTransmit;
+@@ -816,6 +913,11 @@ extern irqreturn_t gfar_receive(int irq, void *dev_id);
+ extern int startup_gfar(struct net_device *dev);
+ extern void stop_gfar(struct net_device *dev);
+ extern void gfar_halt(struct net_device *dev);
++#ifdef CONFIG_GFAR_PTP
++extern void gfar_1588_start(struct net_device *dev);
++extern void gfar_1588_stop(struct net_device *dev);
++#endif
++
+ extern void gfar_phy_test(struct mii_bus *bus, struct phy_device *phydev,
+ 		int enable, u32 regnum, u32 read);
+ void gfar_init_sysfs(struct net_device *dev);
+diff --git a/include/linux/fsl_devices.h b/include/linux/fsl_devices.h
+index 3b63eca..b618972 100644
+--- a/include/linux/fsl_devices.h
++++ b/include/linux/fsl_devices.h
+@@ -75,6 +75,9 @@ struct gianfar_platform_data {
+ 	u32	bus_id;
+ 	u32	phy_id;
+ 	u8	mac_addr[6];
++#ifdef CONFIG_GFAR_PTP
++	phys_addr_t	regs_1588;
++#endif
+ 	struct fsl_sleep_platform_data sleep;
+ };
+ 
+diff --git a/include/linux/i2c-id.h b/include/linux/i2c-id.h
+index d38778f..6706c22 100644
+--- a/include/linux/i2c-id.h
++++ b/include/linux/i2c-id.h
+@@ -36,6 +36,7 @@
+ #define I2C_DRIVERID_TDA9840	 7	/* stereo sound processor	*/
+ #define I2C_DRIVERID_SAA7111A	 8	/* video input processor	*/
+ #define I2C_DRIVERID_SAA5281	 9	/* videotext decoder		*/
++#define I2C_DRIVERID_AD5301     I2C_DRIVERID_SAA5281    /* Hack: Analog Devices DAC 5301      */
+ #define I2C_DRIVERID_SAA7112	10	/* video decoder, image scaler	*/
+ #define I2C_DRIVERID_SAA7120	11	/* video encoder		*/
+ #define I2C_DRIVERID_SAA7121	12	/* video encoder		*/
+-- 
+1.5.0
+

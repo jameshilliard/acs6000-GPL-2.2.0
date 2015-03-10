@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+<Project manager="Benny" name="Mergepoint52xx">
+	<Description>
+		 MergePoint Project definition file.
+	</Description>
+	<Server type="svn">
+		<Local>
+				svn://172.26.24.5/avocent-test
+		</Local>
+		<Remote>
+				svn://172.26.24.5/avocent-test
+		</Remote>
+		<SvnSync>
+				http://172.26.24.5/cgi-bin/websvnsync.cgi
+		</SvnSync>
+	</Server>
+	<Modules>
+		<Module owner="">
+			 bitbake 
+		</Module>
+		<Module owner="">
+			 common/com.avocent.dev 
+		</Module>
+		<Module owners="">
+			 common/org.openembedded.dev 
+		</Module>
+		<Module owners="Lynn.Lin">
+			 projects/mergepoint 
+		</Module>
+		<Module owners="Liwei.Zhen">
+			 projects/hebei 
+		</Module>
+		<Module owners="Liwei.Zhen">
+			 sources/generic/lzma 
+		</Module>
+		<Module owners="Liwei.Zhen">
+			 sources/generic/cmd-uboot 
+		</Module>
+		<Module owners="">
+			 utils 
+		</Module>
+	</Modules>
+	<Tags>
+		<Tag Begin="Fri Aug 03 12:58:27 2007" Name="8_3_alltag_C_5">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="trunk" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Aug 03 12:56:57 2007" Name="8_3_alltag_D_1">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="trunk" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Aug 03 12:54:10 2007" Name="8_3_alltag_C_3">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="trunk" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Aug 03 12:40:51 2007" Name="8_3_all_tag_C_1">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="trunk" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Aug 03 12:31:46 2007" Name="8_3_all_tag_3">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="SCM_MERGEPOINT_PPC_1_0_2_20070718" name="utils">
+			</Module>
+		</Tag>
+	</Tags>
+	<Branches>
+	</Branches>
+</Project>

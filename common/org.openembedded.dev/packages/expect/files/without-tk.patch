@@ -1,0 +1,13 @@
+Index: expect-5.43/configure
+===================================================================
+--- expect-5.43.orig/configure
++++ expect-5.43/configure
+@@ -1225,7 +1225,7 @@ else
+   
+ 
+   # First check to see if --with-tk was specified.
+-  if test x"${with_tkconfig}" != x ; then
++  if test x"${with_tkconfig}" != xno ; then
+     if test -f "${with_tkconfig}/tkConfig.sh" ; then
+       ac_cv_c_tkconfig=`(cd ${with_tkconfig}; pwd)`
+     else

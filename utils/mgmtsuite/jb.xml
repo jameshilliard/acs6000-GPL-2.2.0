@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<Project manager="John Bordin" name="Foo project">
+	<Description>
+		 Foo Project definition file.
+	</Description>
+	<Server type="svn">
+		<Local>
+				https://fre-svn.corp.avocent.com/svn/avocent-fre
+		</Local>
+		<Remote>
+				https://fre-svn.corp.avocent.com/svn/avocent-fre
+		</Remote>
+	</Server>
+	<Modules>
+		<Module owner="">
+			 johnb/test
+		</Module>
+	</Modules>
+	<Tags>
+		<Tag Begin="Tue Aug 21 15:04:51 2007" Name="tag-Tues-1-0-2">
+			<Comment>
+				tag-Tues-1-0-2 - Tag Comment
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Tag>
+		<Tag Begin="Tue Aug 21 14:45:40 2007" Name="tag-Tues-1-0-0">
+			<Comment>
+				tag-Tues-1-0-0 - comments
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Tag>
+	</Tags>
+	<Branches>
+		<Branch Begin="Thu Sep 06 17:13:23 2007" Name="testThu-1">
+			<Comment>
+				test
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Branch>
+		<Branch Begin="Tue Aug 21 15:02:36 2007" Name="branch-Tues-1-0-2">
+			<Comment>
+				branch-Tues-1-0-2 - Tag Comment
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Branch>
+		<Branch Begin="Tue Aug 21 14:44:24 2007" Name="branch-Tues-1-0-1">
+			<Comment>
+				branch-Tues-1-0-1 - comments
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Branch>
+		<Branch Begin="Tue Aug 21 14:41:27 2007" Name="branch-Tues-1-0-0">
+			<Comment>
+				branch-Tues-1-0-0 - comments
+			</Comment>
+			<Module RefTag="trunk" name="johnb/test">
+			</Module>
+		</Branch>
+	</Branches>
+</Project>

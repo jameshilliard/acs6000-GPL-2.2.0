@@ -1,0 +1,41 @@
+Index: linux-2.6-denx/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/platforms/gsp-sysctl.c	2008-10-31 19:29:22.000000000 -0700
++++ linux-2.6-denx/arch/ppc/platforms/gsp-sysctl.c	2008-10-31 19:32:32.000000000 -0700
+@@ -276,7 +276,7 @@
+ 	printk("sysctl initialization\n");
+ 
+ #if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
+-	if (__res.oem != 0) {
++	if (__res.oem != 1) {
+ 		while (1) {
+ 			printk("    ERROR : The current image does not run on this board : ERROR\n");
+ 			ssleep(5);
+Index: linux-2.6-denx/init/main.c
+===================================================================
+--- linux-2.6-denx.orig/init/main.c	2008-10-31 19:30:01.000000000 -0700
++++ linux-2.6-denx/init/main.c	2008-10-31 19:31:39.000000000 -0700
+@@ -414,11 +414,19 @@
+ #ifdef CONFIG_AVOCENT_GSP
+ static void __init process_oem_info(void)
+ {
+-	__res.oem = 0; //indicates Avocent brand
++	char *oempar, *consolepar;
++	int i=0;
+ 
+-	if (strstr(boot_command_line, "OEM")) {
+-		//shouldn't have any OEM reference
+-		__res.oem = 9;
++	__res.oem = 0;
++
++	if ((consolepar = strstr(boot_command_line, " console"))) { //check against malformed command lines
++		if ((oempar = strstr(boot_command_line, " OEM=1")) && (oempar < consolepar)) {
++			//OEM reference must precede first console reference
++			__res.oem = 1;
++			do { //remove OEM parameter from now on
++				oempar[i] = consolepar[i];
++			} while (oempar[i++]);
++		}
+ 	}
+ }
+ #endif

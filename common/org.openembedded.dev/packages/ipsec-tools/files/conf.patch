@@ -1,0 +1,54 @@
+diff -Naupr ipsec-tools-0.5rc2/configure ipsec-tools-0.5rc2.new/configure
+--- ipsec-tools-0.5rc2/configure	2005-01-28 18:13:10.000000000 -0500
++++ ipsec-tools-0.5rc2.new/configure	2007-06-20 11:30:57.000000000 -0400
+@@ -2399,7 +2399,8 @@ sed 's/^/| /' conftest.$ac_ext >&5
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: C compiler cannot create executables
+ See \`config.log' for more details." >&2;}
+-   { (exit 77); exit 77; }; }
++#   { (exit 77); exit 77; }; 
++}
+ fi
+
+ ac_exeext=$ac_cv_exeext
+@@ -20798,7 +20798,8 @@ else
+   test "$cross_compiling" = yes &&
+   { { echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+ echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ if test -r "$KERNEL_INCLUDE/linux/pfkeyv2.h"; then
+   eval "$as_ac_File=yes"
+ else
+@@ -20818,7 +20819,8 @@ else
+   test "$cross_compiling" = yes &&
+   { { echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+ echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ if test -r "/usr/src/linux/include/linux/pfkeyv2.h"; then
+   ac_cv_file__usr_src_linux_include_linux_pfkeyv2_h=yes
+ else
+@@ -20834,7 +20834,8 @@ if test $ac_cv_file__usr_src_linux_inclu
+ else
+    { { echo "$as_me:$LINENO: error: Unable to find linux-2.6 kernel headers. Aborting." >&5
+ echo "$as_me: error: Unable to find linux-2.6 kernel headers. Aborting." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+
+ fi
+@@ -24230,7 +24230,8 @@ fi
+ if test "$buggygetaddrinfo" = "yes"; then
+        { { echo "$as_me:$LINENO: error: Broken getaddrinfo() is no longer supported. Aborting." >&5
+ echo "$as_me: error: Broken getaddrinfo() is no longer supported. Aborting." >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ fi
+
+ # Check if kernel support is available for NAT-T, defaults to no.
+

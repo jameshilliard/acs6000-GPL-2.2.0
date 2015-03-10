@@ -1,0 +1,69 @@
+Index: linux-2.6.20/arch/powerpc/sysdev/fsl_soc.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/sysdev/fsl_soc.c	2008-03-05 17:46:37.000000000 -0800
++++ linux-2.6.20/arch/powerpc/sysdev/fsl_soc.c	2008-03-05 18:19:53.000000000 -0800
+@@ -437,6 +437,64 @@
+ arch_initcall(fsl_i2c_of_init);
+ 
+ #ifdef CONFIG_PPC_83xx
++
++#define MPC83XX_SPI_MAX_CHIPSELECT	1
++#define mpc83xx_spi_activate_cs		NULL
++#define mpc83xx_spi_deactivate_cs	NULL
++
++static int __init mpc83xx_spi_init(void)
++{
++	struct device_node *np;
++	unsigned int i;
++	struct platform_device *spi_dev;
++	int ret;
++
++	for (np = NULL, i = 0;
++	     (np = of_find_compatible_node(np, "spi", "mpc83xx_spi")) != NULL;
++	     i++) {
++		struct resource r[2];
++		struct fsl_spi_platform_data spi_data;
++		const u32 *mode = NULL;
++
++		memset(&r, 0, sizeof(r));
++		memset(&spi_data, 0, sizeof(spi_data));
++
++		ret = of_address_to_resource(np, 0, &r[0]);
++		if (ret)
++			goto err;
++
++		of_irq_to_resource(np, 0, &r[1]);
++
++		spi_dev = platform_device_register_simple("mpc83xx_spi", i, r, 2);
++		if (IS_ERR(spi_dev)) {
++			ret = PTR_ERR(spi_dev);
++			goto err;
++		}
++
++		mode = get_property(np, "mode", NULL);
++		spi_data.activate_cs = mpc83xx_spi_activate_cs;
++		spi_data.deactivate_cs = mpc83xx_spi_deactivate_cs;
++		spi_data.max_chipselect = MPC83XX_SPI_MAX_CHIPSELECT;
++		spi_data.initial_spmode = *mode;
++		spi_data.sysclk = fsl_get_sys_freq();
++		ret =
++		    platform_device_add_data(spi_dev, &spi_data,
++					     sizeof(struct
++						    fsl_spi_platform_data));
++		if (ret)
++			goto unreg;
++	}
++
++	return 0;
++
++unreg:
++	platform_device_unregister(spi_dev);
++err:
++	return ret;
++}
++
++arch_initcall(mpc83xx_spi_init);
++
+ static int __init mpc83xx_wdt_init(void)
+ {
+ 	struct resource r;

@@ -1,0 +1,14 @@
+--- ntpclient-2006/ntpclient.c.orig	2007-10-12 16:35:15.000000000 -0700
++++ ntpclient-2006/ntpclient.c	2007-10-12 16:35:35.000000000 -0700
+@@ -654,9 +654,11 @@
+ 		exit(1);
+ 	}
+ 
++#if 0
+ 	if (ntpc.set_clock && !ntpc.live && !ntpc.goodness && !ntpc.probe_count) {
+ 		ntpc.probe_count = 1;
+ 	}
++#endif
+ 
+ 	if (debug) {
+ 		printf("Configuration:\n"

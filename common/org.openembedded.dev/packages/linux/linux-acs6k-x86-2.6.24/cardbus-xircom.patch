@@ -1,0 +1,13 @@
+Index: linux-2.6-denx/drivers/net/tulip/xircom_tulip_cb.c
+===================================================================
+--- linux-2.6-denx.orig/drivers/net/tulip/xircom_tulip_cb.c	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/drivers/net/tulip/xircom_tulip_cb.c	2008-11-03 19:26:18.000000000 -0800
+@@ -1626,7 +1626,7 @@
+ 
+ 
+ static struct pci_device_id xircom_pci_table[] = {
+-  { 0x115D, 0x0003, PCI_ANY_ID, PCI_ANY_ID, 0, 0, X3201_3 },
++  { 0x115D, 0xf003, PCI_ANY_ID, PCI_ANY_ID, 0, 0, X3201_3 },
+   {0},
+ };
+ MODULE_DEVICE_TABLE(pci, xircom_pci_table);

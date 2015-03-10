@@ -1,0 +1,153 @@
+Index: linux-2.6.20/drivers/i2c/chips/m41t00.c
+===================================================================
+--- linux-2.6.20.orig/drivers/i2c/chips/m41t00.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/i2c/chips/m41t00.c	2008-08-12 11:29:08.000000000 -0700
+@@ -26,7 +26,7 @@
+ #include <asm/rtc.h>
+ 
+ static struct i2c_driver m41t00_driver;
+-static struct i2c_client *save_client;
++static struct i2c_client *save_client = NULL;
+ 
+ static unsigned short ignore[] = { I2C_CLIENT_END };
+ static unsigned short normal_addr[] = { I2C_CLIENT_END, I2C_CLIENT_END };
+@@ -51,6 +51,7 @@
+ 	u8	alarm_hour;
+ 	u8	sqw;
+ 	u8	sqw_freq;
++	u8      calibration;
+ };
+ 
+ static struct m41t00_chip_info m41t00_chip_info_tbl[] = {
+@@ -64,6 +65,7 @@
+ 		.day		= 4,
+ 		.mon		= 5,
+ 		.year		= 6,
++		.calibration    = 7,
+ 	},
+ 	{
+ 		.type		= M41T00_TYPE_M41T81,
+@@ -105,19 +107,25 @@
+ 	u8 buf[8], msgbuf[1] = { 0 }; /* offset into rtc's regs */
+ 	struct i2c_msg msgs[] = {
+ 		{
+-			.addr	= save_client->addr,
++			.addr	= 0,
+ 			.flags	= 0,
+ 			.len	= 1,
+ 			.buf	= msgbuf,
+ 		},
+ 		{
+-			.addr	= save_client->addr,
++			.addr	= 0,
+ 			.flags	= I2C_M_RD,
+ 			.len	= 8,
+ 			.buf	= buf,
+ 		},
+ 	};
+ 
++	if (! save_client) {
++		printk(KERN_ERR "m41t00_get_rtc_time: Device not attached.\n");
++		return 0;
++	}
++	msgs[0].addr = msgs[1].addr = save_client->addr;
++
+ 	sec = min = hour = day = mon = year = 0;
+ 
+ 	do {
+@@ -160,7 +168,7 @@
+ 	return mktime(year, mon, day, hour, min, sec);
+ 
+ read_err:
+-	dev_err(&save_client->dev, "m41t00_get_rtc_time: Read error\n");
++	printk(KERN_ERR "m41t00_get_rtc_time: Read error on %s.\n", save_client->name);
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(m41t00_get_rtc_time);
+@@ -174,19 +182,26 @@
+ 	u8 wbuf[9], *buf = &wbuf[1], msgbuf[1] = { 0 };
+ 	struct i2c_msg msgs[] = {
+ 		{
+-			.addr	= save_client->addr,
++			.addr	= 0,
+ 			.flags	= 0,
+ 			.len	= 1,
+ 			.buf	= msgbuf,
+ 		},
+ 		{
+-			.addr	= save_client->addr,
++			.addr	= 0,
+ 			.flags	= I2C_M_RD,
+ 			.len	= 8,
+ 			.buf	= buf,
+ 		},
+ 	};
+ 
++	if (! save_client) {
++		printk(KERN_ERR "m41t00_set: Device not attached.\n");
++		return;
++	}
++
++	msgs[0].addr = msgs[1].addr = save_client->addr;
++
+ 	to_tm(nowtime, &tm);
+ 	tm.tm_year = (tm.tm_year - 1900) % 100;
+ 
+@@ -223,7 +238,7 @@
+ 	m41t00_set(&new_time);
+ }
+ 
+-static struct workqueue_struct *m41t00_wq;
++static struct workqueue_struct *m41t00_wq = NULL;
+ static DECLARE_WORK(m41t00_work, m41t00_barf);
+ 
+ int
+@@ -232,7 +247,11 @@
+ 	new_time = nowtime;
+ 
+ 	if (in_interrupt())
+-		queue_work(m41t00_wq, &m41t00_work);
++		if (m41t00_wq) { 
++			queue_work(m41t00_wq, &m41t00_work);
++		} else {
++			printk(KERN_ERR "m41t00_set_rtc_time: Device not attached.\n");
++		}
+ 	else
+ 		m41t00_set(&new_time);
+ 
+@@ -334,6 +353,11 @@
+ 					m41t00_chip->alarm_hour, rc & ~0x40))<0)
+ 				goto ht_err;
+ 	}
++	else {
++		if ((rc = i2c_smbus_write_byte_data(client,
++					m41t00_chip->calibration, 0x00))<0) 
++				goto cal_err;
++	}
+ 
+ 	/* Make sure ST (stop) bit is cleared */
+ 	if ((rc = i2c_smbus_read_byte_data(client, m41t00_chip->sec)) < 0)
+@@ -351,6 +375,9 @@
+ st_err:
+ 	dev_err(&client->dev, "m41t00_probe: Can't clear ST bit\n");
+ 	goto attach_err;
++cal_err:
++	dev_err(&client->dev, "m41t00_probe: Calibration fail\n");
++	goto attach_err;
+ ht_err:
+ 	dev_err(&client->dev, "m41t00_probe: Can't clear HT bit\n");
+ 	goto attach_err;
+@@ -364,7 +391,12 @@
+ static int
+ m41t00_attach(struct i2c_adapter *adap)
+ {
+-	return i2c_probe(adap, &addr_data, m41t00_probe);
++	int rc = i2c_probe(adap, &addr_data, m41t00_probe);
++
++	if (rc)
++		printk(KERN_ERR "m41t00_attach: Device not attached.\n");
++
++	return rc;
+ }
+ 
+ static int

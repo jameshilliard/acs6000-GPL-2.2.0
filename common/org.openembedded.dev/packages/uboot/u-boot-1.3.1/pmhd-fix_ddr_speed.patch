@@ -1,0 +1,72 @@
+Index: u-boot-1.3.1/cpu/mpc83xx/speed.c
+===================================================================
+--- u-boot-1.3.1.orig/cpu/mpc83xx/speed.c
++++ u-boot-1.3.1/cpu/mpc83xx/speed.c
+@@ -369,6 +369,41 @@ ulong get_bus_freq(ulong dummy)
+ 
+ int do_clocks (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[])
+ {
++        volatile immap_t *im = (immap_t *) CFG_IMMR;
++        u32 pci_sync_in;
++        u8 spmf;
++        u8 clkin_div;
++        u32 sccr;
++        u32 corecnf_tab_index;
++        u8 corepll;
++        u32 lcrr;
++
++        u32 csb_clk;
++
++
++        clkin_div = ((im->clk.spmr & SPMR_CKID) >> SPMR_CKID_SHIFT);
++
++        if (im->reset.rcwh & HRCWH_PCI_HOST) {
++#if defined(CONFIG_83XX_CLKIN)
++                pci_sync_in = CONFIG_83XX_CLKIN / (1 + clkin_div);
++#else
++                pci_sync_in = 0xDEADBEEF;
++#endif
++        } else {
++#if defined(CONFIG_83XX_PCICLK)
++                pci_sync_in = CONFIG_83XX_PCICLK;
++#else
++                pci_sync_in = 0xDEADBEEF;
++#endif
++        }
++
++        spmf = ((im->reset.rcwl & HRCWL_SPMF) >> HRCWL_SPMF_SHIFT);
++        csb_clk = pci_sync_in * (1 + clkin_div) * spmf;
++	
++
++     	printf("\n csb_clk = %X pci_sync_in %X clkin_div %X  spmf %X",csb_clk,pci_sync_in,clkin_div, spmf );
++
++
+ 	printf("Clock configuration:\n");
+ 	printf("  Core:                %4d MHz\n", gd->core_clk / 1000000);
+ 	printf("  Coherent System Bus: %4d MHz\n", gd->csb_clk / 1000000);
+Index: u-boot-1.3.1/include/configs/avocent-pmhd.h
+===================================================================
+--- u-boot-1.3.1.orig/include/configs/avocent-pmhd.h
++++ u-boot-1.3.1/include/configs/avocent-pmhd.h
+@@ -128,7 +128,7 @@
+ 				/* 0x44400232 */
+ #define CFG_DDR_MODE_2		0x8000C000;
+ 
+-#define CFG_DDR_CLK_CNTL	DDR_SDRAM_CLK_CNTL_CLK_ADJUST_05
++#define CFG_DDR_CLK_CNTL	DDR_SDRAM_CLK_CNTL_CLK_ADJUST_025
+ 				/*0x02000000*/
+ #define CFG_DDRCDR_VALUE	( DDRCDR_EN \
+ 				| DDRCDR_PZ_NOMZ \
+@@ -390,8 +390,10 @@
+ 	HRCWL_DDRCM | \
+ 	HRCWL_LCL_BUS_TO_SCB_CLK_1X1 |\
+ 	HRCWL_DDR_TO_SCB_CLK_2X1 |\
+-	HRCWL_CSB_TO_CLKIN_5X1 |\
+-	HRCWL_CORE_TO_CSB_2X1)
++	HRCWL_CSB_TO_CLKIN_4X1 |\
++	HRCWL_CORE_TO_CSB_2_5X1)
++/*	HRCWL_CSB_TO_CLKIN_5X1 |\*/
++/*	HRCWL_CORE_TO_CSB_2X1)*/
+ 
+ 
+ /* 0xa0606c00 */

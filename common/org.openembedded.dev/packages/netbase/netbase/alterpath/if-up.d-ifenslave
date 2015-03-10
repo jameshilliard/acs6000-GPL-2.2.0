@@ -1,0 +1,12 @@
+#!/bin/sh
+
+if [ -n "$IF_SLAVES" ] ; then
+	for S in $IF_SLAVES ; do
+		# suppress warnings, works anway...
+		# the slaves should not be available, just up
+		# this will also remove the entries from the routing table:
+		ifconfig $S 0.0.0.0
+	done
+	/sbin/ifenslave $IFACE $IF_SLAVES > /dev/null 2>&1
+fi
+

@@ -1,0 +1,257 @@
+Index: u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/4xx_enet.c	2007-12-12 16:31:01.000000000 -0800
++++ u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c	2007-12-12 16:31:05.000000000 -0800
+@@ -105,7 +105,7 @@
+ #endif
+ 
+ #define EMAC_RESET_TIMEOUT 1000 /* 1000 ms reset timeout */
+-#define PHY_AUTONEGOTIATE_TIMEOUT 4000	/* 4000 ms autonegotiate timeout */
++#define PHY_AUTONEGOTIATE_TIMEOUT 6000	/* 6000 ms autonegotiate timeout */
+ 
+ /* Ethernet Transmit and Receive Buffers */
+ /* AS.HARNOIS
+@@ -377,12 +377,16 @@
+ 	int i, j;
+ 	unsigned long reg = 0;
+ 	unsigned long msr;
++	unsigned long link;
+ 	unsigned long speed;
+ 	unsigned long duplex;
+ 	unsigned long failsafe;
+ 	unsigned mode_reg;
+ 	unsigned short devnum;
+ 	unsigned short reg_short;
++#ifdef CONFIG_AVOCENT_GSP
++	unsigned short bmsr_mask;
++#endif
+ #if defined(CONFIG_440GX) || \
+     defined(CONFIG_440EPX) || defined(CONFIG_440GRX) || \
+     defined(CONFIG_440SP) || defined(CONFIG_440SPE)
+@@ -628,6 +632,8 @@
+ 	}
+ #endif /* defined(CONFIG_PHY_RESET) */
+ 
++#ifndef CONFIG_AVOCENT_GSP
++	link = 1;
+ 	miiphy_read (dev->name, reg, PHY_BMSR, &reg_short);
+ 
+ 	/*
+@@ -643,6 +649,7 @@
+ 			 */
+ 			if (i > PHY_AUTONEGOTIATE_TIMEOUT) {
+ 				puts (" TIMEOUT !\n");
++				link = 0;
+ 				break;
+ 			}
+ 
+@@ -656,12 +663,61 @@
+ 		puts (" done\n");
+ 		udelay (500000);	/* another 500 ms (results in faster booting) */
+ 	}
++#else
++	/* 
++	 * Check if PHY was doing autonegotiation or if it is forced
++	 */
++	miiphy_read (dev->name, reg, PHY_BMCR, &reg_short);
++
++	if (reg_short & PHY_BMCR_AUTON) {
++		bmsr_mask = PHY_BMSR_AUTN_COMP;
++	} else {
++		bmsr_mask = PHY_BMSR_LS;
++	}
++
++	link = 1;
++	miiphy_read (dev->name, reg, PHY_BMSR, &reg_short);
++
++	if (!(reg_short & bmsr_mask)) {
++		if (bmsr_mask & PHY_BMSR_AUTN_COMP) {
++			puts ("Waiting for PHY auto negotiation to complete");
++		} else {
++			puts ("Waiting for link to turn up");
++		}
++		i = 0;
++
++		while (1) {
++			/*
++			 * Timeout reached ?
++			 */
++			if (i > PHY_AUTONEGOTIATE_TIMEOUT) {
++				puts (" TIMEOUT !\n");
++				link = 0;
++				break;
++			}
++
++			if ((i++ % 1000) == 0) {
++				putc ('.');
++			}
++			udelay (1000);	/* 1 ms */
++
++			miiphy_read (dev->name, reg, PHY_BMSR, &reg_short);
++
++			if (reg_short & bmsr_mask) {
++				puts (" done\n");
++				udelay (500000);	/* another 500 ms (results in faster booting) */
++				break;
++			}
++		}
++	}
++#endif
++
+ #endif /* #ifndef CONFIG_CS8952_PHY */
+ 
+ 	speed = miiphy_speed (dev->name, reg);
+ 	duplex = miiphy_duplex (dev->name, reg);
+ 
+-	if (hw_p->print_speed) {
++	if (link && hw_p->print_speed) {
+ 		hw_p->print_speed = 0;
+ 		printf ("ENET Speed is %d Mbps - %s duplex connection\n",
+ 			(int) speed, (duplex == HALF) ? "HALF" : "FULL");
+@@ -965,7 +1021,11 @@
+ 	hw_p->bis = bis;
+ 	hw_p->first_init = 1;
+ 
+-	return (1);
++	if (link) {
++		return (1);
++	} else {
++		return -1;
++	}
+ }
+ 
+ 
+Index: u-boot-1.2.0/cpu/ppc4xx/miiphy.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/miiphy.c	2007-12-12 16:31:01.000000000 -0800
++++ u-boot-1.2.0/cpu/ppc4xx/miiphy.c	2007-12-12 16:54:16.000000000 -0800
+@@ -145,6 +145,7 @@
+ int phy_setup_aneg (char *devname, unsigned char addr)
+ {
+ 	unsigned short ctl, adv;
++#ifndef CONFIG_AVOCENT_GSP
+ 
+ 	/* Setup standard advertise */
+ 	miiphy_read (devname, addr, PHY_ANAR, &adv);
+@@ -162,6 +163,91 @@
+ 	ctl |= (PHY_BMCR_AUTON | PHY_BMCR_RST_NEG);
+ 	miiphy_write (devname, addr, PHY_BMCR, ctl);
+ 
++#else
++	DECLARE_GLOBAL_DATA_PTR;
++	bd_t *bd = gd->bd;
++	int nb = (addr == CONFIG_PHY_ADDR) ? 0:1;
++
++	switch (bd->mii_operation[nb]) {
++	case 0:
++		/* Setup standard advertise */
++		miiphy_read (devname, addr, PHY_ANAR, &adv);
++		adv |= (PHY_ANLPAR_TXFD | PHY_ANLPAR_TX | PHY_ANLPAR_10FD |
++			PHY_ANLPAR_10);
++		miiphy_write (devname, addr, PHY_ANAR, adv);
++
++		miiphy_read (devname, addr, PHY_1000BTCR, &adv);
++		adv |= (0x0300);
++		miiphy_write (devname, addr, PHY_1000BTCR, adv);
++
++		/* Start/Restart aneg */
++		miiphy_read (devname, addr, PHY_BMCR, &ctl);
++		ctl |= (PHY_BMCR_AUTON | PHY_BMCR_RST_NEG);
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 1:
++		/* Enable autonegotiation, advertise only 1000 Full Duplex */
++		miiphy_read (devname, addr, PHY_ANAR, &adv);
++		adv &= ~(PHY_ANLPAR_TXFD | PHY_ANLPAR_TX | PHY_ANLPAR_10FD |
++			PHY_ANLPAR_10);
++		miiphy_write (devname, addr, PHY_ANAR, adv);
++
++		miiphy_read (devname, addr, PHY_1000BTCR, &adv);
++		adv &= ~(0x0300);
++		adv |= 0x0200;
++		miiphy_write (devname, addr, PHY_1000BTCR, adv);
++
++		/* Start/Restart aneg */
++		miiphy_read (devname, addr, PHY_BMCR, &ctl);
++		ctl |= (PHY_BMCR_AUTON | PHY_BMCR_RST_NEG);
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 2:
++		/* Enable autonegotiation, advertise only 1000 Full Duplex */
++		miiphy_read (devname, addr, PHY_ANAR, &adv);
++		adv &= ~(PHY_ANLPAR_TXFD | PHY_ANLPAR_TX | PHY_ANLPAR_10FD |
++			PHY_ANLPAR_10);
++		miiphy_write (devname, addr, PHY_ANAR, adv);
++
++		miiphy_read (devname, addr, PHY_1000BTCR, &adv);
++		adv &= ~(0x0300);
++		adv |= 0x0100;
++		miiphy_write (devname, addr, PHY_1000BTCR, adv);
++
++		/* Start/Restart aneg */
++		miiphy_read (devname, addr, PHY_BMCR, &ctl);
++		ctl |= (PHY_BMCR_AUTON | PHY_BMCR_RST_NEG);
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 3:
++		miiphy_read(devname, addr, PHY_BMCR, &ctl);
++		ctl &= ~(PHY_BMCR_AUTON | PHY_BMCR_100MB | 
++			PHY_BMCR_1000_MBPS | PHY_BMCR_DPLX);
++		ctl |= PHY_BMCR_100MB | PHY_BMCR_DPLX;
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 4:
++		miiphy_read(devname, addr, PHY_BMCR, &ctl);
++		ctl &= ~(PHY_BMCR_AUTON | PHY_BMCR_100MB | 
++			PHY_BMCR_1000_MBPS | PHY_BMCR_DPLX);
++		ctl |= PHY_BMCR_100MB;
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 5:
++		miiphy_read(devname, addr, PHY_BMCR, &ctl);
++		ctl &= ~(PHY_BMCR_AUTON | PHY_BMCR_100MB | 
++			PHY_BMCR_1000_MBPS | PHY_BMCR_DPLX);
++		ctl |= PHY_BMCR_DPLX;
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	case 6:
++		miiphy_read(devname, addr, PHY_BMCR, &ctl);
++		ctl &= ~(PHY_BMCR_AUTON | PHY_BMCR_100MB | 
++			PHY_BMCR_1000_MBPS | PHY_BMCR_DPLX);
++		miiphy_write (devname, addr, PHY_BMCR, ctl);
++		break;
++	}
++#endif
+ 	return 0;
+ }
+ 
+Index: u-boot-1.2.0/net/eth.c
+===================================================================
+--- u-boot-1.2.0.orig/net/eth.c	2007-12-12 16:31:01.000000000 -0800
++++ u-boot-1.2.0/net/eth.c	2007-12-12 16:31:05.000000000 -0800
+@@ -363,13 +363,14 @@
+ 	struct eth_device* old_current;
+ 
+ 	if (!eth_current)
+-		return 0;
++		return -1;
+ 
+ 	old_current = eth_current;
+ 	do {
+ 		debug ("Trying %s\n", eth_current->name);
++		printf ("Trying %s\n", eth_current->name);
+ 
+-		if (eth_current->init(eth_current, bis)) {
++		if (eth_current->init(eth_current, bis) >= 0) {
+ 			eth_current->state = ETH_STATE_ACTIVE;
+ 
+ 			return 1;
+@@ -379,7 +380,7 @@
+ 		eth_try_another(0);
+ 	} while (old_current != eth_current);
+ 
+-	return 0;
++	return -1;
+ }
+ 
+ void eth_halt(void)

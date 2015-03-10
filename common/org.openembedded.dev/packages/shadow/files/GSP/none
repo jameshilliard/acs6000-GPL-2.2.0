@@ -1,0 +1,7 @@
+#
+# The PAM configuration file for authentication type 'none'
+#
+auth       required  pam_permit.so
+auth       optional  pam_shm.so
+account    required  pam_permit.so
+session    required  pam_permit.so

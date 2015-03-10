@@ -1,0 +1,78 @@
+Index: madwifi-0.9.3.2/ath/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/ath/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/ath/Makefile	2007-09-18 09:32:26.000000000 -0700
+@@ -70,7 +70,7 @@
+ 
+ install:
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+-	install ath_$(BUSNAME).$(KMODSUF) $(DESTDIR)/$(KMODPATH)
++	install -m 664 ath_$(BUSNAME).$(KMODSUF) $(DESTDIR)/$(KMODPATH)
+ 
+ clean:
+ 	rm -f *~ *.o *.ko *.mod.c .*.cmd
+Index: madwifi-0.9.3.2/ath_hal/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/ath_hal/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/ath_hal/Makefile	2007-09-18 09:30:07.000000000 -0700
+@@ -90,7 +90,7 @@
+ 
+ install:
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+-	install ath_hal.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
++	install -m 664 ath_hal.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
+ 
+ clean:
+ 	rm -f *~ *.o *.ko *.mod.c uudecode .*.cmd
+Index: madwifi-0.9.3.2/ath_rate/amrr/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/ath_rate/amrr/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/ath_rate/amrr/Makefile	2007-09-18 09:31:03.000000000 -0700
+@@ -62,7 +62,7 @@
+ 
+ install:
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+-	install ath_rate_amrr.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
++	install -m 664 ath_rate_amrr.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
+ 
+ clean:
+ 	-rm -f *~ *.o *.ko *.mod.c
+Index: madwifi-0.9.3.2/ath_rate/onoe/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/ath_rate/onoe/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/ath_rate/onoe/Makefile	2007-09-18 09:31:16.000000000 -0700
+@@ -62,7 +62,7 @@
+ 
+ install:
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+-	install ath_rate_onoe.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
++	install -m 664 ath_rate_onoe.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
+ 
+ clean:
+ 	-rm -f *~ *.o *.ko *.mod.c
+Index: madwifi-0.9.3.2/ath_rate/sample/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/ath_rate/sample/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/ath_rate/sample/Makefile	2007-09-18 09:30:42.000000000 -0700
+@@ -60,7 +60,7 @@
+ 
+ install:
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+-	install ath_rate_sample.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
++	install -m 664 ath_rate_sample.$(KMODSUF) $(DESTDIR)/$(KMODPATH)
+ 
+ clean:
+ 	-rm -f *~ *.o *.ko *.mod.c
+Index: madwifi-0.9.3.2/net80211/Makefile
+===================================================================
+--- madwifi-0.9.3.2.orig/net80211/Makefile	2007-07-25 08:23:34.000000000 -0700
++++ madwifi-0.9.3.2/net80211/Makefile	2007-09-18 09:31:46.000000000 -0700
+@@ -113,7 +113,7 @@
+ 	test -d $(DESTDIR)/$(KMODPATH) || mkdir -p $(DESTDIR)/$(KMODPATH)
+ 	for i in $(MOD_INSTALL); do \
+ 		f=`basename $$i .o`; \
+-		install $$f.$(KMODSUF) $(DESTDIR)/$(KMODPATH); \
++		install -m 664 $$f.$(KMODSUF) $(DESTDIR)/$(KMODPATH); \
+ 	done
+ 
+ clean:

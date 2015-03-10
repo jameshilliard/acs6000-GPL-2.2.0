@@ -1,0 +1,4 @@
+ip_forward=yes
+spoofprotect=yes
+syncookies=no
+#media='autoneg off speed 100 duplex full' 'autoneg off speed 100 duplex full'

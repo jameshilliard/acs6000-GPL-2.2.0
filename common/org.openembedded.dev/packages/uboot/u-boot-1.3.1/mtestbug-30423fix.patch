@@ -1,0 +1,134 @@
+Index: u-boot-1.3.1/common/cmd_mem.c
+===================================================================
+--- u-boot-1.3.1.orig/common/cmd_mem.c	2007-12-06 01:21:19.000000000 -0800
++++ u-boot-1.3.1/common/cmd_mem.c	2008-11-07 14:11:08.000000000 -0800
+@@ -659,7 +659,8 @@
+ 	vu_long	*addr, *start, *end;
+ 	ulong	val;
+ 	ulong	readback;
+-
++	unsigned int ctr = 0;
++	unsigned long  counter = 0;
+ #if defined(CFG_ALT_MEMTEST)
+ 	vu_long	addr_mask;
+ 	vu_long	offset;
+@@ -724,7 +725,8 @@
+ 		printf("Iteration: %6d\r", iterations);
+ 		PRINTF("Iteration: %6d\n", iterations);
+ 		iterations++;
+-
++		printf("\n           ");
++		ctr = 0;
+ 		/*
+ 		 * Data line test: write a pattern to the first
+ 		 * location, write the 1's complement to a 'parking'
+@@ -753,6 +755,7 @@
+ 			     printf ("FAILURE (data line): "
+ 				"expected %08lx, actual %08lx\n",
+ 					  val, readback);
++				return 1;
+ 			}
+ 			*addr  = ~val;
+ 			*dummy  = val;
+@@ -761,9 +764,12 @@
+ 			    printf ("FAILURE (data line): "
+ 				"Is %08lx, should be %08lx\n",
+ 					readback, ~val);
++
++				return 1;
+ 			}
+ 		    }
+ 		}
++		printf("\nMemory data line test passed");
+ 
+ 		/*
+ 		 * Based on code whose Original Author and Copyright
+@@ -835,6 +841,7 @@
+ 				(ulong)&start[offset], pattern, temp);
+ 			return 1;
+ 		    }
++		    
+ 		}
+ 		start[test_offset] = pattern;
+ 
+@@ -852,9 +859,11 @@
+ 				(ulong)&start[offset], pattern, temp);
+ 			    return 1;
+ 			}
++
+ 		    }
+ 		    start[test_offset] = pattern;
+ 		}
++		printf("\nMemory address line test passed");
+ 
+ 		/*
+ 		 * Description: Test the integrity of a physical
+@@ -869,12 +878,25 @@
+ 		 * Returns:     0 if the test succeeds, 1 if the test fails.
+ 		 */
+ 		num_words = ((ulong)end - (ulong)start)/sizeof(vu_long) + 1;
+-
++		printf("\nMemory R/W Test is going on, please wait......\n");
+ 		/*
+ 		 * Fill memory with a known pattern.
+ 		 */
+ 		for (pattern = 1, offset = 0; offset < num_words; pattern++, offset++) {
+ 			start[offset] = pattern;
++
++                    	if(++counter >= 1024000) {
++				printf("*");
++				counter = 0;
++				if(++ctr >= 50 ) {
++					printf("\n");
++					ctr = 0;
++				}
++				if (ctrlc()) {
++					putc ('\n');
++					return 1;
++				}
++			}
+ 		}
+ 
+ 		/*
+@@ -891,6 +913,19 @@
+ 
+ 		    anti_pattern = ~pattern;
+ 		    start[offset] = anti_pattern;
++
++                    if(++counter >= 1024000) {
++			printf("*");
++			counter = 0;
++			if(++ctr >= 50 ) {
++				printf("\n");
++				ctr = 0;
++			}
++			if (ctrlc()) {
++				putc ('\n');
++				return 1;
++			}
++		    }	
+ 		}
+ 
+ 		/*
+@@ -906,7 +941,21 @@
+ 			return 1;
+ 		    }
+ 		    start[offset] = 0;
++                    if(++counter >= 1024000) {
++			printf("*");
++			counter = 0;
++			if(++ctr >= 50 ) {
++				printf("\n");
++				ctr = 0;
++			}
++			if (ctrlc()) {
++				putc ('\n');
++				return 1;
++			}
++		    } 	
+ 		}
++		printf("\nMemory R/W test passed\nPress Ctrl+C to stop the same test to repeat\n");
++		
+ 	}
+ 
+ #else /* The original, quickie test */

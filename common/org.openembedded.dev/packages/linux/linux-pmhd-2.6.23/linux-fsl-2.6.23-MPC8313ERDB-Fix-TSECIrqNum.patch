@@ -1,0 +1,35 @@
+From 65f288e0ea662f64118d457a4a2f2bcb0c003259 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Mon, 21 Apr 2008 20:02:41 +0800
+Subject: [PATCH] mpc8313erdb: Fix wrong irq number of TSEC
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index c5adbe4..a63928c 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -118,7 +118,7 @@
+ 			compatible = "gianfar";
+ 			reg = <24000 1000>;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+-			interrupts = <25 8 24 8 23 8>;
++			interrupts = <20 8 21 8 22 8>;
+ 			interrupt-parent = < &ipic >;
+ 			phy-handle = < &phy1 >;
+ 		};
+@@ -129,7 +129,7 @@
+ 			compatible = "gianfar";
+ 			reg = <25000 1000>;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+-			interrupts = <22 8 21 8 20 8>;
++			interrupts = <23 8 24 8 25 8>;
+ 			interrupt-parent = < &ipic >;
+ 			phy-handle = < &phy4 >;
+ 		};
+-- 
+1.5.5.1.248.g4b17
+

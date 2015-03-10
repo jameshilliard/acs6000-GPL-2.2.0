@@ -1,0 +1,85 @@
+Index: pam_unix2-1.15/src/unix_passwd.c
+===================================================================
+--- pam_unix2-1.15.orig/src/unix_passwd.c	2007-12-17 15:31:37.000000000 -0800
++++ pam_unix2-1.15/src/unix_passwd.c	2007-12-17 15:33:49.000000000 -0800
+@@ -205,17 +205,17 @@
+       return PAM_USER_UNKNOWN;
+     }
+ 
+-  if ((flags & PAM_CHANGE_EXPIRED_AUTHTOK) || getuid () != 0)
++  if ((flags & PAM_ENFORCE_PASSWORD_STRENGTH) || (flags & PAM_CHANGE_EXPIRED_AUTHTOK) || getuid () != 0)
+     {
+       if (data->is_tooearly)
+ 	{
+ 	  if (data->use_hp_aging)
+ 	    __write_message (pamh, flags, PAM_TEXT_INFO,
+-			  "Sorry: less then %d weeks since the last change.",
++			  "Sorry: less than %d weeks since the last change.",
+ 			     data->hp_week);
+ 	  else
+ 	    __write_message (pamh, flags, PAM_TEXT_INFO,
+-			     "Sorry: less then %d days since the last change.",
++			     "Sorry: less than %d days since the last change.",
+ 			     data->spw.sp_min);
+ 	  free_user_t (data);
+ 	  return PAM_AUTHTOK_ERR;
+@@ -257,6 +257,7 @@
+ 	 If we are a NIS user, but called by root for on the
+ 	 master, change local password with query, too.  */
+       if (getuid () || (flags & PAM_CHANGE_EXPIRED_AUTHTOK) ||
++	  (flags & PAM_ENFORCE_PASSWORD_STRENGTH) ||
+ 	  (data->service != S_LOCAL &&
+ 	   !(data->service == S_YP && options->nisdir != NULL )))
+ 	{
+@@ -295,7 +296,12 @@
+ 	      free_user_t (data);
+ 	      return PAM_AUTH_ERR;
+ 	    }
++	}
++      else
++	oldpass = "";
++    }
+ 
++	if (oldpass && *oldpass) {
+ 	  if (strcmp (data->oldpassword,
+ 		      crypt_r (oldpass, data->oldpassword, &output)) != 0)
+ 	    {
+@@ -309,9 +315,6 @@
+ 	  if (!options->not_set_pass)
+ 	    pam_set_item (pamh, PAM_OLDAUTHTOK, (void *) oldpass);
+ 	}
+-      else
+-	oldpass = "";
+-    }
+ 
+   /* create a copy which we can give free later */
+   data->oldclearpwd = strdup (oldpass);
+@@ -552,13 +555,24 @@
+ #define ascii_to_bin(c) ((c)>='a'?(c-59):(c)>='A'?((c)-53):(c)-'.')
+ #define bin_to_ascii(c) ((c)>=38?((c)-38+'a'):(c)>=12?((c)-12+'A'):(c)+'.')
+ 
++//[RK]Sep/22/05 - included the crypt_prefix in the salt
++
+   time_t tm;
+-  char salt[3];
++  char salt[16];
++  int x;
++
++  strcpy(salt,crypt_prefix);
++
++  x = strlen(salt);
+ 
+   time (&tm);
+-  salt[0] = bin_to_ascii(tm & 0x3f);
+-  salt[1] = bin_to_ascii((tm >> 6) & 0x3f);
+-  salt[2] = '\0';
++  salt[x] = bin_to_ascii(tm & 0x3f);
++  salt[x+1] = bin_to_ascii((tm >> 6) & 0x3f);
++  if (x == 3) {
++     salt[x+2] = '$';
++     x++;
++  }
++  salt[x+2] = '\0';
+ 
+   return strdup (salt);
+ #endif

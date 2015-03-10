@@ -1,0 +1,37 @@
+diff -Naupr openswan-2.3.0/Makefile openswan-2.3.0.new/Makefile
+--- openswan-2.3.0/Makefile     2004-12-10 16:20:12.000000000 -0500
++++ openswan-2.3.0.new/Makefile 2007-06-19 10:46:44.000000000 -0400
+@@ -42,7 +42,7 @@ KERNELREL=$(shell ${KVSHORTUTIL} ${KERNE
+ 
+ # directories visited by all recursion
+ 
+-SUBDIRS=doc lib programs linux testing
++SUBDIRS=lib programs linux testing
+ 
+ 
+ # declaration for make's benefit
+diff -Naupr openswan-2.3.0/programs/pluto/Makefile openswan-2.3.0.new/programs/pluto/Makefile
+--- openswan-2.3.0/programs/pluto/Makefile	2007-06-18 21:16:15.000000000 -0400
++++ openswan-2.3.0.new/programs/pluto/Makefile	2007-06-18 21:15:08.000000000 -0400
+@@ -56,7 +56,7 @@ PMANDIR=$(MANTREE)/man8
+ 
+ # -O on Linux makes gcc coredump when compiling sha1.c
+ # -Wundef is nice but RHL5.2 compiler doesn't support it
+-CFLAGS = -g -Wall -W -Wmissing-prototypes -Wpointer-arith -Wbad-function-cast \
++CFLAGS += -g -Wall -W -Wmissing-prototypes -Wpointer-arith -Wbad-function-cast \
+ 	-Wcast-qual -Wmissing-declarations -Wwrite-strings \
+ 	-Wstrict-prototypes # -Wundef
+ 
+diff -Naupr openswan-2.3.0/Makefile.inc openswan-2.3.0.new/Makefile.inc
+--- openswan-2.3.0/Makefile.inc 2007-06-19 09:43:07.000000000 -0400
++++ openswan-2.3.0.new/Makefile.inc     2007-06-19 09:39:22.000000000 -0400
+@@ -167,7 +167,7 @@ VERFILE=$(KERNELSRC)/include/linux/versi
+ ### misc installation stuff
+
+ # what program to use when installing things
+-INSTALL=install
++INSTALL=/usr/bin/install
+
+ # flags to the install program, for programs, manpages, and config files
+ # -b has install make backups (n.b., unlinks original), --suffix controls
+

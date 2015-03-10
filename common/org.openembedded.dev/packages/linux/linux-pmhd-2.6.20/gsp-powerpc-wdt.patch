@@ -1,0 +1,203 @@
+Index: linux-2.6.20/arch/powerpc/kernel/setup_32.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/setup_32.c	2008-12-09 13:27:46.000000000 -0800
++++ linux-2.6.20/arch/powerpc/kernel/setup_32.c	2008-12-09 13:45:02.000000000 -0800
+@@ -137,6 +137,18 @@
+ 		ppc_md.progress("id mach(): done", 0x200);
+ }
+ 
++#ifdef CONFIG_AVOCENT_GSP
++int gsp_watchdog_enabled = 0;
++int __init early_parse_watchdog(char *p)
++{
++	if (p && strncmp(p, "no", 2) != 0)
++		gsp_watchdog_enabled = 1;
++	return 0;
++}
++early_param("watchdog", early_parse_watchdog);
++#endif
++
++/* Checks "l2cr=xxxx" command-line option */
+ #ifdef CONFIG_BOOKE_WDT
+ /* Checks wdt=x and wdt_period=xx command-line option */
+ int __init early_parse_wdt(char *p)
+@@ -158,7 +170,6 @@
+ early_param("wdt_period", early_parse_wdt_period);
+ #endif	/* CONFIG_BOOKE_WDT */
+ 
+-/* Checks "l2cr=xxxx" command-line option */
+ int __init ppc_setup_l2cr(char *str)
+ {
+ 	if (cpu_has_feature(CPU_FTR_L2CR)) {
+Index: linux-2.6.20/arch/powerpc/kernel/time.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/kernel/time.c	2008-12-09 13:27:46.000000000 -0800
++++ linux-2.6.20/arch/powerpc/kernel/time.c	2008-12-09 13:45:02.000000000 -0800
+@@ -121,6 +121,26 @@
+ extern struct timezone sys_tz;
+ static long timezone_offset;
+ 
++#ifdef CONFIG_AVOCENT_GSP
++extern int gsp_watchdog_enabled;
++#ifdef CONFIG_PPC_83xx
++unsigned long wdt_base;
++#endif
++
++void avocent_gsp_watchdog_reset(void)
++{
++	if (gsp_watchdog_enabled) {
++#ifdef CONFIG_BOOKE
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++#endif
++#ifdef CONFIG_PPC_83xx
++		out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++		out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++#endif
++	}
++}
++#endif
++
+ unsigned long ppc_proc_freq;
+ unsigned long ppc_tb_freq;
+ 
+@@ -687,6 +707,10 @@
+ 	}
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	avocent_gsp_watchdog_reset();
++#endif
++
+ 	irq_exit();
+ 	set_irq_regs(old_regs);
+ }
+@@ -1054,6 +1078,21 @@
+ 
+ 	/* Not exact, but the timer interrupt takes care of this */
+ 	set_dec(tb_ticks_per_jiffy);
++#ifdef CONFIG_AVOCENT_GSP
++	{
++#ifdef CONFIG_PPC_83xx
++		struct device_node *np;
++		wdt_base = 0xe0000200L; /* Value when something doesn't work out */
++		np = of_find_compatible_node(NULL, "watchdog", "mpc83xx_wdt");
++		if (np) {
++			struct resource r;
++			memset(&r, 0, sizeof(r));
++			if (! of_address_to_resource(np, 0, &r))
++				wdt_base = ioremap(r.start, 16);
++		}
++#endif
++	}
++#endif
+ }
+ 
+ 
+Index: linux-2.6.20/arch/powerpc/platforms/gsp-sysctl.c
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/platforms/gsp-sysctl.c	2008-12-09 13:40:54.000000000 -0800
++++ linux-2.6.20/arch/powerpc/platforms/gsp-sysctl.c	2008-12-09 13:51:32.000000000 -0800
+@@ -13,6 +13,7 @@
+ enum {
+ 	CTL_BDINFO = 1,
+ 	CTL_BOARD,
++	CTL_WDT,
+ };
+ 
+ enum {
+@@ -182,6 +183,82 @@
+ 	{0}
+ };
+ 
++extern int gsp_watchdog_enabled;
++#ifdef CONFIG_PPC_83xx
++extern unsigned long wdt_base;
++#endif
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	unsigned long aux;
++	int val;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++#ifdef CONFIG_BOOKE
++	aux = mfspr(SPRN_TSR);
++#endif
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++#ifdef CONFIG_BOOKE
++		if (sscanf(string, "%d", &val) && val > 0 && val < 4) {
++			aux = (aux & ~(3<<30)) | (val<<30);
++			mtspr(SPRN_TSR, aux);
++		}
++#endif
++#ifdef CONFIG_PPC_83xx
++		if (sscanf(string, "%d", &val) && val != 0) {
++			out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++			out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++		}
++#endif
++	} else {
++		memset(string, 0, sizeof(int));
++#ifdef CONFIG_BOOKE
++		snprintf(string, sizeof(int), "%d", (int)(aux >> 30));
++#endif
++#ifdef CONFIG_PPC_83xx
++		aux = in_be32((__be32 *)(wdt_base + 0x8));
++		snprintf(string, sizeof(int), "%x", (unsigned int)aux);
++#endif
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++enum {
++	CTL_WDT_DUMMY = 0,
++	CTL_WDT_CONTROL,
++	CTL_WDT_STATUS,
++};
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_WDT_CONTROL,
++		.procname = "control",
++		.data = &gsp_watchdog_enabled,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_dointvec,
++	},
++	{
++		.ctl_name = CTL_WDT_STATUS,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_wdt,
++	},
++	{0}
++};
++
+ static struct ctl_table board_dir_table[] =
+ {
+ #ifdef CONFIG_AVOCENT_PMHD
+@@ -231,6 +308,12 @@
+                 .mode = 0555,
+                 .child = board_dir_table,
+         },
++	{
++		.ctl_name = CTL_WDT,
++		.procname = "wdt",
++		.mode = 0555,
++		.child = wdt_dir_table,
++	},
+         {0}
+ };
+ 

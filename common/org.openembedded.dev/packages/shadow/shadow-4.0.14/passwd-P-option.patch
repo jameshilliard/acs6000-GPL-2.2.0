@@ -1,0 +1,290 @@
+Index: shadow-4.0.14/libmisc/pam_pass.c
+===================================================================
+--- shadow-4.0.14.orig/libmisc/pam_pass.c
++++ shadow-4.0.14/libmisc/pam_pass.c
+@@ -18,7 +18,7 @@
+ #include "defines.h"
+ #include "pam_defs.h"
+ 
+-void do_pam_passwd (const char *user, int silent, int change_expired)
++void do_pam_passwd (const char *user, int silent, int change_expired, int pw_enforce, char *old_pw, char *new_pw)
+ {
+ 	pam_handle_t *pamh = NULL;
+ 	int flags = 0, ret;
+@@ -27,6 +27,8 @@ void do_pam_passwd (const char *user, in
+ 		flags |= PAM_SILENT;
+ 	if (change_expired)
+ 		flags |= PAM_CHANGE_EXPIRED_AUTHTOK;
++	if (pw_enforce)
++		flags |= PAM_ENFORCE_PASSWORD_STRENGTH;
+ 
+ 	ret = pam_start ("passwd", user, &conv, &pamh);
+ 	if (ret != PAM_SUCCESS) {
+@@ -35,6 +37,30 @@ void do_pam_passwd (const char *user, in
+ 		exit (10);	/* XXX */
+ 	}
+ 
++	if (old_pw || new_pw) {
++		pam_set_item(pamh, PAM_SANITIZE, (const char *)2);
++
++		if (old_pw) {
++			ret = pam_set_item(pamh, PAM_OLDAUTHTOK, (const void *)old_pw);
++			if (ret != PAM_SUCCESS) {
++				fprintf (stderr,
++			 		_("passwd: pam_set_item(OLDAUTHTOK) failed, error %s\n"),
++					pam_strerror (pamh, ret));
++			}
++		}
++
++		if (new_pw) {
++			ret = pam_set_item(pamh, PAM_AUTHTOK, (const void *)new_pw);
++			if (ret != PAM_SUCCESS) {
++				fprintf (stderr,
++			 		_("passwd: pam_set_item(AUTHTOK) failed, error %s\n"),
++					pam_strerror (pamh, ret));
++			}
++		}
++
++	}
++	pam_set_item(pamh, PAM_SANITIZE, (const char *)3);
++
+ 	ret = pam_chauthtok (pamh, flags);
+ 	if (ret != PAM_SUCCESS) {
+ 		fprintf (stderr, _("passwd: %s\n"), pam_strerror (pamh, ret));
+Index: shadow-4.0.14/src/passwd.c
+===================================================================
+--- shadow-4.0.14.orig/src/passwd.c
++++ shadow-4.0.14/src/passwd.c
+@@ -76,6 +76,8 @@ static char *name;		/* The name of user 
+ static char *myname;		/* The current user's name */
+ static char *Prog;		/* Program name */
+ static int amroot;		/* The real UID was 0 */
++static char *new_passw = NULL;
++static char *old_passw = NULL;
+ 
+ static int
+  aflg = 0,			/* -a - show status for all users */
+@@ -90,6 +92,9 @@ static int
+     uflg = 0,			/* -u - unlock account */
+     wflg = 0,			/* -w - set warning days */
+     xflg = 0;			/* -x - set maximum days */
++    Pflg = 0;			/* -P - password from command line */
++    Oflg = 0;			/* -P - Old password from command line */
++    Cflg = 0;			/* -C - enforce password strength */
+ 
+ /*
+  * set to 1 if there are any flags which require root privileges,
+@@ -210,8 +215,11 @@ static int new_password (const struct pa
+ 	 */
+ 
+ 	if (!amroot && crypt_passwd[0]) {
+-		if (!(clear = getpass (_("Old password: "))))
+-			return -1;
++		if (Oflg) {
++			clear = old_passw;
++		} else {
++			if (!(clear = getpass (_("Old password: ")))) return -1;
++		}
+ 
+ 		cipher = pw_encrypt (clear, crypt_passwd);
+ 		if (strcmp (cipher, crypt_passwd) != 0) {
+@@ -224,12 +232,28 @@ static int new_password (const struct pa
+ 			return -1;
+ 		}
+ 		STRFCPY (orig, clear);
+-		strzero (clear);
+-		strzero (cipher);
++		if (!Oflg) {
++			strzero (clear);
++			strzero (cipher);
++		}
+ 	} else {
+ 		orig[0] = '\0';
+ 	}
+ 
++	if (Pflg) {
++		STRFCPY (pass, new_passw);
++		if (!amroot && (!obscure (orig, pass, pw) || reuse (pass, pw))) {
++			printf (_
++				("\nError: Weak password.\n"));
++			return(-1);
++		}
++		if (amroot && !warned && getdef_bool ("PASS_ALWAYS_WARN")
++		    && (!obscure (orig, pass, pw) || reuse (pass, pw))) {
++			printf ("\nWarning: weak password (it was useed anyway).\n");
++		}
++		goto encrypt_it;
++	}
++
+ 	/*
+ 	 * Get the new password. The user is prompted for the new password
+ 	 * and has five tries to get it right. The password will be tested
+@@ -292,6 +316,7 @@ Please use a combination of upper and lo
+ 		return -1;
+ 	}
+ 
++encrypt_it:
+ 	/*
+ 	 * Encrypt the password, then wipe the cleartext password.
+ 	 */
+@@ -657,7 +682,7 @@ int main (int argc, char **argv)
+ 		};
+ 
+ 		while ((c =
+-			getopt_long (argc, argv, "adei:kln:qr:Suw:x:",
++			getopt_long (argc, argv, "adei:kln:qr:Suw:x:P:O:C",
+ 				     long_options, &option_index)) != -1) {
+ 			switch (c) {
+ 			case 'a':
+@@ -722,6 +747,17 @@ int main (int argc, char **argv)
+ 				xflg++;
+ 				anyflag = 1;
+ 				break;
++			case 'C':
++				Cflg++;
++				break;
++			case 'P':
++				Pflg++;
++				new_passw = optarg;
++				break;
++			case 'O':
++				Oflg++;
++				old_passw = optarg;
++				break;
+ 			default:
+ 				usage (E_BAD_ARG);
+ 			}
+@@ -878,7 +914,7 @@ int main (int argc, char **argv)
+ 	 * Don't set the real UID for PAM...
+ 	 */
+ 	if (!anyflag) {
+-		do_pam_passwd (name, qflg, kflg);
++		do_pam_passwd (name, qflg, kflg, Cflg, old_passw, new_passw);
+ 		exit (E_SUCCESS);
+ 	}
+ #endif				/* USE_PAM */
+Index: shadow-4.0.14/src/useradd.c
+===================================================================
+--- shadow-4.0.14.orig/src/useradd.c
++++ shadow-4.0.14/src/useradd.c
+@@ -93,7 +93,8 @@ static char def_file[] = USER_DEFAULTS_F
+ #define	VALID(s)	(strcspn (s, ":\n") == strlen (s))
+ 
+ static const char *user_name = "";
+-static const char *user_pass = "!";
++static const char *passwd_string = "!";
++static const char *user_pass = "";
+ static uid_t user_id;
+ static gid_t user_gid;
+ static const char *user_comment = "";
+@@ -123,7 +124,7 @@ static int
+     gflg = 0,			/* primary group ID for new account */
+     Gflg = 0,			/* secondary group set for new account */
+     kflg = 0,			/* specify a directory to fill new user directory */
+-    mflg = 0,			/* create user's home directory if it doesn't exist */
++    mflg = 1,			/* create user's home directory if it doesn't exist */
+     nflg = 0,			/* create a group having the same name as the user */
+     oflg = 0,			/* permit non-unique user ID to be specified with -u */
+     sflg = 0,			/* shell program for new account */
+@@ -650,7 +651,7 @@ static void new_pwent (struct passwd *pw
+ 	if (is_shadow_pwd)
+ 		pwent->pw_passwd = (char *) SHADOW_PASSWD_STRING;
+ 	else
+-		pwent->pw_passwd = (char *) user_pass;
++		pwent->pw_passwd = (char *) passwd_string;
+ 
+ 	pwent->pw_uid = user_id;
+ 	pwent->pw_gid = user_gid;
+@@ -677,7 +678,7 @@ static void new_spent (struct spwd *spen
+ {
+ 	memzero (spent, sizeof *spent);
+ 	spent->sp_namp = (char *) user_name;
+-	spent->sp_pwdp = (char *) user_pass;
++	spent->sp_pwdp = (char *) passwd_string;
+ 	spent->sp_lstchg = time ((time_t *) 0) / SCALE;
+ 	spent->sp_min = scale_age (getdef_num ("PASS_MIN_DAYS", -1));
+ 	spent->sp_max = scale_age (getdef_num ("PASS_MAX_DAYS", -1));
+@@ -1010,13 +1011,14 @@ static void process_flags (int argc, cha
+ 			{"key", required_argument, NULL, 'K'},
+ 			{"create-home", no_argument, NULL, 'm'},
+ 			{"non-unique", no_argument, NULL, 'o'},
+-			{"password", required_argument, NULL, 'p'},
++			{"passwd-string", required_argument, NULL, 'p'},
++			{"password", required_argument, NULL, 'P'},
+ 			{"shell", required_argument, NULL, 's'},
+ 			{"uid", required_argument, NULL, 'u'},
+ 			{NULL, 0, NULL, '\0'}
+ 		};
+ 		while ((c =
+-			getopt_long (argc, argv, "b:c:d:De:f:g:G:k:K:mMop:s:u:",
++			getopt_long (argc, argv, "b:c:d:De:f:g:G:k:K:mMop:P:s:u:",
+ 				     long_options, NULL)) != -1) {
+ 			switch (c) {
+ 			case 'b':
+@@ -1167,6 +1169,16 @@ static void process_flags (int argc, cha
+ 						 Prog, optarg);
+ 					exit (E_BAD_ARG);
+ 				}
++				passwd_string = optarg;
++				break;
++			case 'P':	/* set user password */
++				if (!VALID (optarg)) {
++					fprintf (stderr,
++						 _
++						 ("%s: invalid field `%s'\n"),
++						 Prog, optarg);
++					exit (E_BAD_ARG);
++				}
+ 				user_pass = optarg;
+ 				break;
+ 			case 's':
+@@ -1811,6 +1823,19 @@ int main (int argc, char **argv)
+ 		pam_end (pamh, PAM_SUCCESS);
+ #endif				/* USE_PAM */
+ 
++	if (*user_pass) {
++		char *args[5];
++
++		args[0] = "passwd";
++		args[1] = "-P";
++		args[2] = user_pass;
++		args[3] = user_name;
++		args[4] = NULL;
++
++		execvp(args[0], args);
++		fprintf (stderr, "%s: Error: Could exec passwd.\n", Prog);
++	}
++
+ 	exit (E_SUCCESS);
+ 	/* NOT REACHED */
+ }
+Index: shadow-4.0.14/lib/prototypes.h
+===================================================================
+--- shadow-4.0.14.orig/lib/prototypes.h
++++ shadow-4.0.14/lib/prototypes.h
+@@ -117,7 +117,7 @@ extern struct passwd *get_my_pwent (void
+ extern int obscure (const char *, const char *, const struct passwd *);
+ 
+ /* pam_pass.c */
+-extern int do_pam_passwd (const char *, int, int);
++extern int do_pam_passwd (const char *, int, int, int, char *, char *);
+ 
+ /* port.c */
+ extern int isttytime (const char *, const char *, time_t);
+Index: shadow-4.0.14/configure.in
+===================================================================
+--- shadow-4.0.14.orig/configure.in
++++ shadow-4.0.14/configure.in
+@@ -304,10 +304,10 @@ AC_SUBST(LIBPAM)
+ if test "$with_libpam" = "yes"; then
+ 	AC_CHECK_LIB(pam, pam_start,
+ 		[AC_DEFINE(USE_PAM, 1, [Define to support Pluggable Authentication Modules])
+-		LIBPAM="-lpam"
+ 		AC_CHECK_LIB(pam_misc, main,
+-			[LIBPAM="$LIBPAM -lpam_misc"],
++			[LIBPAM="-lpam -lpam_misc"],
+ 			AC_MSG_ERROR(libpam_misc is missing for enable PAM support)
++			,[-lpam]
+ 		)],
+ 		[AC_MSG_CHECKING(use login access checking if PAM not used)
+ 		AC_MSG_RESULT(yes)]

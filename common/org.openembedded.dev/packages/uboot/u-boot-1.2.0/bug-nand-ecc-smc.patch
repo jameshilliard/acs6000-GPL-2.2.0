@@ -1,0 +1,32 @@
+Index: u-boot-1.2.0/drivers/nand/nand_ecc.c
+===================================================================
+--- u-boot-1.2.0.orig/drivers/nand/nand_ecc.c
++++ u-boot-1.2.0/drivers/nand/nand_ecc.c
+@@ -104,8 +104,13 @@ static void nand_trans_result(u_char reg
+ 	}
+ 
+ 	/* Store two of the ECC bytes */
++#ifdef CONFIG_MTD_NAND_ECC_SMC
++	ecc_code[0] = tmp2;
++	ecc_code[1] = tmp1;
++#else
+ 	ecc_code[0] = tmp1;
+ 	ecc_code[1] = tmp2;
++#endif
+ }
+ 
+ /**
+@@ -161,8 +166,13 @@ int nand_correct_data(struct mtd_info *m
+ 	u_char a, b, c, d1, d2, d3, add, bit, i;
+ 
+ 	/* Do error detection */
++#ifdef CONFIG_MTD_NAND_ECC_SMC
++	d2 = calc_ecc[0] ^ read_ecc[0];
++	d1 = calc_ecc[1] ^ read_ecc[1];
++#else
+ 	d1 = calc_ecc[0] ^ read_ecc[0];
+ 	d2 = calc_ecc[1] ^ read_ecc[1];
++#endif
+ 	d3 = calc_ecc[2] ^ read_ecc[2];
+ 
+ 	if ((d1 | d2 | d3) == 0) {

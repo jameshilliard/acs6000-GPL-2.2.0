@@ -1,0 +1,20 @@
+--- httpd-2.2.8/srclib/apr/configure_apr_orig	2008-05-07 11:01:40.000000000 -0700
++++ httpd-2.2.8/srclib/apr/configure	2008-05-07 11:44:59.000000000 -0700
+@@ -29397,7 +29397,7 @@ echo $ECHO_N "checking for /dev/zero... 
+ if test "${ac_cv_file__dev_zero+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+-  test "$cross_compiling" = yes &&
++  test "$cross_compiling" = no &&
+   { { echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+ echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+    { (exit 1); exit 1; }; }
+@@ -45245,7 +45245,7 @@ echo $ECHO_N "checking whether TCP_NODEL
+ if test "${apr_cv_tcp_nodelay_with_cork+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+-  if test "$cross_compiling" = yes; then
++  if test "$cross_compiling" = no; then
+   { { echo "$as_me:$LINENO: error: cannot run test program while cross compiling
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: cannot run test program while cross compiling

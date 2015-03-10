@@ -1,0 +1,1909 @@
+This patch updates Power Management to the latest version of Scott Wood`s code.
+Port Scott Wood patch back to 2.6.20 kernel
+Signed-off-by: Tony Li <tony.li@freescale.com>
+
+diff -urNp linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb.dts linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb.dts
+--- linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb.dts	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb.dts	2007-08-10 11:19:21.000000000 +0800
+@@ -70,26 +70,6 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
+-		timer@500 {
+-			linux,phandle = <500>;
+-			device_type = "timer";
+-			compatible = "mpc83xx-gtm";
+-			reg = <500 100>;
+-			interrupts = <48 8>;
+-			interrupt-parent = <700>;
+-		};
+-                                                                                                                     
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc83xx";
+-			reg = <b00 100
+-				a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-			deep-sleep;
+-		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -120,7 +100,7 @@
+ 			interrupts = <26 2>;
+ 			phy_type = "utmi_wide";
+ 			control_init  = <00000280>; // UTMI ext 48 MHz clk
+-			sleep = <b00 1 8 00300000 0>;
++			sleep = <b00 00300000>;
+ 		};
+ 
+ 		mdio@24520 {
+@@ -157,8 +137,8 @@
+ 			interrupts = <25 8 24 8 23 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+-			sleep = <b00 1 8 20000000 0>;
+-			has-magic-packet;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		ethernet@25000 {
+@@ -174,8 +154,8 @@
+ 			interrupts = <22 8 21 8 20 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+-			sleep = <b00 1 8 10000000 0>;
+-			has-magic-packet;
++			sleep = <b00 10000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -224,7 +204,7 @@
+ 			reg = <8500 100>;
+ 			compatible = "83xx";
+ 			device_type = "pci";
+-			sleep = <b00 1 8 00010000 0>;
++			sleep = <b00 00010000>;
+ 		};
+ 
+ 		/* May need to remove if on a part without crypto engine */
+@@ -241,7 +221,7 @@
+ 			/* desc mask is for rev2.0,
+ 			 * we need runtime fixup for >2.0 */
+ 			descriptor-types-mask = <01010ebf>;
+-			sleep = <b00 1 8 03000000 0>;
++			sleep = <b00 03000000>;
+ 		};
+ 
+ 		/* IPIC
+@@ -267,7 +247,25 @@
+ 			reg = <5000 1000>;
+ 			interrupts = <4d 8>;
+ 			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
+ 		};
+ 	};
+ };
+diff -urNp linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_external_phy.dts linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_external_phy.dts
+--- linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_external_phy.dts	2007-08-10 05:56:09.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_external_phy.dts	2007-08-10 11:12:15.000000000 +0800
+@@ -71,26 +71,6 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
+-		timer@500 {
+-			linux,phandle = <500>;
+-			device_type = "timer";
+-			compatible = "mpc83xx-gtm";
+-			reg = <500 100>;
+-			interrupts = <48 8>;
+-			interrupt-parent = <700>;
+-		};
+-                                                                                                                     
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc83xx";
+-			reg = <b00 100
+-				a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-			deep-sleep;
+-		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -123,7 +103,7 @@
+ 			phy_type = "ulpi";
+ 			max_ep_nr = <3>;
+ 			control_init  = <00000280>; // UTMI ext 48 MHz clk
+-			sleep = <b00 1 8 00300000 0>;
++			sleep = <b00 00300000>;
+ 		};
+ 
+ 		mdio@24520 {
+@@ -161,8 +141,8 @@
+ 			interrupts = <25 8 24 8 23 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+-			sleep = <b00 1 8 20000000 0>;
+-			has-magic-packet;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
+ 		};
+ */
+ 
+@@ -179,8 +159,8 @@
+ 			interrupts = <22 8 21 8 20 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+-			sleep = <b00 1 8 10000000 0>;
+-			has-magic-packet;
++			sleep = <b00 10000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -229,7 +209,7 @@
+ 			reg = <8500 100>;
+ 			compatible = "83xx";
+ 			device_type = "pci";
+-			sleep = <b00 1 8 00010000 0>;
++			sleep = <b00 00010000>;
+ 		};
+ 
+ 		/* May need to remove if on a part without crypto engine */
+@@ -246,7 +226,7 @@
+ 			/* desc mask is for rev2.0,
+ 			 * we need runtime fixup for >2.0 */
+ 			descriptor-types-mask = <01010ebf>;
+-			sleep = <b00 1 8 03000000 0>;
++			sleep = <b00 03000000>;
+ 		};
+ 
+ 		/* IPIC
+@@ -272,7 +252,25 @@
+ 			reg = <5000 1000>;
+ 			interrupts = <4d 8>;
+ 			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
+ 		};
+ 	};
+ };
+diff -urNp linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_internal_phy.dts linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_internal_phy.dts
+--- linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_internal_phy.dts	2007-08-10 05:56:09.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbgadget_internal_phy.dts	2007-08-10 11:16:25.000000000 +0800
+@@ -71,26 +71,6 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
+-		timer@500 {
+-			linux,phandle = <500>;
+-			device_type = "timer";
+-			compatible = "mpc83xx-gtm";
+-			reg = <500 100>;
+-			interrupts = <48 8>;
+-			interrupt-parent = <700>;
+-		};
+-                                                                                                                     
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc83xx";
+-			reg = <b00 100
+-				a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-			deep-sleep;
+-		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -123,7 +103,7 @@
+ 			phy_type = "utmi_wide";
+ 			max_ep_nr = <3>;
+ 			control_init  = <00000280>; // UTMI ext 48 MHz clk
+-			sleep = <b00 1 8 00300000 0>;
++			sleep = <b00 00300000>;
+ 		};
+ 
+ 		mdio@24520 {
+@@ -160,8 +140,8 @@
+ 			interrupts = <25 8 24 8 23 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+-			sleep = <b00 1 8 20000000 0>;
+-			has-magic-packet;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		ethernet@25000 {
+@@ -177,8 +157,8 @@
+ 			interrupts = <22 8 21 8 20 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+-			sleep = <b00 1 8 10000000 0>;
+-			has-magic-packet;
++			sleep = <b00 10000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -227,7 +207,7 @@
+ 			reg = <8500 100>;
+ 			compatible = "83xx";
+ 			device_type = "pci";
+-			sleep = <b00 1 8 00010000 0>;
++			sleep = <b00 00010000>;
+ 		};
+ 
+ 		/* May need to remove if on a part without crypto engine */
+@@ -244,7 +224,7 @@
+ 			/* desc mask is for rev2.0,
+ 			 * we need runtime fixup for >2.0 */
+ 			descriptor-types-mask = <01010ebf>;
+-			sleep = <b00 1 8 03000000 0>;
++			sleep = <b00 03000000>;
+ 		};
+ 
+ 		/* IPIC
+@@ -270,7 +250,25 @@
+ 			reg = <5000 1000>;
+ 			interrupts = <4d 8>;
+ 			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
+ 		};
+ 	};
+ };
+diff -urNp linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbhost_external_phy.dts linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbhost_external_phy.dts
+--- linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbhost_external_phy.dts	2007-08-10 05:56:09.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbhost_external_phy.dts	2007-08-10 11:19:08.000000000 +0800
+@@ -71,26 +71,6 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
+-		timer@500 {
+-			linux,phandle = <500>;
+-			device_type = "timer";
+-			compatible = "mpc83xx-gtm";
+-			reg = <500 100>;
+-			interrupts = <48 8>;
+-			interrupt-parent = <700>;
+-		};
+-                                                                                                                     
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc83xx";
+-			reg = <b00 100
+-				a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-			deep-sleep;
+-		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -160,8 +140,8 @@
+ 			interrupts = <25 8 24 8 23 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+-			sleep = <b00 1 8 20000000 0>;
+-			has-magic-packet;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
+ 		};
+ */
+ 
+@@ -178,8 +158,8 @@
+ 			interrupts = <22 8 21 8 20 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+-			sleep = <b00 1 8 10000000 0>;
+-			has-magic-packet;
++			sleep = <b00 10000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -228,7 +208,7 @@
+ 			reg = <8500 100>;
+ 			compatible = "83xx";
+ 			device_type = "pci";
+-			sleep = <b00 1 8 00010000 0>;
++			sleep = <b00 00010000>;
+ 		};
+ 
+ 		/* May need to remove if on a part without crypto engine */
+@@ -245,7 +225,7 @@
+ 			/* desc mask is for rev2.0,
+ 			 * we need runtime fixup for >2.0 */
+ 			descriptor-types-mask = <01010ebf>;
+-			sleep = <b00 1 8 03000000 0>;
++			sleep = <b00 03000000>;
+ 		};
+ 
+ 		/* IPIC
+@@ -271,7 +251,25 @@
+ 			reg = <5000 1000>;
+ 			interrupts = <4d 8>;
+ 			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
+ 		};
+ 	};
+ };
+diff -urNp linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbotg_external_phy.dts linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbotg_external_phy.dts
+--- linux-2.6.20/arch/powerpc/boot/dts/mpc8313erdb_usbotg_external_phy.dts	2007-08-10 05:56:09.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/boot/dts/mpc8313erdb_usbotg_external_phy.dts	2007-08-10 11:22:44.000000000 +0800
+@@ -71,26 +71,6 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
+-		timer@500 {
+-			linux,phandle = <500>;
+-			device_type = "timer";
+-			compatible = "mpc83xx-gtm";
+-			reg = <500 100>;
+-			interrupts = <48 8>;
+-			interrupt-parent = <700>;
+-		};
+-                                                                                                                     
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc83xx";
+-			reg = <b00 100
+-				a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-			deep-sleep;
+-		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -122,7 +102,7 @@
+ 			phy_type = "ulpi";
+ 			dr_mode = "otg";
+ 			max_ep_nr = <3>;
+-			sleep = <b00 1 8 00300000 0>;
++			sleep = <b00 00300000>;
+ 		};
+ 
+ 		mdio@24520 {
+@@ -159,8 +139,8 @@
+ 			interrupts = <25 8 24 8 23 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+-			sleep = <b00 1 8 20000000 0>;
+-			has-magic-packet;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		ethernet@25000 {
+@@ -176,8 +156,8 @@
+ 			interrupts = <22 8 21 8 20 8>;
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+-			sleep = <b00 1 8 10000000 0>;
+-			has-magic-packet;
++			sleep = <b00 10000000>;
++			fsl,magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -226,7 +206,7 @@
+ 			reg = <8500 100>;
+ 			compatible = "83xx";
+ 			device_type = "pci";
+-			sleep = <b00 1 8 00010000 0>;
++			sleep = <b00 00010000>;
+ 		};
+ 
+ 		/* May need to remove if on a part without crypto engine */
+@@ -243,7 +223,7 @@
+ 			/* desc mask is for rev2.0,
+ 			 * we need runtime fixup for >2.0 */
+ 			descriptor-types-mask = <01010ebf>;
+-			sleep = <b00 1 8 03000000 0>;
++			sleep = <b00 03000000>;
+ 		};
+ 
+ 		/* IPIC
+@@ -269,7 +249,25 @@
+ 			reg = <5000 1000>;
+ 			interrupts = <4d 8>;
+ 			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
+ 		};
+ 	};
+ };
+diff -urNp linux-2.6.20/arch/powerpc/Kconfig linux-2.6.20-pm/arch/powerpc/Kconfig
+--- linux-2.6.20/arch/powerpc/Kconfig	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/Kconfig	2007-08-10 10:36:20.000000000 +0800
+@@ -118,9 +118,15 @@ config DEFAULT_UIMAGE
+ 	  Used to allow a board to specify it wants a uImage built by default
+ 	default n
+ 
+-config PPC_SUSPEND
++config PPC32_SUSPEND
+ 	bool
+-	depends on SOFTWARE_SUSPEND || (PPC_83xx && PM)
++	depends on PPC32
++	default y
++
++config PPC32_SWSUSP
++	bool
++	depends on PPC32 && SOFTWARE_SUSPEND
++	select PPC32_SUSPEND
+ 	default y
+ 
+ menu "Processor support"
+diff -urNp linux-2.6.20/arch/powerpc/kernel/idle_6xx.S linux-2.6.20-pm/arch/powerpc/kernel/idle_6xx.S
+--- linux-2.6.20/arch/powerpc/kernel/idle_6xx.S	2007-02-05 02:44:54.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/kernel/idle_6xx.S	2007-08-10 10:36:20.000000000 +0800
+@@ -147,6 +147,12 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+ 	isync
+ 	b	1b
+ 
++#ifdef CONFIG_PM
++ret_from_sleep:
++	.long   ret_from_except
++	.long   ret_from_except
++#endif
++
+ /*
+  * Return from NAP/DOZE mode, restore some CPU specific registers,
+  * we are called with DR/IR still off and r2 containing physical
+@@ -154,7 +160,33 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+  * address).  We have to preserve r10.
+  */
+ _GLOBAL(power_save_6xx_restore)
+-	lwz	r9,_LINK(r11)		/* interrupted in ppc6xx_idle: */
++#ifdef CONFIG_PM
++	mfspr   r9, SPRN_HID0
++	andis.  r9, r9, HID0_SLEEP@h
++	beq+    1f
++
++	/*
++	 * SLEEP mode is invoked through the PM subsystem, which means
++	 * that interrupts should be disabled.  However, the hardware
++	 * requires them to be enabled to wake up.  To prevent the
++	 * interrupt from being visible to Linux, return immediately
++	 * rather than run the interrupt handler.
++	 */
++	lis     r9, ret_from_sleep@h
++	ori     r9, r9, ret_from_sleep@l
++	tophys(r9, r9)
++	mtlr    r9
++
++	/*
++	 * Disable interrupts, so that the interrupt doesn't happen
++	 * again until the PM code sets MSR[EE].
++	 */
++	lwz     r9, _MSR(r11)
++	rlwinm  r9, r9, 0, ~MSR_EE
++	stw     r9, _MSR(r11)
++#endif
++
++1:	lwz     r9,_LINK(r11)           /* interrupted in ppc6xx_idle: */
+ 	stw	r9,_NIP(r11)		/* make it do a blr */
+ 
+ #ifdef CONFIG_SMP
+diff -urNp linux-2.6.20/arch/powerpc/kernel/Makefile linux-2.6.20-pm/arch/powerpc/kernel/Makefile
+--- linux-2.6.20/arch/powerpc/kernel/Makefile	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/kernel/Makefile	2007-08-10 10:36:20.000000000 +0800
+@@ -35,8 +35,7 @@ obj-$(CONFIG_GENERIC_TBSYNC)	+= smp-tbsy
+ obj-$(CONFIG_CRASH_DUMP)	+= crash_dump.o
+ obj-$(CONFIG_6xx)		+= idle_6xx.o l2cr_6xx.o cpu_setup_6xx.o
+ obj-$(CONFIG_TAU)		+= tau_6xx.o
+-obj32-$(CONFIG_PPC_SUSPEND)	+= swsusp_32.o
+-#obj32-$(CONFIG_SOFTWARE_SUSPEND) += swsusp_32.o
++obj32-$(CONFIG_PPC32_SUSPEND)	+= swsusp_32.o
+ obj32-$(CONFIG_MODULES)		+= module_32.o
+ 
+ ifeq ($(CONFIG_PPC_MERGE),y)
+diff -urNp linux-2.6.20/arch/powerpc/kernel/swsusp_32.S linux-2.6.20-pm/arch/powerpc/kernel/swsusp_32.S
+--- linux-2.6.20/arch/powerpc/kernel/swsusp_32.S	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/kernel/swsusp_32.S	2007-08-10 10:36:20.000000000 +0800
+@@ -33,10 +33,10 @@
+ 	.section .data
+ 	.align	5
+ 
+-_GLOBAL(swsusp_save_area)
++	.global swsusp_save_area
++swsusp_save_area:
+ 	.space	SL_SIZE
+ 
+-
+ 	.section .text
+ 	.align	5
+ 
+@@ -226,6 +226,7 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+ 	 * may be restored, zero otherwise.
+ 	 */
+ _GLOBAL(do_resume)
++
+ 	/* Ok, we are now running with the kernel data of the old
+ 	 * kernel fully restored. We can get to the save area
+ 	 * easily now. As for the rest of the code, it assumes the
+@@ -240,10 +241,8 @@ _GLOBAL(do_resume)
+ 	bl	__restore_cpu_setup
+ #endif
+ 	/* Restore the BATs, and SDR1.  Then we can turn on the MMU.
+-	 * This is a bit hairy as we are running out of those BATs,
+-	 * but first, our code is probably in the icache, and we are
+-	 * writing the same value to the BAT, so that should be fine,
+-	 * though a better solution will have to be found long-term
++	 * This can only be done when r3 != 0 (add thus the MMU is
++	 * off)
+ 	 */
+ 	lwz	r4,SL_SDR1(r11)
+ 	mtsdr1	r4
+diff -urNp linux-2.6.20/arch/powerpc/kernel/time.c linux-2.6.20-pm/arch/powerpc/kernel/time.c
+--- linux-2.6.20/arch/powerpc/kernel/time.c	2007-02-05 02:44:54.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/kernel/time.c	2007-08-10 10:36:20.000000000 +0800
+@@ -707,6 +707,47 @@ void wakeup_decrementer(void)
+ 	set_dec(ticks);
+ }
+ 
++#ifdef CONFIG_PM
++void generic_suspend_disable_irqs(void)
++{
++	preempt_disable();
++
++	/* Disable the decrementer, so that it doesn't interfere
++	 * with suspending.
++	 */
++
++	set_dec(0x7fffffff);
++	local_irq_disable();
++	set_dec(0x7fffffff);
++}
++
++void generic_suspend_enable_irqs(void)
++{
++	wakeup_decrementer();
++
++	local_irq_enable();
++	preempt_enable();
++}
++
++/* Overrides the weak version in kernel/power/main.c */
++void arch_suspend_disable_irqs(void)
++{
++	if (ppc_md.suspend_disable_irqs)
++		ppc_md.suspend_disable_irqs();
++	else
++		generic_suspend_disable_irqs();
++}
++
++/* Overrides the weak version in kernel/power/main.c */
++void arch_suspend_enable_irqs(void)
++{
++	if (ppc_md.suspend_enable_irqs)
++		ppc_md.suspend_enable_irqs();
++	else
++		generic_suspend_enable_irqs();
++}
++#endif
++
+ #ifdef CONFIG_SMP
+ void __init smp_space_timers(unsigned int max_cpus)
+ {
+diff -urNp linux-2.6.20/arch/powerpc/platforms/83xx/Kconfig linux-2.6.20-pm/arch/powerpc/platforms/83xx/Kconfig
+--- linux-2.6.20/arch/powerpc/platforms/83xx/Kconfig	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/platforms/83xx/Kconfig	2007-08-10 10:36:20.000000000 +0800
+@@ -73,4 +73,19 @@ config PPC_MPC836x
+ 	select PPC_INDIRECT_PCI
+ 	default y if MPC8360E_PB
+ 
++config PPC_83xx_PM
++	bool
++	default y
++	depends on PPC_83xx && PM
++	select PPC32_SUSPEND
++
++config MPC83xx_GTM
++	tristate "83xx General-Purpose Timers for PM wakeup"
++	help
++	  This enables a driver for the GTM4 timer, to be used
++	  as a wakeup source for suspend-to-RAM.  To arm the
++	  timer, write the number of seconds until expiration
++	  to the "timeout" file in the device's sysfs directory.
++	  To disarm, write 0 to the "timeout" file.
++
+ endmenu
+diff -urNp linux-2.6.20/arch/powerpc/platforms/83xx/Makefile linux-2.6.20-pm/arch/powerpc/platforms/83xx/Makefile
+--- linux-2.6.20/arch/powerpc/platforms/83xx/Makefile	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/platforms/83xx/Makefile	2007-08-10 10:36:20.000000000 +0800
+@@ -3,7 +3,8 @@
+ #
+ obj-y				:= misc.o
+ obj-$(CONFIG_PCI)		+= pci.o
+-obj-$(CONFIG_PM)		+= pm.o sleep.o timer.o
++obj-$(CONFIG_PM)		+= pm.o sleep.o
++obj-$(CONFIG_MPC83xx_GTM)	+= timer.o
+ obj-$(CONFIG_MPC8313_RDB)	+= mpc8313_rdb.o
+ obj-$(CONFIG_MPC834x_SYS)	+= mpc834x_sys.o
+ obj-$(CONFIG_MPC834x_ITX)	+= mpc834x_itx.o
+diff -urNp linux-2.6.20/arch/powerpc/platforms/83xx/pm.c linux-2.6.20-pm/arch/powerpc/platforms/83xx/pm.c
+--- linux-2.6.20/arch/powerpc/platforms/83xx/pm.c	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/platforms/83xx/pm.c	2007-08-10 13:42:44.000000000 +0800
+@@ -1,11 +1,9 @@
+ /*
+- * arch/powerpc/platforms/83xx/pm.c
+- *
+  * MPC83xx Power Management support
+  *
+  * Author: Scott Wood <scottwood@freescale.com>
+  *
+- * Copyright (c) 2006 Freescale Semiconductor, Inc.
++ * Copyright (c) 2006-2007 Freescale Semiconductor, Inc.
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License version 2 as published
+@@ -20,11 +18,14 @@
+ #include <linux/wait.h>
+ #include <linux/kthread.h>
+ #include <linux/freezer.h>
++#include <linux/fsl_devices.h>
+ 
+ #include <asm/prom.h>
+ #include <asm/reg.h>
+ #include <asm/io.h>
+ #include <asm/time.h>
++#include <asm/of_platform.h>
++#include <asm/mpc6xx.h>
+ 
+ #include <sysdev/fsl_soc.h>
+ 
+@@ -34,13 +35,7 @@
+ #define IMMR_RCW_OFFSET         0x900
+ #define RCW_PCI_HOST            0x80000000
+ 
+-void mpc83xx_enter_sleep(void);
+ void mpc83xx_enter_deep_sleep(phys_addr_t immrbase);
+-int mpc83xx_change_state(void);
+-void mpc83xx_set_agent(void);
+-extern void mpc831x_clear_pme(void);
+-extern void mpc83xx_pm_enable_pme(void);
+-extern void mpc83xx_pm_assert_pme(void);
+ 
+ struct mpc83xx_pmc {
+ 	u32 config;
+@@ -64,9 +59,9 @@ struct mpc83xx_pmc {
+ 	/* deep-sleep only */
+ 	u32 config1;
+ #define PMCCR1_USE_STATE  0x80000000
+-#define PMCCR1_PME_EN     0x080
+-#define PMCCR1_ASSERT_PME 0x040
+-#define PMCCR1_POWER_OFF  0x20
++#define PMCCR1_PME_EN     0x00000080
++#define PMCCR1_ASSERT_PME 0x00000040
++#define PMCCR1_POWER_OFF  0x00000020
+ 
+ 	/* deep-sleep only */
+ 	u32 config2;
+@@ -77,44 +72,70 @@ struct mpc83xx_rcw {
+ 	u32 rcwhr;
+ };
+ 
++struct mpc83xx_clock {
++	u32 spmr;
++	u32 occr;
++	u32 sccr;
++};
++
++struct pmc_type {
++	int has_deep_sleep;
++};
++
++static struct of_device *pmc_dev;
+ static int has_deep_sleep, deep_sleeping;
+ static int pmc_irq;
+ static struct mpc83xx_pmc __iomem *pmc_regs;
+-static struct mpc83xx_rcw __iomem *rcw_regs;
+-static u32 __iomem *syscfg_regs;
++static struct mpc83xx_clock __iomem *clock_regs;
+ static int is_pci_agent, wake_from_pci;
+ static phys_addr_t immrbase;
+ static int pci_pm_state;
+ static DECLARE_WAIT_QUEUE_HEAD(agent_wq);
+ 
+-int fsl_deep_sleep(void)
++static u32 saved_sccr;
++static DEFINE_SPINLOCK(device_sleep_lock);
++
++void fsl_sleep_device(struct fsl_sleep_platform_data *data)
+ {
+-	return deep_sleeping;
++	if (clock_regs && data->sccr_mask) {
++		unsigned long flags;
++		u32 sccr;
++
++		spin_lock_irqsave(&device_sleep_lock, flags);
++		sccr = in_be32(&clock_regs->sccr);
++
++		saved_sccr &= ~data->sccr_mask;
++		saved_sccr |= sccr & data->sccr_mask;
++
++		out_be32(&clock_regs->sccr, sccr & ~data->sccr_mask);
++		spin_unlock_irqrestore(&device_sleep_lock, flags);
++	}
+ }
++EXPORT_SYMBOL(fsl_sleep_device);
+ 
+-static irqreturn_t pmc_irq_handler(int irq, void *dev_id)
++void fsl_wake_device(struct fsl_sleep_platform_data *data)
+ {
+-#ifdef CONFIG_PCI
+-	u32 reg_er = 0, pci_host = 0;
+-#endif
+-	u32 event = in_be32(&pmc_regs->event);
+-	int ret = IRQ_NONE;
++	if (clock_regs && data->sccr_mask) {
++		unsigned long flags;
++		u32 sccr;
+ 
+-	if (mpc83xx_change_state())
+-		ret = IRQ_HANDLED;
++		spin_lock_irqsave(&device_sleep_lock, flags);
+ 
+-	if (event) {
+-		pr_debug("83xx/pm.c: Wake event %x\n", event);
++		sccr = in_be32(&clock_regs->sccr);
++		sccr |= saved_sccr & data->sccr_mask;
++		out_be32(&clock_regs->sccr, sccr);
+ 
+-		/* Clear the events */
+-		out_be32(&pmc_regs->event, event);
+-		ret = IRQ_HANDLED;
++		spin_unlock_irqrestore(&device_sleep_lock, flags);
+ 	}
++}
++EXPORT_SYMBOL(fsl_wake_device);
+ 
+-	return ret;
++int fsl_deep_sleep(void)
++{
++	return deep_sleeping;
+ }
+ 
+-int mpc83xx_change_state(void)
++static int mpc83xx_change_state(void)
+ {
+ 	u32 curr_state;
+ 	u32 reg_cfg1 = in_be32(&pmc_regs->config1);
+@@ -137,6 +158,22 @@ int mpc83xx_change_state(void)
+ 	return 0;
+ }
+ 
++static irqreturn_t pmc_irq_handler(int irq, void *dev_id)
++{
++	u32 event = in_be32(&pmc_regs->event);
++	int ret = IRQ_NONE;
++
++	if (mpc83xx_change_state())
++		ret = IRQ_HANDLED;
++
++	if (event) {
++		out_be32(&pmc_regs->event, event);
++		ret = IRQ_HANDLED;
++	}
++
++	return ret;
++}
++
+ static int mpc83xx_pm_suspend(void)
+ {
+ 	int ret = -EAGAIN;
+@@ -153,25 +190,6 @@ static int mpc83xx_pm_suspend(void)
+ 		         in_be32(&pmc_regs->config1) | PMCCR1_PME_EN);
+ 	}
+ 
+-	/* The 8313 has a problem properly entering deep sleep when a
+-	 * decrementer interrupt is pending.  To avoid this, the
+-	 * timebase is stopped, and the decrementer read.  If the
+-	 * decrementer is negative (i.e. an interrupt is pending),
+-	 * then the timebase is turned back on and the suspend
+-	 * is aborted.
+-	 */
+-	if (deep_sleeping) {
+-		out_be32(&syscfg_regs[4],
+-		         in_be32(&syscfg_regs[4]) & ~0x400000);
+-
+-		if ((s32)get_dec() < 0) {
+-			out_be32(&syscfg_regs[4],
+-			         in_be32(&syscfg_regs[4]) | 0x400000);
+-
+-			goto out;
+-		}
+-	}
+-
+ 	/* Put the system into low-power mode and the RAM
+ 	 * into self-refresh mode once the core goes to
+ 	 * sleep.
+@@ -185,14 +203,7 @@ static int mpc83xx_pm_suspend(void)
+ 	 */
+ 
+ 	if (deep_sleeping) {
+-		/* FIXME: make wake events configurable */
+-		out_be32(&pmc_regs->mask, PMCER_PMCI |
+-		                          PMCER_USB |
+-		                          PMCER_ETSEC1 |
+-		                          PMCER_ETSEC2 |
+-		                          PMCER_GPIO |
+-		                          PMCER_TIMER |
+-		                          PMCER_PCI);
++		out_be32(&pmc_regs->mask, PMCER_ALL);
+ 
+ 		out_be32(&pmc_regs->config1,
+ 		         in_be32(&pmc_regs->config1) | PMCCR1_POWER_OFF);
+@@ -206,13 +217,11 @@ static int mpc83xx_pm_suspend(void)
+ 
+ 		out_be32(&pmc_regs->mask, PMCER_PMCI);
+ 
+-		out_be32(&syscfg_regs[4],
+-		         in_be32(&syscfg_regs[4]) | 0x400000);
+ 		deep_sleeping = 0;
+ 	} else {
+ 		out_be32(&pmc_regs->mask, PMCER_PMCI);
+ 
+-		mpc83xx_enter_sleep();
++		mpc6xx_enter_sleep();
+ 	}
+ 
+ 	ret = 0;
+@@ -224,6 +233,11 @@ out:
+ 	return ret;
+ }
+ 
++static int mpc83xx_pm_valid(suspend_state_t state)
++{
++	return state == PM_SUSPEND_STANDBY || state == PM_SUSPEND_MEM;
++}
++
+ static int mpc83xx_pm_prepare(suspend_state_t state)
+ {
+ 	switch (state) {
+@@ -237,9 +251,6 @@ static int mpc83xx_pm_prepare(suspend_st
+ 
+ 			return 0;
+ 
+-		case PM_SUSPEND_DISK:
+-			return -ENOTSUPP;
+-
+ 		default:
+ 			return -EINVAL;
+ 	}
+@@ -252,21 +263,11 @@ static int mpc83xx_pm_enter(suspend_stat
+ 		case PM_SUSPEND_MEM:
+ 			return mpc83xx_pm_suspend();
+ 
+-		case PM_SUSPEND_DISK:
+-			return -ENOTSUPP;
+-
+ 		default:
+ 			return -EINVAL;
+ 	}
+ }
+ 
+-void mpc83xx_pm_assert_pme(void)
+-{
+-	if (is_pci_agent)
+-		out_be32(&pmc_regs->config1,
+-		         in_be32(&pmc_regs->config1) | PMCCR1_ASSERT_PME);
+-}
+-
+ static int agent_thread_fn(void *data)
+ {
+ 	while (1) {
+@@ -300,68 +301,132 @@ void mpc83xx_set_agent(void)
+ 	out_be32(&pmc_regs->mask, PMCER_PMCI);
+ 
+ 	kthread_run(agent_thread_fn, NULL, "PCI power mgt");
+-	is_pci_agent = 1;
++}
++
++static int mpc83xx_is_pci_agent(void)
++{
++	struct mpc83xx_rcw __iomem *rcw_regs;
++	int ret;
++
++	rcw_regs = ioremap(get_immrbase() + IMMR_RCW_OFFSET,
++					sizeof(struct mpc83xx_rcw));
++
++	if (!rcw_regs)
++		return -ENOMEM;
++
++	ret = !(in_be32(&rcw_regs->rcwhr) & RCW_PCI_HOST);
++
++	iounmap(rcw_regs);
++	return ret;
+ }
+ 
+ static struct pm_ops mpc83xx_pm_ops = {
+-	.pm_disk_mode = 0,
++	.valid = mpc83xx_pm_valid,
+ 	.prepare = mpc83xx_pm_prepare,
+ 	.enter = mpc83xx_pm_enter,
+ };
+ 
+-static int __init pmc_init(void)
++static int pmc_probe(struct of_device *ofdev,
++			const struct of_device_id *match)
+ {
+-	struct device_node *np;
++	struct device_node *np = ofdev->node;
+ 	struct resource res;
+-	const char *deep_sleep_prop;
++	struct pmc_type *type = match->data;
+ 	int ret = 0;
+ 
+-	np = of_find_compatible_node(NULL, "power", "mpc83xx");
+-	if (!np)
+-		return -ENODEV;
+-
+-	deep_sleep_prop = get_property(np, "deep-sleep", NULL);
+-	if (deep_sleep_prop) {
+-		has_deep_sleep = 1;
+-		immrbase = get_immrbase();
+-	}
++	has_deep_sleep = type->has_deep_sleep;
++	immrbase = get_immrbase();
++	pmc_dev = ofdev;
++
++	is_pci_agent = mpc83xx_is_pci_agent();
++	if (is_pci_agent < 0)
++		return is_pci_agent;
+ 
+ 	ret = of_address_to_resource(np, 0, &res);
+ 	if (ret)
+-		goto out;
++		return -ENODEV;
+ 
+ 	pmc_irq = irq_of_parse_and_map(np, 0);
+-	if (pmc_irq == NO_IRQ) {
+-		printk(KERN_ERR "PMC exists in device tree without IRQ\n");
+-		ret = -ENODEV;
+-		goto out;
+-	}
++	if (pmc_irq != NO_IRQ) {
++		ret = request_irq(pmc_irq, pmc_irq_handler, IRQF_SHARED,
++					"pmc", ofdev);
+ 
+-	ret = request_irq(pmc_irq, pmc_irq_handler, 0, "power", NULL);
+-	if (ret)
+-		goto out;
++		if (ret)
++			return -EBUSY;
++	}
+ 
+-	pmc_regs = (struct mpc83xx_pmc *)ioremap(res.start,
+-	                                         sizeof(struct mpc83xx_pmc));
++	pmc_regs = ioremap(res.start, sizeof(struct mpc83xx_pmc));
+ 
+ 	if (!pmc_regs) {
+ 		ret = -ENOMEM;
+ 		goto out;
+ 	}
+ 
+-	syscfg_regs = ioremap(get_immrbase() + 0x100, 0x100);
++	ret = of_address_to_resource(np, 1, &res);
++	if (ret) {
++		ret = -ENODEV;
++		goto out_pmc;
++	}
+ 
+-	pm_set_ops(&mpc83xx_pm_ops);
++	clock_regs = ioremap(res.start, sizeof(struct mpc83xx_pmc));
+ 
+-	rcw_regs = ioremap(get_immrbase() + IMMR_RCW_OFFSET,
+-	                   sizeof(struct mpc83xx_rcw));
++	if (!clock_regs) {
++		ret = -ENOMEM;
++		goto out_pmc;
++	}
+ 
+-	if (!(in_be32(&rcw_regs->rcwhr) & RCW_PCI_HOST))
++	if (is_pci_agent)
+ 		mpc83xx_set_agent();
+ 
++	pm_set_ops(&mpc83xx_pm_ops);
++	return 0;
++
++out_pmc:
++	iounmap(pmc_regs);
+ out:
+-	of_node_put(np);
++	if (pmc_irq != NO_IRQ)
++		free_irq(pmc_irq, ofdev);
++
+ 	return ret;
+ }
+ 
++static int pmc_remove(struct of_device *ofdev)
++{
++	return -EPERM;
++};
++
++static struct pmc_type pmc_types[] = {
++	{
++		.has_deep_sleep = 1,
++	},
++	{
++		.has_deep_sleep = 0,
++	}
++};
++
++static struct of_device_id pmc_match[] = {
++	{
++		.compatible = "fsl,mpc831x-pmc",
++		.data = &pmc_types[0],
++	},
++	{
++		.compatible = "fsl,mpc83xx-pmc",
++		.data = &pmc_types[1],
++	},
++	{}
++};
++
++static struct of_platform_driver pmc_driver = {
++	.name = "mpc83xx-pmc",
++	.match_table = pmc_match,
++	.probe = pmc_probe,
++	.remove = pmc_remove
++};
++
++static int pmc_init(void)
++{
++	return of_register_platform_driver(&pmc_driver);
++}
++
+ module_init(pmc_init);
++
+diff -urNp linux-2.6.20/arch/powerpc/platforms/83xx/sleep.S linux-2.6.20-pm/arch/powerpc/platforms/83xx/sleep.S
+--- linux-2.6.20/arch/powerpc/platforms/83xx/sleep.S	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/platforms/83xx/sleep.S	2007-08-10 10:36:20.000000000 +0800
+@@ -1,6 +1,4 @@
+ /*
+- * arch/powerpc/platforms/83xx/sleep.S
+- *
+  * Enter and leave sleep state on MPC83xx
+  *
+  * Author: Scott Wood <scottwood@freescale.com>
+@@ -15,6 +13,7 @@
+ #include <asm/page.h>
+ #include <asm/ppc_asm.h>
+ #include <asm/reg.h>
++#include <asm/asm-offsets.h>
+ 
+ #define SS_MEMSAVE	0x00
+ #define SS_HID		0x08 /* 3 HIDs */
+@@ -101,23 +100,13 @@ mpc83xx_do_enter_deep_sleep:
+ 	cmpwi	r4, 0
+ 	bne	1b
+ 
+-	lis	r6, 0xf515
+-	ori	r6, r6, 0x3ae5
+-
+-	lis	r7, mpc83xx_deep_resume@h
+-	ori	r7, r7, mpc83xx_deep_resume@l
+-	tophys(r7, r7)
+-
+-	lis	r5, KERNELBASE@h
+-	stw	r6, 0(r5)
+-	stw	r7, 4(r5)
+ 
+ 	bl	__flush_disable_L1
+ 
+ 	/* Disable machine checks and critical exceptions */
+ 	mfmsr	r4
+-	li	r5, 0x1080	/* ME, CE */
+-	andc	r4, r4, r5
++	rlwinm	r4, r4, 0, ~MSR_CE
++	rlwinm	r4, r4, 0, ~MSR_ME
+ 	mtmsr	r4
+ 	isync
+ 
+@@ -129,7 +118,7 @@ mpc83xx_do_enter_deep_sleep:
+ 	mtspr	SPRN_HID0, r3
+ 	isync
+ 
+-#define	TMP_VIRT_IMMR		0xf0000000
++#define TMP_VIRT_IMMR		0xf0000000
+ #define DEFAULT_IMMR_VALUE	0xff400000
+ #define IMMRBAR_BASE		0x0000
+ 
+@@ -155,6 +144,28 @@ mpc83xx_do_enter_deep_sleep:
+ 	mtspr	SPRN_DBAT1U, r4
+ 	isync
+ 
++	/* Use DBAT2 to address the beginning of RAM.  This isn't done
++	 * using the normal virtual mapping, because with page debugging
++	 * enabled it will be read-only. */
++
++	li	r4, 0x002a
++	mtspr	SPRN_DBAT2L, r4
++	lis	r4, KERNELBASE@h
++	ori	r4, r4, 0x001e	/* 1 MByte accessable from Kernel Space only */
++	mtspr	SPRN_DBAT2U, r4
++	isync
++
++	lis	r6, 0xf515
++	ori	r6, r6, 0x3ae5
++
++	lis	r7, mpc83xx_deep_resume@h
++	ori	r7, r7, mpc83xx_deep_resume@l
++	tophys(r7, r7)
++
++	lis	r5, KERNELBASE@h
++	stw	r6, 0(r5)
++	stw	r7, 4(r5)
++
+ 	/* Reset BARs */
+ 
+ 	li	r4, 0
+@@ -165,8 +176,8 @@ mpc83xx_do_enter_deep_sleep:
+ 	stw	r4, 0x0064(r8)
+ 	stw	r4, 0x006c(r8)
+ 
+-	/* The 8313 has problems with PMC interrupts that are pending
+-	 * during the transition to deep sleep state (such as if the
++	/* The 8313 has problems with wakeup events that are pending
++	 * during the transition to deep sleep state (such as if the PCI
+ 	 * host sets the state to D3 and then D0 in rapid succession).
+ 	 * This check shrinks the race window somewhat.
+ 	 */
+@@ -175,9 +186,8 @@ mpc83xx_do_enter_deep_sleep:
+ 	andi.	r3, r3, 1
+ 	bne-	mpc83xx_deep_resume
+ 
+-	/* Move IMMR back to the default location,
+-	 * following the procedure specified in the
+-	 * MPC8313 manual.
++	/* Move IMMR back to the default location, following the
++	 * procedure specified in the MPC8313 manual.
+ 	 */
+ 	lwz	r4, IMMRBAR_BASE(r8)
+ 	isync
+@@ -205,7 +215,7 @@ boot_low:
+ 	ori	r7, r7, 0x0016
+ 
+ 	mfspr	r5, SPRN_HID0
+-	rlwinm	r5, r5, 0, 10, 7 /* Clear DOZE and NAP modes */
++	rlwinm	r5, r5, 0, ~(HID0_DOZE | HID0_NAP)
+ 	oris	r5, r5, HID0_SLEEP@h
+ 	mtspr	SPRN_HID0, r5
+ 	isync
+@@ -235,7 +245,7 @@ mpc83xx_deep_resume:
+ 	mtsrr0	r4
+ 
+ 	mfmsr	r4
+-	rlwinm	r4, r4, 0, 28, 25 /* Turn off IMMU, DMMU */
++	rlwinm	r4, r4, 0, ~(MSR_IR | MSR_DR)
+ 	mtsrr1	r4
+ 
+ 	rfi
+@@ -283,24 +293,3 @@ mpc83xx_deep_resume:
+ 
+ 	li	r3, 1		/* BAT restore requested */
+ 	b	do_resume
+-
+-_GLOBAL(mpc83xx_enter_sleep)
+-	mfspr	r5, SPRN_HID0
+-	rlwinm	r5, r5, 0, 10, 7 /* Clear DOZE and NAP modes */
+-	oris	r5, r5, HID0_SLEEP@h
+-	mtspr	SPRN_HID0, r5
+-	isync
+-
+-	mfmsr	r5
+-	ori	r5, r5, MSR_EE
+-	mtmsr	r5
+-	oris	r5, r5, MSR_POW@h
+-	sync
+-	mtmsr	r5
+-	isync
+-
+-	mfmsr	r5
+-	rlwinm	r5, r5, 0, 17, 15 /* Clear MSR_EE */
+-	mtmsr	r5
+-
+-	blr
+diff -urNp linux-2.6.20/arch/powerpc/platforms/83xx/timer.c linux-2.6.20-pm/arch/powerpc/platforms/83xx/timer.c
+--- linux-2.6.20/arch/powerpc/platforms/83xx/timer.c	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/platforms/83xx/timer.c	2007-08-10 13:43:08.000000000 +0800
+@@ -98,14 +98,12 @@ struct gtm_regs {
+ };
+ 
+ struct gtm_priv {
+-	/* Pointer to the PMC Memory Mapped Registers */
+ 	struct gtm_regs __iomem *regs;
+ 	int irq;
+ 	int ticks_per_sec;
+ 	spinlock_t lock;
+ };
+ 
+-/* Interrupt Handler for GTM */
+ static irqreturn_t fsl_gtm_isr(int irq, void *dev_id)
+ {
+ 	struct gtm_priv *priv = dev_id;
+@@ -132,14 +130,15 @@ static ssize_t gtm_timeout_store(struct 
+ 	unsigned long interval = simple_strtoul(buf, NULL, 0);
+ 
+ 	if (interval > 0xffff) {
+-		printk("gtm too long\n");
++		dev_dbg(dev, "gtm: interval %lu (in ns) too long\n", interval);
+ 		return -EINVAL;
+ 	}
+ 
+ 	interval *= priv->ticks_per_sec;
+ 
+ 	if (interval > 0xffff) {
+-		printk("gtm too long\n");
++		dev_dbg(dev, "gtm: interval %lu (in ticks) too long\n",
++			interval);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -194,23 +193,14 @@ static int __devinit gtm_probe(struct of
+                                const struct of_device_id *match)
+ {
+ 	struct device_node *np = dev->node;
+-	struct device_node *soc;
+ 	struct resource res;
+ 	int ret = 0;
+-	const u32 *busfreq;
++	u32 busfreq = fsl_get_sys_freq();
+ 	struct gtm_priv *priv;
+ 
+-	soc = of_find_node_by_type(NULL, "soc");
+-	if (!soc) {		
+-		printk(KERN_ERR "gtm: No soc node in device tree.\n");
+-		return -ENODEV;
+-	}
+-
+-	busfreq = get_property(soc, "bus-frequency", NULL);
+ 	if (busfreq == 0) {
+ 		printk(KERN_ERR "gtm: No bus frequency in device tree.\n");
+-		ret = -ENODEV;
+-		goto nosoc;
++		return -ENODEV;
+ 	}
+ 
+ 	priv = kmalloc(sizeof(struct gtm_priv), GFP_KERNEL);
+@@ -255,21 +245,16 @@ static int __devinit gtm_probe(struct of
+ 	 * is the LSB when chained, we can't use chaining to increase
+ 	 * the range.
+ 	 */
+-	priv->ticks_per_sec = *busfreq / (16*256*256);
++	priv->ticks_per_sec = busfreq / (16*256*256);
+ 
+ 	ret = device_create_file(&dev->dev, &dev_attr_timeout);
+ 	if (ret)
+ 		goto out;
+ 
+-	of_node_put(soc);
+-
+ 	return 0;
+ 
+ out:
+ 	kfree(priv);
+-nosoc:
+-	of_node_put(soc);
+-
+ 	return ret;
+ }
+ 
+@@ -288,8 +273,7 @@ static int __devexit gtm_remove(struct o
+ 
+ static struct of_device_id gtm_match[] = {
+ 	{
+-		.type = "timer",
+-		.compatible = "mpc83xx-gtm",
++		.compatible = "fsl,mpc83xx-gtm",
+ 	},
+ 	{},
+ };
+@@ -306,4 +290,11 @@ static int __init gtm_init(void)
+ 	return of_register_platform_driver(&gtm_driver);
+ }
+ 
++static void __exit gtm_exit(void)
++{
++	of_unregister_platform_driver(&gtm_driver);
++}
++
+ module_init(gtm_init);
++module_exit(gtm_exit);
++
+diff -urNp linux-2.6.20/arch/powerpc/sysdev/6xx-pm.S linux-2.6.20-pm/arch/powerpc/sysdev/6xx-pm.S
+--- linux-2.6.20/arch/powerpc/sysdev/6xx-pm.S	1970-01-01 08:30:00.000000000 +0830
++++ linux-2.6.20-pm/arch/powerpc/sysdev/6xx-pm.S	2007-08-10 10:36:20.000000000 +0800
+@@ -0,0 +1,52 @@
++/*
++ * Enter and leave sleep state on chips with 6xx-style HID0
++ * power management bits.
++ *
++ * Author: Scott Wood <scottwood@freescale.com>
++ *
++ * Copyright (c) 2006-2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++
++#include <asm/ppc_asm.h>
++#include <asm/reg.h>
++#include <asm/thread_info.h>
++#include <asm/asm-offsets.h>
++
++_GLOBAL(mpc6xx_enter_sleep)
++	mflr	r4
++
++	mfspr	r5, SPRN_HID0
++	rlwinm	r5, r5, 0, ~(HID0_DOZE | HID0_NAP)
++	oris	r5, r5, HID0_SLEEP@h
++	mtspr	SPRN_HID0, r5
++	isync
++
++	lis	r5, ret_from_sleep@h
++	ori	r5, r5, ret_from_sleep@l
++	mtlr	r5
++
++	rlwinm	r5, r1, 0, 0, 31-THREAD_SHIFT
++	lwz	r6, TI_LOCAL_FLAGS(r5)
++	ori	r6, r6, _TLF_NAPPING
++	stw	r6, TI_LOCAL_FLAGS(r5)
++
++	mfmsr	r5
++	ori	r5, r5, MSR_EE
++	oris	r5, r5, MSR_POW@h
++	sync
++	mtmsr	r5
++	isync
++
++1:	b	1b
++
++ret_from_sleep:
++	mfspr	r5, SPRN_HID0
++	rlwinm	r5, r5, 0, ~HID0_SLEEP
++	mtspr	SPRN_HID0, r5
++
++	mtlr	r4
++	blr
+diff -urNp linux-2.6.20/arch/powerpc/sysdev/fsl_soc.c linux-2.6.20-pm/arch/powerpc/sysdev/fsl_soc.c
+--- linux-2.6.20/arch/powerpc/sysdev/fsl_soc.c	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/sysdev/fsl_soc.c	2007-08-10 13:43:51.000000000 +0800
+@@ -71,6 +71,27 @@ phys_addr_t get_immrbase(void)
+ 
+ EXPORT_SYMBOL(get_immrbase);
+ 
++u32 fsl_get_sys_freq(void)
++{
++	struct device_node *soc = of_find_node_by_type(NULL, "soc");
++	const u32 *freq;
++	u32 ret = 0;
++
++	if (!soc)
++		goto err;
++
++	freq = get_property(soc, "bus-frequency", NULL);
++	if (!freq)
++		goto err;
++
++	ret = *freq;
++
++err:
++	of_node_put(soc);
++	return ret;
++}
++EXPORT_SYMBOL(fsl_get_sys_freq);
++
+ #ifdef CONFIG_CPM2
+ 
+ static u32 brgfreq = -1;
+@@ -124,83 +145,33 @@ u32 get_baudrate(void)
+ EXPORT_SYMBOL(get_baudrate);
+ #endif /* CONFIG_CPM2 */
+ 
+-static void __init fsl_sleep_of_init(struct fsl_sleep_platform_data *sleep,
+-                                     struct device_node *node)
++int fsl_sleep_init(struct fsl_sleep_platform_data *sleep,
++			struct device_node *node)
+ {
+-	int proplen;
+-	u32 *sleepdata = (u32 *)get_property(node, "sleep", &proplen);
++	int proplen, ret = -ENODEV;
++	const u32 *sleepdata = get_property(node, "sleep", &proplen);
+ 	struct device_node *sleep_controller;
+-	struct resource res;
+-	
+-	if (!sleepdata || proplen != 20)
+-		return;
+-	
++
++		return -ENODEV;
++
+ 	sleep_controller = of_find_node_by_phandle(sleepdata[0]);
+ 	if (!sleep_controller)
+-		return;
++		return -ENODEV;
+ 
+-	if (!get_property(sleep_controller, "allow-direct-device-sleep", NULL))
+-		goto out;
+-	
+-	if (of_address_to_resource(sleep_controller, sleepdata[1], &res))
+-		goto out;
+-
+-	if (!(res.flags & IORESOURCE_MEM))
+-		goto out;
+-	
+-	if (sleepdata[2] > res.end - res.start ||
+-	    sleepdata[2] + 3 > res.end - res.start)
+-		goto out;
+-	
+-	sleep->reg = (u32 *)ioremap(res.start + sleepdata[2], 4);
+-	sleep->mask = sleepdata[3];
+-	sleep->val = sleepdata[4];
++	/* There can only be one fsl,mpc83xx-pmc device in the system;
++	 * it is assumed that it is the one that the pmc driver matches.
++	 */
++	if (device_is_compatible(sleep_controller, "fsl,mpc83xx-pmc")) {
++		sleep->sccr_mask = sleepdata[1];
++		ret = 0;
++	}
+ 
+-out:
+ 	of_node_put(sleep_controller);
+-}
+-
+-static DEFINE_SPINLOCK(device_sleep_lock);
+-
+-u32 fsl_sleep_device(struct fsl_sleep_platform_data *data)
+-{
+-	u32 ret = 0;
+-
+-	if (data->reg) {
+-		unsigned long flags;
+-		u32 sleep_reg;
+-
+-		spin_lock_irqsave(&device_sleep_lock, flags);
+-		ret = sleep_reg = in_be32(data->reg);
+-
+-		sleep_reg &= ~data->mask;
+-		sleep_reg |= data->val;
+-
+-		out_be32(data->reg, sleep_reg);
+-		spin_unlock_irqrestore(&device_sleep_lock, flags);
+-	}
+-	
+ 	return ret;
+ }
+-EXPORT_SYMBOL(fsl_sleep_device);
+-
+-void fsl_wake_device(struct fsl_sleep_platform_data *data, u32 saved_reg)
+-{
+-	if (data->reg) {
+-		unsigned long flags;
+-		u32 sleep_reg;
++EXPORT_SYMBOL(fsl_sleep_init);
+ 
+-		spin_lock_irqsave(&device_sleep_lock, flags);
+-		sleep_reg = in_be32(data->reg);
+-
+-		sleep_reg &= ~data->mask;
+-		sleep_reg |= (saved_reg & data->mask);
+-
+-		out_be32(data->reg, sleep_reg);
+-		spin_unlock_irqrestore(&device_sleep_lock, flags);
+-	}
+-}
+-EXPORT_SYMBOL(fsl_wake_device);
++static DEFINE_SPINLOCK(device_sleep_lock);
+ 
+ static int __init gfar_mdio_of_init(void)
+ {
+@@ -351,11 +322,16 @@ static int __init gfar_of_init(void)
+ 			    FSL_GIANFAR_DEV_HAS_VLAN |
+ 			    FSL_GIANFAR_DEV_HAS_EXTENDED_HASH;
+ 
++		if (get_property(np, "fsl,magic-packet", NULL))
++			gfar_data.device_flags |=
++				FSL_GIANFAR_DEV_HAS_MAGIC_PACKET;
++
+ 		ph = get_property(np, "phy-handle", NULL);
+ 		phy = of_find_node_by_phandle(*ph);
+ 
+ 		if (get_property(np, "has-magic-packet", NULL))
+-			gfar_data.device_flags |= FSL_GIANFAR_DEV_HAS_MAGIC_PACKET;
++			gfar_data.device_flags |=
++				FSL_GIANFAR_DEV_HAS_MAGIC_PACKET;
+ 
+ 		if (phy == NULL) {
+ 			ret = -ENODEV;
+@@ -375,10 +351,16 @@ static int __init gfar_of_init(void)
+ 		gfar_data.phy_id = *id;
+ 		gfar_data.bus_id = res.start;
+ 
++		if (res.start >= gfar_dev->resource[0].start &&
++			res.start < gfar_dev->resource[0].end)
++				gfar_data.device_flags |=
++					FSL_GIANFAR_DEV_HAS_MDIO;
++
++
+ 		of_node_put(phy);
+ 		of_node_put(mdio);
+ 
+-		fsl_sleep_of_init(&gfar_data.sleep, np);
++		fsl_sleep_init(&gfar_data.sleep, np);
+ 
+ 		ret =
+ 		    platform_device_add_data(gfar_dev, &gfar_data,
+@@ -458,9 +440,9 @@ arch_initcall(fsl_i2c_of_init);
+ static int __init mpc83xx_wdt_init(void)
+ {
+ 	struct resource r;
+-	struct device_node *soc, *np;
++	struct device_node *np;
+ 	struct platform_device *dev;
+-	const unsigned int *freq;
++	u32 freq = fsl_get_sys_freq();
+ 	int ret;
+ 
+ 	np = of_find_compatible_node(NULL, "watchdog", "mpc83xx_wdt");
+@@ -470,19 +452,6 @@ static int __init mpc83xx_wdt_init(void)
+ 		goto nodev;
+ 	}
+ 
+-	soc = of_find_node_by_type(NULL, "soc");
+-
+-	if (!soc) {
+-		ret = -ENODEV;
+-		goto nosoc;
+-	}
+-
+-	freq = get_property(soc, "bus-frequency", NULL);
+-	if (!freq) {
+-		ret = -ENODEV;
+-		goto err;
+-	}
+-
+ 	memset(&r, 0, sizeof(r));
+ 
+ 	ret = of_address_to_resource(np, 0, &r);
+@@ -495,20 +464,16 @@ static int __init mpc83xx_wdt_init(void)
+ 		goto err;
+ 	}
+ 
+-	ret = platform_device_add_data(dev, freq, sizeof(int));
++	ret = platform_device_add_data(dev, &freq, sizeof(int));
+ 	if (ret)
+ 		goto unreg;
+ 
+-	of_node_put(soc);
+ 	of_node_put(np);
+-
+ 	return 0;
+ 
+ unreg:
+ 	platform_device_unregister(dev);
+ err:
+-	of_node_put(soc);
+-nosoc:
+ 	of_node_put(np);
+ nodev:
+ 	return ret;
+@@ -580,7 +545,7 @@ static int __init fsl_usb_of_init(void)
+ 		prop = get_property(np, "phy_type", NULL);
+ 		usb_data.phy_mode = determine_usb_phy(prop);
+ 
+-		fsl_sleep_of_init(&usb_data.sleep, np);
++		fsl_sleep_init(&usb_data.sleep, np);
+ 
+ 		ret =
+ 		    platform_device_add_data(usb_dev_mph, &usb_data,
+@@ -653,6 +618,8 @@ static int __init fsl_usb_of_init(void)
+ 		prop = get_property(np, "phy_type", NULL);
+ 		usb_data.phy_mode = determine_usb_phy(prop);
+ 
++		fsl_sleep_init(&usb_data.sleep, np);
++
+ 		if (usb_data.operating_mode != FSL_USB2_DR_HOST) {
+ 			/* Get number of bidirectional eps */
+ 			prop = get_property(np, "max_ep_nr", NULL);
+diff -urNp linux-2.6.20/arch/powerpc/sysdev/fsl_soc.h linux-2.6.20-pm/arch/powerpc/sysdev/fsl_soc.h
+--- linux-2.6.20/arch/powerpc/sysdev/fsl_soc.h	2007-02-05 02:44:54.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/sysdev/fsl_soc.h	2007-08-10 10:36:21.000000000 +0800
+@@ -7,6 +7,17 @@
+ extern phys_addr_t get_immrbase(void);
+ extern u32 get_brgfreq(void);
+ extern u32 get_baudrate(void);
++extern u32 fsl_get_sys_freq(void);
++
++struct fsl_sleep_platform_data;
++struct device_node;
++
++int fsl_sleep_init(struct fsl_sleep_platform_data *sleep,
++			struct device_node *node);
++
++/* Calls to fsl_sleep_dev and fsl_wake_dev cannot be nested. */
++void fsl_sleep_dev(struct fsl_sleep_platform_data *sleep);
++void fsl_wake_dev(struct fsl_sleep_platform_data *sleep);
+ 
+ #endif
+ #endif
+diff -urNp linux-2.6.20/arch/powerpc/sysdev/ipic.c linux-2.6.20-pm/arch/powerpc/sysdev/ipic.c
+--- linux-2.6.20/arch/powerpc/sysdev/ipic.c	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/sysdev/ipic.c	2007-08-10 10:36:21.000000000 +0800
+@@ -22,6 +22,7 @@
+ #include <linux/device.h>
+ #include <linux/bootmem.h>
+ #include <linux/spinlock.h>
++#include <linux/fsl_devices.h>
+ #include <asm/irq.h>
+ #include <asm/io.h>
+ #include <asm/prom.h>
+@@ -783,14 +784,15 @@ static int ipic_resume(struct sys_device
+ 
+ 	return 0;
+ }
++#else
++#define ipic_suspend NULL
++#define ipic_resume NULL
+ #endif
+ 
+ static struct sysdev_class ipic_sysclass = {
+ 	set_kset_name("ipic"),
+-#ifdef CONFIG_PM
+ 	.suspend = ipic_suspend,
+ 	.resume = ipic_resume,
+-#endif
+ };
+ 
+ static struct sys_device device_ipic = {
+diff -urNp linux-2.6.20/arch/powerpc/sysdev/Makefile linux-2.6.20-pm/arch/powerpc/sysdev/Makefile
+--- linux-2.6.20/arch/powerpc/sysdev/Makefile	2007-02-05 02:44:54.000000000 +0800
++++ linux-2.6.20-pm/arch/powerpc/sysdev/Makefile	2007-08-10 10:36:21.000000000 +0800
+@@ -23,3 +23,8 @@ ifeq ($(ARCH),powerpc)
+ obj-$(CONFIG_MTD)		+= rom.o
+ obj-$(CONFIG_CPM2)		+= cpm2_common.o cpm2_pic.o
+ endif
++
++ifeq ($(CONFIG_PM),y)
++obj-$(CONFIG_6xx)		+= 6xx-pm.o
++endif
++
+diff -urNp linux-2.6.20/drivers/net/gianfar.c linux-2.6.20-pm/drivers/net/gianfar.c
+--- linux-2.6.20/drivers/net/gianfar.c	2007-08-10 05:56:09.000000000 +0800
++++ linux-2.6.20-pm/drivers/net/gianfar.c	2007-08-10 10:36:21.000000000 +0800
+@@ -530,7 +530,7 @@ static int gfar_suspend(struct platform_
+ 		if (priv->phydev)
+ 			phy_stop(priv->phydev);
+ 		
+-		priv->saved_sleep_reg = fsl_sleep_device(&priv->einfo->sleep);
++		fsl_sleep_device(&priv->einfo->sleep);
+ 		priv->suspended = 1;
+ 	}
+ 	
+@@ -548,7 +548,7 @@ static int gfar_resume(struct platform_d
+ 		(priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET);
+ 
+ 	if (was_suspended) {
+-		fsl_wake_device(&priv->einfo->sleep, priv->saved_sleep_reg);
++		fsl_wake_device(&priv->einfo->sleep);
+ 		priv->suspended = 0;
+ 	}
+ 
+diff -urNp linux-2.6.20/include/asm-powerpc/machdep.h linux-2.6.20-pm/include/asm-powerpc/machdep.h
+--- linux-2.6.20/include/asm-powerpc/machdep.h	2007-02-05 02:44:54.000000000 +0800
++++ linux-2.6.20-pm/include/asm-powerpc/machdep.h	2007-08-10 13:37:52.000000000 +0800
+@@ -244,6 +244,16 @@ struct machdep_calls {
+ 	void (*machine_kexec)(struct kimage *image);
+ #endif /* CONFIG_KEXEC */
+ 
++#ifdef CONFIG_PM
++       /* These are called to disable and enable, respectively, IRQs when
++	* entering a suspend state.  If NULL, then the generic versions
++	* will be called.  The generic versions disable/enable the
++	* decrementer along with interrupts.
++	*/
++       void (*suspend_disable_irqs)(void);
++       void (*suspend_enable_irqs)(void);
++#endif
++
+ #ifdef CONFIG_PCI_MSI
+ 	int (*enable_msi)(struct pci_dev *pdev);
+ 	void (*disable_msi)(struct pci_dev *pdev);
+diff -urNp linux-2.6.20/include/asm-powerpc/mpc6xx.h linux-2.6.20-pm/include/asm-powerpc/mpc6xx.h
+--- linux-2.6.20/include/asm-powerpc/mpc6xx.h	1970-01-01 08:30:00.000000000 +0830
++++ linux-2.6.20-pm/include/asm-powerpc/mpc6xx.h	2007-08-10 10:36:21.000000000 +0800
+@@ -0,0 +1,6 @@
++#ifndef __ASM_POWERPC_MPC6xx_H
++#define __ASM_POWERPC_MPC6xx_H
++
++void mpc6xx_enter_sleep(void);
++
++#endif
+diff -urNp linux-2.6.20/include/linux/fsl_devices.h linux-2.6.20-pm/include/linux/fsl_devices.h
+--- linux-2.6.20/include/linux/fsl_devices.h	2007-08-10 05:56:08.000000000 +0800
++++ linux-2.6.20-pm/include/linux/fsl_devices.h	2007-08-10 10:36:21.000000000 +0800
+@@ -47,30 +47,27 @@
+  * - platform data board flags: FSL_<driver>_BRD_<FLAG>
+  *
+  */
+-
+ struct fsl_sleep_platform_data {
+-	 /* Register containing this device's sleep/clock disable bits.
+-	    NULL if no valid "sleep" property was found in the device tree
+-	    for this device. */
+-	u32 __iomem *reg;
+-
+-	/* Mask of bits in the above register which are relevant to
+-	   this device */
+-	u32 mask;
+-	
+-	/* Value to set those bits to when putting the device to sleep.
+-	   The driver must save the previous value of these bits in
+-	   order to wake the device later. */
+-	u32 val;
++	/*
++	 * The bits set in this mask will be cleared in the SCCR
++	 * when put to sleep, and restored on wakeup.
++	 */
++	u32 sccr_mask;
+ };
+ 
+-u32 fsl_sleep_device(struct fsl_sleep_platform_data *data);
+-void fsl_wake_device(struct fsl_sleep_platform_data *data, u32 saved_reg);
++/*
++ * Calls to fsl_sleep_device do not nest -- if you call
++ * sleep twice without an intervening wake, you will not
++ * be able to wake the device again.
++ */
++void fsl_sleep_device(struct fsl_sleep_platform_data *data);
++void fsl_wake_device(struct fsl_sleep_platform_data *data);
+ 
+ struct gianfar_platform_data {
+ 	/* device specific information */
+ 	u32	device_flags;
+ 	/* board specific information */
++	struct fsl_sleep_platform_data sleep;
+ 	u32	board_flags;
+ 	u32	bus_id;
+ 	u32	phy_id;
+@@ -78,7 +75,6 @@ struct gianfar_platform_data {
+ #ifdef CONFIG_GFAR_PTP
+ 	phys_addr_t	regs_1588;
+ #endif
+-	struct fsl_sleep_platform_data sleep;
+ };
+ 
+ struct gianfar_mdio_data {
+@@ -96,6 +92,7 @@ struct gianfar_mdio_data {
+ #define FSL_GIANFAR_DEV_HAS_EXTENDED_HASH	0x00000040
+ #define FSL_GIANFAR_DEV_HAS_PADDING		0x00000080
+ #define FSL_GIANFAR_DEV_HAS_MAGIC_PACKET	0x00000100
++#define FSL_GIANFAR_DEV_HAS_MDIO		0x00000200
+ 
+ /* Flags in gianfar_platform_data */
+ #define FSL_GIANFAR_BRD_HAS_PHY_INTR	0x00000001 /* set or use a timer */
+@@ -189,5 +186,11 @@ struct ucc_geth_platform_data {
+ #define FSL_UGETH_BRD_HAS_PHY_INTR		0x00000001
+ 				/* if not set use a timer */
+ 
++/* Returns non-zero if the current suspend operation would
++ * lead to a deep sleep (i.e. power removed from the core,
++ * instead of just the clock).
++ */
++int fsl_deep_sleep(void);
++
+ #endif /* _FSL_DEVICE_H_ */
+ #endif /* __KERNEL__ */

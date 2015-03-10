@@ -1,0 +1,215 @@
+From 253e4d7e1e06b353a6beb183f4aaaf118fa87e6e Mon Sep 17 00:00:00 2001
+From: lil <tony.li@freescale.com>
+Date: Fri, 13 Apr 2007 14:22:24 +0800
+Subject: [PATCH] SGMII support include marvell phy config
+
+---
+ drivers/net/gianfar.c     |   23 +++++++++++++++++++++-
+ drivers/net/gianfar.h     |    6 +++++
+ drivers/net/gianfar_mii.c |   47 +++++++++++++++++++++++++++++++++++++-------
+ drivers/net/phy/marvell.c |   27 +++++++++++++++++++++++++
+ 4 files changed, 94 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index baa3514..4b7d47e 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -130,6 +130,9 @@ static int gfar_remove(struct platform_device *pdev);
+ static void free_skb_resources(struct gfar_private *priv);
+ static void gfar_set_multi(struct net_device *dev);
+ static void gfar_set_hash_for_addr(struct net_device *dev, u8 *addr);
++static void gfar_configure_serdes(struct net_device *dev);
++extern int gfar_local_mdio_write(struct gfar_mii *regs, int mii_id, int regnum, u16 value);
++extern int gfar_local_mdio_read(struct gfar_mii *regs, int mii_id, int regnum);
+ #ifdef CONFIG_GFAR_NAPI
+ static int gfar_poll(struct net_device *dev, int *budget);
+ #endif
+@@ -450,6 +453,8 @@ static int init_phy(struct net_device *dev)
+ 	snprintf(phy_id, BUS_ID_SIZE, PHY_ID_FMT, priv->einfo->bus_id, priv->einfo->phy_id);
+ 
+ 	interface = gfar_get_interface(dev);
++	if (interface == PHY_INTERFACE_MODE_SGMII)
++		gfar_configure_serdes(dev);
+ 
+ 	phydev = phy_connect(dev, phy_id, &adjust_link, 0, interface);
+ 
+@@ -467,6 +472,23 @@ static int init_phy(struct net_device *dev)
+ 	return 0;
+ }
+ 
++static void gfar_configure_serdes(struct net_device *dev)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	struct gfar_mii __iomem *regs = (void __iomem *)&priv->regs->gfar_mii_regs;
++
++	/* Intialise TBI i/f to communicate with serdes(lynx phy) */
++
++	/* Write TBICON(0x11) = 0x20. Single clk mode, mii mode off(for serdes communication) */
++	gfar_local_mdio_write(regs, TBIPA_VALUE, MII_TBICON,TBICON_CLK_SELECT);
++
++	/* Write TBI AN(0x04) = 0x1a0. Supported pause and full-duplex,no half-duplex */
++	gfar_local_mdio_write(regs, TBIPA_VALUE, MII_ADVERTISE, ADVERTISE_1000XFULL | ADVERTISE_1000XPAUSE | ADVERTISE_1000XPSE_ASYM);
++
++	/* Write TBI Control(0x00) = 0x1340. ANEG enable, restart ANEG, full duplex mode, speed[1] set */
++	gfar_local_mdio_write(regs, TBIPA_VALUE, MII_BMCR, BMCR_ANENABLE | BMCR_ANRESTART | BMCR_FULLDPLX | BMCR_SPEED1000);
++}
++
+ static void init_registers(struct net_device *dev)
+ {
+ 	struct gfar_private *priv = netdev_priv(dev);
+@@ -515,7 +537,6 @@ static void init_registers(struct net_device *dev)
+ 	gfar_write(&priv->regs->tbipa, TBIPA_VALUE);
+ }
+ 
+-
+ /* Halt the receive and transmit queues */
+ void gfar_halt(struct net_device *dev)
+ {
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index 39e9e32..7efb542 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -136,6 +136,12 @@ extern const char gfar_driver_version[];
+ #define MIIMCFG_RESET           0x80000000
+ #define MIIMIND_BUSY            0x00000001
+ 
++/* TBI register addresses (not defined in linux/mii.h) */
++#define MII_TBICON		0x11
++
++/* TBICON register bit fields */
++#define TBICON_CLK_SELECT	0x0020
++
+ /* MAC register bits */
+ #define MACCFG1_SOFT_RESET	0x80000000
+ #define MACCFG1_RESET_RX_MC	0x00080000
+diff --git a/drivers/net/gianfar_mii.c b/drivers/net/gianfar_mii.c
+index ff684d4..8561092 100644
+--- a/drivers/net/gianfar_mii.c
++++ b/drivers/net/gianfar_mii.c
+@@ -45,12 +45,15 @@
+ #include "gianfar_mii.h"
+ 
+ /* Write value to the PHY at mii_id at register regnum,
+- * on the bus, waiting until the write is done before returning.
+- * All PHY configuration is done through the TSEC1 MIIM regs */
+-int gfar_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value)
++ * on the bus attached to the local interface, which may be different from the 
++ * generic mdio bus (tied to a single interface), waiting until the write is 
++ * done before returning. This is helpful in programming interfaces like
++ * the TBI which control interfaces like onchip SERDES and are always tied to 
++ * the local mdio pins, which may not be the same as system mdio bus, used for 
++ * controlling the external PHYs, for example.
++ */
++int gfar_local_mdio_write(struct gfar_mii *regs, int mii_id, int regnum, u16 value)
+ {
+-	struct gfar_mii __iomem *regs = (void __iomem *)bus->priv;
+-
+ 	/* Set the PHY address and the register address we want to write */
+ 	gfar_write(&regs->miimadd, (mii_id << 8) | regnum);
+ 
+@@ -64,12 +67,18 @@ int gfar_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value)
+ 	return 0;
+ }
+ 
++
+ /* Read the bus for PHY at addr mii_id, register regnum, and
+  * return the value.  Clears miimcom first.  All PHY
+- * configuration has to be done through the TSEC1 MIIM regs */
+-int gfar_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
++ * Operation done on the bus attached to the local interface,
++ * which may be different from the generic mdio bus
++ * This is helpful in programming interfaces like
++ * the TBI which, inturn, control interfaces like onchip SERDES
++ * and are always tied to the local mdio pins, which may not be the
++ * same as system mdio bus, used for controlling the external PHYs, for example.
++ */
++int gfar_local_mdio_read(struct gfar_mii *regs, int mii_id, int regnum)
+ {
+-	struct gfar_mii __iomem *regs = (void __iomem *)bus->priv;
+ 	u16 value;
+ 
+ 	/* Set the PHY address and the register address we want to read */
+@@ -89,6 +98,28 @@ int gfar_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+ 	return value;
+ }
+ 
++/* Write value to the PHY at mii_id at register regnum,
++ * on the bus, waiting until the write is done before returning.
++ * All PHY configuration is done through the TSEC1 MIIM regs */ 
++int gfar_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value)
++{
++	struct gfar_mii __iomem *regs = (void __iomem *)bus->priv;
++
++	/* Write to the local MII regs */
++	return(gfar_local_mdio_write(regs, mii_id, regnum, value));
++}
++
++/* Read the bus for PHY at addr mii_id, register regnum, and
++ * return the value.  Clears miimcom first.  All PHY
++ * configuration has to be done through the TSEC1 MIIM regs */ 
++int gfar_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
++{
++	struct gfar_mii __iomem *regs = (void __iomem *)bus->priv;
++
++	/* Read the local MII regs */
++	return(gfar_local_mdio_read(regs, mii_id, regnum));
++}
++
+ 
+ /* Reset the MIIM registers, and wait for the bus to free */
+ int gfar_mdio_reset(struct mii_bus *bus)
+diff --git a/drivers/net/phy/marvell.c b/drivers/net/phy/marvell.c
+index 22aec5c..0e6664b 100644
+--- a/drivers/net/phy/marvell.c
++++ b/drivers/net/phy/marvell.c
+@@ -35,6 +35,13 @@
+ #include <asm/irq.h>
+ #include <asm/uaccess.h>
+ 
++#define MII_M1111S_CTRL			0x0
++#define MII_M1111S_CTRL_RESET		0x8000
++
++#define MII_M1111S_EXT_PHY_SCR		0x1b
++#define MII_M1111S_EXT_PHY_SCR_H_MODE	0xf
++#define MII_M1111S_EXT_PHY_SCR_SGMII_NO_CLK	0x4
++
+ #define MII_M1011_IEVENT		0x13
+ #define MII_M1011_IEVENT_CLEAR		0x0000
+ 
+@@ -131,6 +138,25 @@ static int marvell_config_aneg(struct phy_device *phydev)
+ 	return err;
+ }
+ 
++static int m88e1111s_config_init(struct phy_device *phydev)
++{
++	if (phydev->interface == PHY_INTERFACE_MODE_SGMII) {
++		u16 temp = phy_read(phydev,MII_M1111S_EXT_PHY_SCR);
++		if ((temp & MII_M1111S_EXT_PHY_SCR_H_MODE) != 
++				MII_M1111S_EXT_PHY_SCR_SGMII_NO_CLK) {
++#ifdef CONFIG_MPC8313_RDB
++			temp &= ~(MII_M1111S_EXT_PHY_SCR_H_MODE);
++			temp |= MII_M1111S_EXT_PHY_SCR_SGMII_NO_CLK;
++#endif
++			phy_write(phydev,MII_M1111S_EXT_PHY_SCR,temp);
++			temp = phy_read(phydev,MII_M1111S_CTRL);
++			temp |= MII_M1111S_CTRL_RESET;
++			phy_write(phydev,MII_M1111S_CTRL,temp);
++		}
++	}
++	return 0;
++}
++
+ static int m88e1145_config_init(struct phy_device *phydev)
+ {
+ 	int err;
+@@ -212,6 +238,7 @@ static struct phy_driver m88e1111s_driver = {
+ 	.name = "Marvell 88E1111",
+ 	.features = PHY_GBIT_FEATURES,
+ 	.flags = PHY_HAS_INTERRUPT,
++	.config_init = &m88e1111s_config_init,
+ 	.config_aneg = &marvell_config_aneg,
+ 	.read_status = &genphy_read_status,
+ 	.ack_interrupt = &marvell_ack_interrupt,
+-- 
+1.5.0
+

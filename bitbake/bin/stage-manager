@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2006 Richard Purdie
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation;
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+import optparse
+import os, sys, stat, re
+
+__version__ = "0.0.1"
+
+
+def write_cache(cachefile, cachedata):
+    fd = open(cachefile, 'w')
+    for f in cachedata:
+        s = f + '|' + str(cachedata[f]['ts']) + '|' + str(cachedata[f]['size'])
+        fd.write(s + '\n')
+    fd.close()
+
+def read_cache(cachefile):
+    cache = {}
+    f = open(cachefile, 'r')
+    lines = f.readlines()
+    f.close()
+    for l in lines:
+        data = l.split('|')
+        cache[data[0]] = {}
+        cache[data[0]]['ts'] = int(data[1])
+        cache[data[0]]['size'] = int(data[2])
+    return cache
+
+def mkdirhier(dir):
+    """Create a directory like 'mkdir -p', but does not complain if
+    directory already exists like os.makedirs
+    """
+    try:
+        os.makedirs(dir)
+    except OSError, e:
+        if e.errno != 17: raise e
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser( version = "Metadata Stage Manager version %s" % ( __version__ ),
+    usage = """%prog [options]\n\nPerforms mamagement tasks on a metadata staging area.""" )
+
+    parser.add_option( "-p", "--parentdir", help = "the path to the metadata parent directory",
+            action = "store", dest = "parentdir", default = None)
+
+    parser.add_option( "-c", "--cachefile", help = "the cache file to use",
+            action = "store", dest = "cachefile", default = None)
+
+    parser.add_option( "-d", "--copydir", help = "copy changed files to this directory",
+            action = "store", dest = "copydir", default = None)
+
+    parser.add_option( "-u", "--update", help = "update the cache file",
+            action = "store_true", dest = "update", default = False)
+
+    parser.add_option ("-e", "--exclude", help = "exclude files/path that match pattern",
+            action = "append", dest = "excludes", default = [])
+               
+    (options, args) = parser.parse_args()
+
+    if options.parentdir is None:
+        print("Error, --parentdir option not supplied")
+        sys.exit(1)
+
+    if options.cachefile is None:
+        print("Error, --cachefile option not supplied")
+        sys.exit(1)
+
+    if not options.parentdir.endswith('/'):
+        options.parentdir = options.parentdir + '/'
+
+    cache = {}
+    if os.access(options.cachefile, os.F_OK):
+        cache = read_cache(options.cachefile)
+
+    found = False
+
+    for root, dirs, files in os.walk(options.parentdir):
+        for f in files:
+            path = os.path.join(root, f)
+            exclude = False
+            for pattern in options.excludes:
+                if re.match (pattern, path, 0):
+                    exclude = True
+                    break
+            if exclude:
+                contunue
+            try: 
+                fstamp = os.lstat(path)
+            except OSError:
+                continue
+
+            spath = path.replace(options.parentdir, '', 1)
+            update = True
+            if spath not in cache:
+                print "new file %s" % path
+            elif cache[spath]['ts'] != fstamp[stat.ST_CTIME] or cache[spath]['size'] != fstamp[stat.ST_SIZE]:
+                print "file %s changed" % path
+            else:
+                update = False
+
+            if update:
+                cache[spath] = {}
+                cache[spath]['ts'] = fstamp[stat.ST_CTIME]
+                cache[spath]['size'] = fstamp[stat.ST_SIZE]
+                if options.copydir:
+                    copypath = os.path.join(options.copydir, path.replace(options.parentdir, '', 1))
+                    mkdirhier(os.path.split(copypath)[0])
+                    if stat.S_ISLNK (fstamp[stat.ST_MODE]):
+                        lnk = os.readlink (path)
+                        if lnk.startswith ('/'):
+                            dirs1 = path.split ('/')
+                            dirs2 = lnk.split('/')
+                            dirs1.pop ()
+                            dirs2.pop ()
+                            while (len (dirs1) and len (dirs2)):
+                                if dirs1[0] == dirs2[0]:
+                                    dirs1.pop (0)
+                                    dirs2.pop (0)
+                                else:
+                                    break
+
+                            fn = os.path.basename (lnk)
+                            lnk = "../" * len (dirs1) + '/'.join (dirs2)
+                            lnk = os.path.join (lnk, fn)
+                            os.unlink (path)
+                            os.symlink (lnk, path)
+
+                    os.rename(path, copypath)
+                    found = True
+
+    if options.update:
+        print "Updating"
+        mkdirhier(os.path.split(options.cachefile)[0])
+        write_cache(options.cachefile, cache)
+
+    if found:
+        sys.exit(5)
+    sys.exit(0)

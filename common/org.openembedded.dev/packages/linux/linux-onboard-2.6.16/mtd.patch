@@ -1,0 +1,28 @@
+diff -ruNp linux-2.6.15.6/drivers/mtd/maps/cyclades.c mtd/drivers/mtd/maps/cyclades.c
+--- linux-2.6.15.6/drivers/mtd/maps/cyclades.c	2006-04-04 23:10:34.240758608 -0700
++++ mtd/drivers/mtd/maps/cyclades.c	2006-04-04 22:58:09.000000000 -0700
+@@ -31,7 +31,11 @@
+ static struct mtd_info *flash;
+ 
+ static struct map_info debmax_map = {
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	.name =		"OnBoard flash",
++#else
+ 	.name =		"OnSite/KVMMAX flash",
++#endif
+ 	.size =		FLASH_SIZE,
+ 	.bankwidth =	2,
+ 	.phys = 	FLASH_BASE_ADDR,
+diff -ruNp linux-2.6.15.6/drivers/mtd/maps/Kconfig mtd/drivers/mtd/maps/Kconfig
+--- linux-2.6.15.6/drivers/mtd/maps/Kconfig	2006-04-04 23:10:34.246757696 -0700
++++ mtd/drivers/mtd/maps/Kconfig	2006-04-04 22:58:09.000000000 -0700
+@@ -640,7 +640,7 @@ config MTD_PLATRAM
+ 	  This selection automatically selects the map_ram driver.
+ 
+ config MTD_Alterpath
+-	bool "Flash mapped for the Alterpath KVM MAX product line"
+-	depends on MTD && ( Alterpath_KVMMAX || Alterpath_KVMMAXV2 )
++	bool "Flash mapped for the Alterpath KVM MAX & OnBoard product lines"
++	depends on MTD && ( Alterpath_KVMMAX || Alterpath_KVMMAXV2  || ALTERPATH_ONBOARD)
+ endmenu
+ 

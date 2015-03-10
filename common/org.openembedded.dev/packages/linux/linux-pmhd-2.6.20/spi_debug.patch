@@ -1,0 +1,21 @@
+Index: linux-2.6.20/drivers/spi/spi.c
+===================================================================
+--- linux-2.6.20.orig/drivers/spi/spi.c	2008-03-21 12:29:56.000000000 -0700
++++ linux-2.6.20/drivers/spi/spi.c	2008-03-21 12:30:55.000000000 -0700
+@@ -598,6 +598,16 @@
+ 		status = message.status;
+ 	}
+ 
++{
++int i; 
++printk("spi CS %d tx", spi->chip_select); 
++for (i = 0; i < n_tx; i ++) printk(" %02x", txbuf[i]); 
++if (n_rx) {
++	printk(" - rx"); 
++	for (i = 0; i < n_rx; i ++) printk(" %02x", rxbuf[i]);
++}
++printk("\n");
++}
+ 	if (x[0].tx_buf == buf)
+ 		up(&lock);
+ 	else

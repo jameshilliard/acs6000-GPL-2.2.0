@@ -1,0 +1,244 @@
+Index: ACE_wrappers/configure.ac
+===================================================================
+--- ACE_wrappers.orig/configure.ac
++++ ACE_wrappers/configure.ac
+@@ -43,7 +43,6 @@ AC_PREREQ([2.58])
+ 
+ dnl Autoconf explicitly forbids patterns containing "_AC_".  This causes
+ dnl a problem when using MPC to generate the Automake ".am" files since
+-dnl the "AC_CLD" project in ACE_wrappers/examples/C++NPv2 ends up having
+ dnl a Makefile containing "NPv2_AC_CLD" in it, triggering the forbidden
+ dnl "_AC_" pattern.  Explicitly allow our pattern.
+ m4_pattern_allow([NPv2_AC_CLD])
+@@ -185,7 +184,6 @@ dnl   ./missing yacc
+ dnl fi
+ 
+ dnl Check for perfect hash function generator
+-AC_CHECK_PROG([GPERF],[gperf],[gperf])
+ 
+ dnl Check for profiling progam
+ AC_CHECK_PROGS([PROF],[gprof prof],)
+@@ -7762,8 +7760,6 @@ dnl created first.
+ dnl   Makefile
+ dnl   ace/Makefile
+ dnl   apps/Makefile
+-dnl   apps/gperf/Makefile
+-dnl   apps/gperf/src/Makefile
+ dnl   man/Makefile
+ dnl   man/man3/Makefile
+ dnl   netsvcs/Makefile
+@@ -7791,13 +7787,6 @@ AC_CONFIG_FILES([
+   ASNMP/Makefile
+   ASNMP/asnmp/Makefile
+   ASNMP/agent/Makefile
+-  ASNMP/examples/Makefile
+-  ASNMP/examples/get/Makefile
+-  ASNMP/examples/next/Makefile
+-  ASNMP/examples/set/Makefile
+-  ASNMP/examples/trap/Makefile
+-  ASNMP/examples/walk/Makefile
+-  ASNMP/tests/Makefile
+   apps/Makefile
+   apps/Gateway/Makefile
+   apps/Gateway/Gateway/Makefile
+@@ -7810,9 +7799,6 @@ AC_CONFIG_FILES([
+   apps/JAWS3/Makefile
+   apps/JAWS3/jaws3/Makefile
+   apps/drwho/Makefile
+-  apps/gperf/Makefile
+-  apps/gperf/src/Makefile
+-  apps/gperf/tests/Makefile
+   apps/mkcsregdb/Makefile
+   apps/soreduce/Makefile
+   bin/Makefile
+@@ -7830,137 +7816,10 @@ AC_CONFIG_FILES([
+   protocols/ace/HTBP/Makefile
+   protocols/ace/RMCast/Makefile
+   protocols/ace/TMCast/Makefile
+-  protocols/examples/Makefile
+-  protocols/examples/RMCast/Makefile
+-  protocols/examples/RMCast/Send_Msg/Makefile
+   websvcs/Makefile
+   websvcs/lib/Makefile
+-  websvcs/tests/Makefile
+ ])
+ 
+-dnl Configure examples if configured...
+-if test $ace_build_examples = yes; then
+-  AC_CONFIG_FILES([
+-    examples/Makefile
+-    examples/APG/Makefile
+-    examples/APG/Active_Objects/Makefile
+-    examples/APG/Config/Makefile
+-    examples/APG/Containers/Makefile
+-    examples/APG/Logging/Makefile
+-    examples/APG/Misc_IPC/Makefile
+-    examples/APG/Naming/Makefile
+-    examples/APG/Proactor/Makefile
+-    examples/APG/Processes/Makefile
+-    examples/APG/Reactor/Makefile
+-    examples/APG/Shared_Memory/Makefile
+-    examples/APG/Signals/Makefile
+-    examples/APG/Sockets/Makefile
+-    examples/APG/Streams/Makefile
+-    examples/APG/Svc_Config/Makefile
+-    examples/APG/ThreadManagement/Makefile
+-    examples/APG/ThreadPools/Makefile
+-    examples/APG/ThreadSafety/Makefile
+-    examples/APG/Threads/Makefile
+-    examples/APG/Timers/Makefile
+-    examples/ASX/Makefile
+-    examples/ASX/CCM_App/Makefile
+-    examples/ASX/Message_Queue/Makefile
+-    examples/Bounded_Packet_Relay/Makefile
+-    examples/C++NPv1/Makefile
+-    examples/C++NPv2/Makefile
+-    examples/Connection/Makefile
+-    examples/Connection/blocking/Makefile
+-    examples/Connection/misc/Makefile
+-    examples/Connection/non_blocking/Makefile
+-    examples/DLL/Makefile
+-    examples/Export/Makefile
+-    examples/IOStream/Makefile
+-    examples/IOStream/client/Makefile
+-    examples/IOStream/server/Makefile
+-    examples/IPC_SAP/Makefile
+-    examples/IPC_SAP/ATM_SAP/Makefile
+-    examples/IPC_SAP/DEV_SAP/Makefile
+-    examples/IPC_SAP/DEV_SAP/reader/Makefile
+-    examples/IPC_SAP/DEV_SAP/writer/Makefile
+-    examples/IPC_SAP/FIFO_SAP/Makefile
+-    examples/IPC_SAP/FILE_SAP/Makefile
+-    examples/IPC_SAP/SOCK_SAP/Makefile
+-    examples/IPC_SAP/SPIPE_SAP/Makefile
+-    examples/IPC_SAP/SSL_SAP/Makefile
+-    examples/IPC_SAP/TLI_SAP/Makefile
+-    examples/IPC_SAP/UPIPE_SAP/Makefile
+-    examples/Log_Msg/Makefile
+-    examples/Logger/Makefile
+-    examples/Logger/Acceptor-server/Makefile
+-    examples/Logger/client/Makefile
+-    examples/Logger/simple-server/Makefile
+-    examples/Mem_Map/Makefile
+-    examples/Mem_Map/IO-tests/Makefile
+-    examples/Mem_Map/file-reverse/Makefile
+-    examples/Misc/Makefile
+-    examples/NT_Service/Makefile
+-    examples/Naming/Makefile
+-    examples/OS/Makefile
+-    examples/OS/Process/Makefile
+-    examples/QOS/Makefile
+-    examples/QOS/Change_Receiver_FlowSpec/Makefile
+-    examples/QOS/Change_Sender_TSpec/Makefile
+-    examples/QOS/Diffserv/Makefile
+-    examples/QOS/Simple/Makefile
+-    examples/Reactor/Makefile
+-    examples/Reactor/Dgram/Makefile
+-    examples/Reactor/FIFO/Makefile
+-    examples/Reactor/Misc/Makefile
+-    examples/Reactor/Multicast/Makefile
+-    examples/Reactor/Ntalker/Makefile
+-    examples/Reactor/Proactor/Makefile
+-    examples/Reactor/WFMO_Reactor/Makefile
+-    examples/Registry/Makefile
+-    examples/Service_Configurator/Makefile
+-    examples/Service_Configurator/IPC-tests/Makefile
+-    examples/Service_Configurator/IPC-tests/client/Makefile
+-    examples/Service_Configurator/IPC-tests/server/Makefile
+-    examples/Service_Configurator/Misc/Makefile
+-    examples/Shared_Malloc/Makefile
+-    examples/Shared_Memory/Makefile
+-    examples/Smart_Pointers/Makefile
+-    examples/Synch/Makefile
+-    examples/System_V_IPC/Makefile
+-    examples/System_V_IPC/SV_Message_Queues/Makefile
+-    examples/System_V_IPC/SV_Semaphores/Makefile
+-    examples/TMCast/Makefile
+-    examples/TMCast/Member/Makefile
+-    examples/Threads/Makefile
+-    examples/Timer_Queue/Makefile
+-    examples/Web_Crawler/Makefile
+-  ])
+-fi
+-
+-dnl Configure examples if configured...
+-if test $ace_build_tests = yes; then
+-  AC_CONFIG_FILES([
+-    performance-tests/Makefile
+-    performance-tests/Misc/Makefile
+-    performance-tests/SCTP/Makefile
+-    performance-tests/Server_Concurrency/Makefile
+-    performance-tests/Server_Concurrency/Leader_Follower/Makefile
+-    performance-tests/Server_Concurrency/Queue_Based_Workers/Makefile
+-    performance-tests/Synch-Benchmarks/Makefile
+-    performance-tests/Synch-Benchmarks/Synch_Lib/Makefile
+-    performance-tests/Synch-Benchmarks/Base_Test/Makefile
+-    performance-tests/Synch-Benchmarks/Perf_Test/Makefile
+-    performance-tests/TCP/Makefile
+-    performance-tests/UDP/Makefile
+-    tests/Makefile
+-    tests/HTBP/Makefile
+-    tests/HTBP/Reactor_Tests/Makefile
+-    tests/HTBP/Send_Large_Msg/Makefile
+-    tests/HTBP/Send_Recv_Tests/Makefile
+-    tests/HTBP/ping/Makefile
+-    tests/SSL/Makefile
+-  ])
+-fi
+-
+ dnl Configure subdirectories if they are present.
+ if test -d $srcdir/ACEXML; then
+   AC_CONFIG_FILES([
+@@ -7970,19 +7829,12 @@ if test -d $srcdir/ACEXML; then
+     ACEXML/parser/parser/Makefile
+     ACEXML/apps/Makefile
+     ACEXML/apps/svcconf/Makefile
+-    ACEXML/examples/Makefile
+-    ACEXML/examples/SAXPrint/Makefile
+-    ACEXML/tests/Makefile
+   ])
+ fi
+ 
+ if test -d $srcdir/Kokyu; then
+   AC_CONFIG_FILES([
+     Kokyu/Makefile
+-    Kokyu/tests/Makefile
+-    Kokyu/tests/DSRT_MIF/Makefile
+-    Kokyu/tests/EDF/Makefile
+-    Kokyu/tests/FIFO/Makefile
+   ])
+   AC_SUBST([KOKYU],[Kokyu])
+ fi
+Index: ACE_wrappers/bin/Makefile.am
+===================================================================
+--- ACE_wrappers.orig/bin/Makefile.am
++++ ACE_wrappers/bin/Makefile.am
+@@ -29,7 +29,7 @@ envinfo_SOURCES = \
+   envinfo.cpp
+ 
+ envinfo_LDADD = \
+- $(top_builddir)/ace/libACE.la
++ -L$(top_builddir)/ace/ -lACE
+ 
+ ## This doesn't work... needs a way to separate build and source.
+ ##TESTS = auto_run_tests.pl
+Index: ACE_wrappers/Makefile.am
+===================================================================
+--- ACE_wrappers.orig/Makefile.am
++++ ACE_wrappers/Makefile.am
+@@ -22,15 +22,6 @@ SUBDIRS += \
+         netsvcs \
+         protocols 
+ 
+-if BUILD_EXAMPLES
+-SUBDIRS += examples
+-endif
+-
+-if BUILD_TESTS
+-SUBDIRS += performance-tests
+-SUBDIRS += tests
+-endif
+-
+ SUBDIRS += \
+         websvcs \
+ 	@KOKYU@ \

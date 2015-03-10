@@ -1,0 +1,30 @@
+--- busybox-1.2.0/libbb/speed_table.c	2006-03-20 18:07:37.000000000 +1100
++++ busybox-1.2.0/libbb/speed_table.c	2006-04-24 16:31:11.000000000 +1000
+@@ -52,6 +52,27 @@
+ #ifdef B460800
+    {B460800, 460800/256 + 0x8000U},
+ #endif
++#ifdef B100
++   {B100, 100},
++#endif
++#ifdef B7200
++   {B7200, 7200},
++#endif
++#ifdef B14400
++   {B14400, 14400},
++#endif
++#ifdef B28800
++   {B28800, 28800},
++#endif
++#ifdef B76800
++   {B76800, 76800/256 + 0x8000U},
++#endif
++#ifdef B128000
++   {B128000, 128000/256 + 0x8000U},
++#endif
++#ifdef B921600
++   {B921600, 921600/256 + 0x8000U},
++#endif
+ };
+ 
+ enum { NUM_SPEEDS = (sizeof(speeds) / sizeof(struct speed_map)) };

@@ -1,0 +1,11 @@
+#
+# The PAM configuration file for the 's_ldapdownlocal-radius' service
+# 1- if LDAP server is down, uses the local service
+# 2- if (1) is Ok, check OTP against radius service
+#
+auth	requisite	pam_securetty.so
+auth	requisite	pam_unix2.so
+auth	requisite	pam_radius_auth.so radius2factor
+auth    optional    pam_shm.so 
+account	sufficient	pam_unix2.so
+session	sufficient	pam_unix2.so

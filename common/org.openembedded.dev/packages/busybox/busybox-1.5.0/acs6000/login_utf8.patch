@@ -1,0 +1,139 @@
+Index: busybox-1.5.0/loginutils/login.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/login.c
++++ busybox-1.5.0/loginutils/login.c
+@@ -22,6 +22,14 @@ extern struct passwd *bb_int_getpwnam(co
+ #include <gsp-tsapi/gsp_tsapi_port.h>
+ #include <gsp-tsapi/gsp_tsapi_connection.h>
+ 
++#ifdef AVCT_MULTI_CHAR
++#include <locale.h>
++#include <wchar.h>
++#include <wctype.h>
++
++
++#endif
++
+ /* GSP Events */
+ #include <event_def.h>
+ #include <event_connect.h>
+@@ -173,6 +181,8 @@ static void get_username_or_die(char *bu
+ {
+ 	int c, cntdown;
+ 	cntdown = EMPTY_USERNAME_COUNT;
++     char * aux_buf = buf;
++
+ prompt:
+ 	/* skip whitespace */
+ 	print_login_prompt();
+@@ -185,13 +195,34 @@ prompt:
+ 		}
+ 	} while (isspace(c));
+ 
+-	*buf++ = c;
+-	if (!fgets(buf, size_buf-2, stdin))
++syslog(4,"%s: read[%c/%x]",__func__,c,c);
++
++	*aux_buf++ = c;
++	if (!fgets(aux_buf, size_buf-2, stdin))
+ 		exit(1);
+-	if (!strchr(buf, '\n'))
++	if (!strchr(aux_buf, '\n'))
+ 		exit(1);
+-	while (isgraph(*buf)) buf++;
+-	*buf = '\0';
++#ifdef AVCT_MULTI_CHAR
++	{
++		wchar_t *aux_wbuf, *wbuf = (wchar_t *)malloc(size_buf);
++		int len;
++		if ((len = mbstowcs(wbuf,buf,size_buf)) == -1) {
++syslog(4,"%s: read(%d)[%s] error[%m]",__func__,strlen(buf),buf); free(wbuf);
++			exit(1);
++		} 
++syslog(4,"%s: read(%d)[%s] conv(%d)",__func__,strlen(buf),buf,len);
++		aux_wbuf = wbuf;
++		while (iswgraph(*aux_wbuf)) aux_wbuf++;
++
++		*aux_wbuf = L'\0';
++		len = wcstombs(NULL,wbuf,0);
++		*(buf+len) = 0x00;	
++		free(wbuf);
++	}
++#else
++	while (isgraph(*aux_buf)) aux_buf++;
++	*aux_buf = '\0';
++#endif
+ }
+ 
+ static void motd(void)
+@@ -372,7 +403,29 @@ int login_main(int argc, char **argv)
+ 	amroot = (getuid() == 0);
+ 	signal(SIGALRM, alarm_handler);
+ 
++#ifdef AVCT_MULTI_CHAR
++	{
++		FILE * temp;
++		char lang[100];
++
++		system("llconf shell -i /etc/profile get LC_ALL >/tmp/lang.temp");
++		if ( temp = fopen("/tmp/lang.temp","r") ) {
++			if (!fscanf(temp,"%s",lang)) {
++				strcpy(lang,"en_US.UTF-8");
++			}
++			fclose(temp);
++			system("rm -f /tmp/lang.temp");
++		} else {
++			strcpy(lang,"en_US.UTF-8");
++		}
++		setenv("LC_ALL",lang,1); setenv("LANG",lang,1);
++		setlocale(LC_ALL,"");
++	}
++#endif
++
+ 	opt = getopt32(argc, argv, "f:h:pl:s:", &opt_user, &opt_host, &opt_lhost, &opt_target);
++
++
+ 	if (opt & LOGIN_OPT_f) {
+ 		if (!amroot)
+ 			bb_error_msg_and_die("-f is for root only");
+@@ -427,10 +479,13 @@ int login_main(int argc, char **argv)
+ 	}
+ 
+ 	while (tries--) {
+-		alarm(TIMEOUT);
+-		if (!username[0])
++		if (opt_host) alarm(TIMEOUT);
++
++		if (!username[0]) 
+ 			get_username_or_die(username, sizeof(username));
+ 
++		if (!opt_host) alarm(TIMEOUT);
++
+ 		if ((aux = strchr(username, ':'))) {
+ 			*aux++ = 0;
+ 		}
+Index: busybox-1.5.0/loginutils/getty.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/getty.c
++++ busybox-1.5.0/loginutils/getty.c
+@@ -813,6 +813,10 @@ int getty_main(int argc, char **argv)
+ 	/* Parse command-line arguments. */
+ 	parse_args(argc, argv, &options);
+ 
++#ifdef AVCT_MULTI_CHAR
++	options.flags |= F_NOPROMPT; // not ask by username - login will do this
++#endif
++
+ #ifdef SYSV_STYLE
+ #if ENABLE_FEATURE_UTMP
+ 	/* Update the utmp file. */
+@@ -880,6 +884,9 @@ int getty_main(int argc, char **argv)
+ 		while (logname == NULL)
+ 			next_speed(&termios, &options);
+ 	}
++#ifdef ISSUE
++	else print_login_issue(options.issue, options.tty);
++#endif
+ 
+ 	/* Disable timer. */
+ 

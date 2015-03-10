@@ -1,0 +1,153 @@
+#!/bin/sh
+#
+# This program is for checking out and build sandbox image.
+# History:
+#         change -r to -t, add new -r, -u and -f -n, on Aug 7, 2007
+
+
+PROJECT=pmhd
+PUBDL_DIR=/opt/sources
+USRDL_DIR=${DL_DIR:-${HOME}/sources}
+TAGOPT=trunk
+UPDATE=0
+REVISION=0
+FORCE=0
+DRYRUN=0
+REVOPT=""
+SVNCMD="svn co"
+SVNURL="https://fre-svn.corp.avocent.com/svn/avocent-gsp"
+
+function usage () {
+	    echo "Usage:"
+	    echo "    $0 <-h> <-r rev> <-t TAG> <-b branch> <-u> <-f> <-n>"
+	    echo "    -h to print this information"
+	    echo "    -r to do ${PROJECT} based on a revision number"
+	    echo "    -t to do ${PROJECT} based on TAG, default is trunk, may not specified with -b at same time"
+	    echo "    -s to specify an alternate server/project directory to check out from"
+	    echo "    -b to do ${PROJECT} based on branch, default is trunk, may not specified with -t at same time"
+	    echo "    -u to update local working directories, also works with -r specified"
+	    echo "    -f force remove the exist directories before check out"
+	    echo "    -n dry run, only print the commands, not execute them"
+}
+
+# To parse the command line options.
+while getopts "hr:t:b:s:ufn" opt; do
+    case $opt in
+        h)
+	    usage
+	    exit 0
+	    ;;
+	r)
+	    REVISION=${OPTARG}
+	    REVOPT="-r ${OPTARG}"
+	    ;;
+	t)
+	    TAGOPT=tags/${OPTARG}
+	    ;;
+	b)
+	    TAGOPT=branches/${OPTARG}
+	    ;;
+	u)
+	    UPDATE=1
+	    ;;
+        s)
+            SVNURL=${OPTARG}
+            ;;
+	f)
+	    FORCE=1
+	    ;;
+	n)
+	    DRYRUN=1
+	    ;;
+        \?)
+	    usage
+	    exit 0
+	    ;;
+    esac
+done
+
+if [ ! -d ${USRDL_DIR} ]; then
+	mkdir ${USRDL_DIR}
+fi
+
+pushd ${USRDL_DIR} > /dev/null
+for f in `ls ${PUBDL_DIR}`
+do
+	if [ ! -L $f ]; then
+		ln -s ${PUBDL_DIR}/$f $f
+	fi
+done
+popd > /dev/null
+
+# to check out the sources
+if [ ! -d common ]; then
+    mkdir common
+fi
+
+# Final SVN command to be appended with the repository infor.
+SVNFN="$SVNCMD $REVOPT $SVNURL"
+
+function checkDir () {
+        project="$1"
+        workdir="$2"
+
+        if [ -d "$workdir" ]; then
+	    if [ 1 -eq $UPDATE ]; then
+		if [ 1 -eq $DRYRUN ]; then
+		    echo "pushd $workdir"
+		    echo "svn up $REVOPT"
+		    echo "popd"
+		else
+		    pushd $workdir
+		    svn up $REVOPT
+		    popd
+		fi
+	    else
+                echo "$workdir already exists."
+		if [ 1 -eq $FORCE ]; then
+		    r="y"
+		else
+		    echo -n "Do you want to remove it?[y/n]: "
+		    read r
+		fi
+                if [ "$r" = "y" ]; then
+                        echo "remove $workdir "
+			if [ 1 -eq $DRYRUN ]; then
+			    echo "rm -rf $workdir"
+			    echo "${SVNFN}/$project $workdir"
+			else
+			    rm -rf $workdir
+			    ${SVNFN}/$project $workdir
+			fi
+                else
+                        echo "keep $workdir"
+                fi
+	    fi
+        else
+	    if [ 1 -eq $UPDATE ]; then
+		echo "No $workdir, please check out firstly"
+	    else
+	        if [ 1 -eq $DRYRUN ]; then
+		    echo "${SVNFN}/$project $workdir"
+		else
+		    ${SVNFN}/$project $workdir
+		fi
+	    fi
+        fi
+}
+
+pushd common > /dev/null
+checkDir "common/org.openembedded.dev/${TAGOPT}"\
+         "org.openembedded.dev"
+checkDir "common/com.avocent.dev/${TAGOPT}"\
+         "com.avocent.dev"
+popd > /dev/null
+
+checkDir "projects/${PROJECT}/${TAGOPT}" "${PROJECT}"
+checkDir "bitbake/${TAGOPT}/bitbake-1.6.2" "bitbake"
+
+if [ ! -d ../utils ]; then # Autobuild Script Suite organization
+  if [ 1 -eq $UPDATE -o ! -d utils ]; then
+    checkDir "utils/${TAGOPT}" "utils"
+  fi
+fi

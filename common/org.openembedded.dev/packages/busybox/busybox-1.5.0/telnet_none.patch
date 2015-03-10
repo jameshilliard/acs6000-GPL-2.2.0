@@ -1,0 +1,380 @@
+Index: busybox-1.5.0/loginutils/login.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/login.c
++++ busybox-1.5.0/loginutils/login.c
+@@ -44,6 +44,10 @@ enum {
+ static char full_tty[TTYNAME_SIZE];
+ static char* short_tty = full_tty;
+ 
++//to allow marking connection 'in use' while handling pools
++static struct sid_data gsdata;
++static struct sid_data *gsdatap;
++
+ #if ENABLE_FEATURE_UTMP
+ /* vv  Taken from tinylogin utmp.c  vv */
+ /*
+@@ -254,55 +258,106 @@ static void alarm_handler(int sig ATTRIB
+ 	exit(EXIT_SUCCESS);
+ }
+ 
+-static char *get_ttyname_from_ip(const char *lhost);
+ static char *get_ttyname_from_ip(const char *lhost)
+ {
+-	struct sid_data sdata;
+ 	gsp_tsapi_session_t *ts = NULL;
+ 	int ret;
+ 	char *serial_tty = NULL;
+ 	const char *args[2] = {NULL,NULL};
++	char *conn_id_str = NULL;
++	int conn_id = 0;
+ 
+-	ret = gsp_auth_session_create(&sdata);
+-	if (ret == ERROR) return(serial_tty);
++	if (!gsdatap) {
++		ret = gsp_auth_session_create(&gsdata);
++		if (ret == ERROR) {
++			gsdatap = NULL;
++			return NULL;
++		} else {
++			gsdatap = &gsdata;
++		}
++	}
+ 
+-	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
+-	if (ret != TS_OK) goto cleanup2;
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, gsdatap);
++	if (ret != TS_OK) goto cleanup;
+ 
+ 	/* Get the ttyname if there an ip associate with it */
+     args[0] = lhost;
+-	ret = gsp_tsapi_info_port_serial_portipadd(ts, &serial_tty, args);
+-	if (ret != TS_OK) {
++	ret = gsp_tsapi_info_port_serial_portorpoolipadd(ts, &serial_tty, args);
++	if (ret != TS_OK || serial_tty == NULL || *serial_tty == 0) {
++		if (serial_tty) free(serial_tty);
+ 		serial_tty = NULL;
++	} else {
++		ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &conn_id_str, &serial_tty[4]);
++		if (ret == TS_OK && conn_id_str != NULL && *conn_id_str != 0)
++			conn_id = atoi(conn_id_str);
++	}
++
++	gsp_tsapi_destroy(ts);
++
++ cleanup:
++	if (serial_tty == NULL ||
++		conn_id == 0 ||
++		gsp_auth_session_set_idle_to(gsdatap, 60) ||
++		gsp_auth_session_set_target_id(gsdatap, conn_id)) {
++
++		gsp_auth_session_destroy(gsdatap);
++		gsdatap = NULL;
++	}
++
++	if (conn_id_str) free(conn_id_str);
++
++	return(serial_tty);
++}
++
++static void treat_auth_none(const char *target, char * username)
++{
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	int ret;
++	char *tty_id = target + 4; // ttyS
++	char *tid_str = NULL;
++	char *authtype = NULL;
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) return;
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) goto cleanup2;
++
++	/* We have a TTY; get the target ID */
++	ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &tid_str, tty_id);
++	if (ret != TS_OK || tid_str == NULL || *tid_str == 0) {
+ 		goto cleanup;
+ 	}
+-	if (serial_tty && !*serial_tty) {
+-		serial_tty = NULL;
++
++	/* Get the authentication type from the target ID */
++	ret = gsp_tsapi_get_connection_serial_id_star0_authentication(ts, &authtype, tid_str);
++	if (ret == TS_OK && authtype && *authtype) {
++		if (!strcmp(authtype,"none")) {
++			strcpy(username,"NONE");
++			free(authtype);
++		}
+ 	}
+ 
+  cleanup:
++	if(tid_str) free(tid_str);
+ 	gsp_tsapi_destroy(ts);
+  cleanup2:
+ 	gsp_auth_session_destroy(&sdata);
+-
+-	return(serial_tty);
+ }
+ 
+-static char *gsp_auth_util_get_authtype_target(char *target,int *serial_port_number);
+-static char *gsp_auth_util_get_authtype_target(char *target,int *serial_port_number)
++static char *gsp_auth_util_get_authtype_target(char *target)
+ {
+ 	struct sid_data sdata;
+ 	gsp_tsapi_session_t *ts = NULL;
+ 	int ret;
+ 	char *authtype = NULL;
+-	char *tid_str = NULL;
+-	const char *TTY_STR = "tty";
+-	int len_target = strlen(target);
++	char *conn_id_str = NULL;
+ 	int signon_flag;
+-	char *serial_port = NULL;
++	char *tty_id = target + 4; // ttyS
+ 
+ 	ret = gsp_auth_session_create(&sdata);
+-	if (ret == ERROR) return(authtype);
++	if (ret == ERROR) return authtype;
+ 
+ 	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
+ 	if (ret != TS_OK) goto cleanup2;
+@@ -324,50 +379,88 @@ static char *gsp_auth_util_get_authtype_
+ 		}
+ 	}
+ 
+-	// No single sign-on get authentication based on target name
+-	// Firstly try target-id as an alias  
+-	ret = gsp_tsapi_get_connection_serial_name_star0_id(ts, &tid_str, target);
+-
+-	if (ret != TS_OK || tid_str == NULL || *tid_str == 0) {
+-		/* Discover whether a "tty" has been specified */
+-		if (!strncmp(target, TTY_STR, strlen(TTY_STR)) && len_target > (strlen(TTY_STR) + 1)) {
+-			/* We add one to make sure that we have at least ttyS,
+-		 	* ttyP, etc.  We add two to point to the place after the
+-		 	* ttyS, ttyP, etc. */
+-			char *tty_id = target + strlen(TTY_STR) + 1;
+-			int i = + strlen(TTY_STR) + 1;
+-
+-			// make sure we have just numbers after ttyx.
+-			for ( ; i < len_target; i++) {
+-				if (!isdigit(target[i])) {
+-					goto  cleanup;
+-				}
+-			}
+-			
+-			/* We have a TTY; get the target ID */
+-			ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &tid_str, tty_id);
+-			if (ret != TS_OK || tid_str == NULL || *tid_str == 0) {
+-				goto cleanup;
+-			}
+-		} else {
+-			goto cleanup;
++	// No single sign-on; get authentication based on target
++	// Firstly try getting connection ID using target as an alias  
++	ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &conn_id_str, tty_id);
++
++	if (ret != TS_OK || conn_id_str == NULL || *conn_id_str == 0) {
++		if (conn_id_str) {
++			free(conn_id_str);
++			conn_id_str = NULL;
+ 		}
++		goto cleanup;
+ 	}
+ 
+ 	/* Get the authentication type from the target ID */
+-	ret = gsp_tsapi_get_connection_serial_id_star0_authentication(ts, &authtype, tid_str);
+-
+-    /* Get the serial port number */
+-    ret = gsp_tsapi_get_connection_serial_id_star0_port(ts, &serial_port,tid_str);
+-	*serial_port_number = atoi(serial_port);
+-	free(serial_port);
++	ret = gsp_tsapi_get_connection_serial_id_star0_authentication(ts, &authtype, conn_id_str);
++	if (ret != TS_OK || (authtype != NULL && *authtype == 0)) {
++		if (authtype) free(authtype);
++		authtype = NULL;
++		goto cleanup;
++	}
+ 
+  cleanup:
++	if (conn_id_str) free(conn_id_str);
+ 	gsp_tsapi_destroy(ts);
+  cleanup2:
+ 	gsp_auth_session_destroy(&sdata);
+ 
+-	return(authtype);
++	return authtype;
++}
++
++static char *try_devname_from_poolname(char *poolname)
++{
++	gsp_tsapi_session_t *ts = NULL;
++	int ret;
++	char *serial_port = NULL;
++	int port_number = 0;
++	const char *args[2] = {NULL,NULL};
++	char *devname = NULL;
++	int conn_id = 0;
++	char *conn_id_str = NULL;
++
++	if (!gsdatap) {
++		ret = gsp_auth_session_create(&gsdata);
++		if (ret == ERROR) {
++			gsdatap = NULL;
++			return NULL;
++		} else {
++			gsdatap = &gsdata;
++		}
++	}
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, gsdatap);
++	if (ret != TS_OK) goto cleanup;
++
++	args[0] = poolname;
++	ret = gsp_tsapi_info_port_serial_aliasgetport(ts, &serial_port, args);
++	if (ret == TS_OK && serial_port != NULL && *serial_port != 0) {
++		port_number = atoi(serial_port);
++
++		devname = calloc(1,10);
++		sprintf(devname, "ttyS%d", port_number);
++
++		ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &conn_id_str, serial_port);
++		if (ret == TS_OK && conn_id_str != NULL && *conn_id_str != 0)
++			conn_id = atoi(conn_id_str);
++	}
++
++	if (serial_port) free(serial_port);
++	if (conn_id_str) free(conn_id_str);
++
++	gsp_tsapi_destroy(ts);
++
++ cleanup:
++	if (port_number == 0 ||
++		conn_id == 0 ||
++		gsp_auth_session_set_idle_to(gsdatap, 60) ||
++		gsp_auth_session_set_target_id(gsdatap, conn_id)) {
++
++		gsp_auth_session_destroy(gsdatap);
++		gsdatap = NULL;
++	}
++
++	return devname;
+ }
+ 
+ int login_main(int argc, char **argv);
+@@ -386,7 +479,7 @@ int login_main(int argc, char **argv)
+ 	int amroot;
+ 	unsigned opt;
+ 	int count = 0;
+-	struct passwd *pw;
++	struct passwd *pw = NULL;
+ 	char *opt_host = NULL;
+ 	char *opt_lhost = NULL;
+ 	char *opt_target = NULL;
+@@ -395,7 +488,7 @@ int login_main(int argc, char **argv)
+ 	pam_handle_t *pamh = NULL; /* GSP AAA [EL] */
+ 	struct sid_data sdata;
+ 	int ret, flags=0, tries=3;
+-	char *aux, *target, *ccname, *login_service;
++	char *aux, *target=NULL, *ccname, *login_service;
+ 	int port_number = 0;
+ 	int targetInfo = 0;
+ 
+@@ -409,7 +502,7 @@ int login_main(int argc, char **argv)
+ 		char lang[100];
+ 
+ 		system("llconf shell -i /etc/profile get LC_ALL >/tmp/lang.temp");
+-		if ( temp = fopen("/tmp/lang.temp","r") ) {
++		if ((temp = fopen("/tmp/lang.temp","r"))) {
+ 			if (!fscanf(temp,"%s",lang)) {
+ 				strcpy(lang,"en_US.UTF-8");
+ 			}
+@@ -452,6 +545,8 @@ int login_main(int argc, char **argv)
+ 	read_or_build_utent(!amroot);
+ 
+ 	if (opt_host) {
++		/* remote access - give time to send msg - error_msg_and_die */
++	    die_sleep = 2;
+ 		USE_FEATURE_UTMP(
+ 			safe_strncpy(utent.ut_host, opt_host, sizeof(utent.ut_host));
+ 		)
+@@ -466,18 +561,34 @@ int login_main(int argc, char **argv)
+ 	openlog(applet_name, LOG_PID | LOG_CONS | LOG_NOWAIT, LOG_AUTH);
+ 
+ 	if (opt & LOGIN_OPT_s) {
+-		if (!strncmp("ttyS", opt_target, 4)) {
+-			target = opt_target;
++		if ((target = try_devname_from_poolname(opt_target))) {
++			if (!strcmp(target,"ttyS0")) {
++				bb_error_msg_and_die("Can not run telnetd for terminal of this pool");
++			}
+ 			targetInfo = 1;
++		} else {
++		//[RK- 59082] 		bb_error_msg_and_die("Can not run telnetd for this terminal");
++			exit(1);
+ 		}
+ 	}
+ 
+ 	if ((targetInfo == 0) && (opt & LOGIN_OPT_l)) {
+ 		target = get_ttyname_from_ip(opt_lhost);
+-		if (target) {
+-			targetInfo = 1;
++	    if (target && *target) {
++			if (strcmp(target,"full")) {
++				targetInfo = 1;
++			} else {
++				bb_error_msg_and_die("Can not run telnetd for terminal of this pool");
++			}
+ 		}
+ 	}
++	
++	if (targetInfo && !username[0]) {
++		treat_auth_none(target,username);
++	}
++	if (targetInfo) {
++		port_number = atoi(&target[4]);
++	}
+ 
+ 	while (tries--) {
+ 		if (opt_host) alarm(TIMEOUT);
+@@ -495,7 +606,16 @@ int login_main(int argc, char **argv)
+ 			if (targetInfo) {
+ 				fputs("Alias or tty will be ignored\r\n", stdout);
+ 			} else {
+-				target = aux;
++				if ((target = try_devname_from_poolname(aux))) {
++					if (!strcmp(target,"ttyS0")) {
++						bb_error_msg_and_die("Can not run telnetd for terminal of this pool");
++					}
++					targetInfo = 1;
++					port_number = atoi(&target[4]);
++		 		} else {
++		//[RK- 59082] 		bb_error_msg_and_die("Can not run telnetd for this terminal");
++					exit(1);
++				}
+ 			}
+ 		} else {
+ 			if (!targetInfo) target = NULL;
+@@ -562,7 +682,7 @@ login_opt_f:
+ 		login_service = NULL;
+ 
+ 		if (target && *target) {
+-			login_service = gsp_auth_util_get_authtype_target(target,&port_number);
++			login_service = gsp_auth_util_get_authtype_target(target);
+ 		}
+ 		if (login_service == NULL) {
+ 			login_service = "login";
+@@ -574,6 +694,13 @@ login_opt_f:
+ 			syslog(LOG_DEBUG, "login using authtype '%s' for user '%s'", login_service, username);
+ 		}
+ 		ret = gsp_auth_pam_authenticate_username(username, login_service, full_tty, NULL, &pamh, &sdata);
++
++		//authentication is done, remove intermediate session
++		if (gsdatap) {
++			gsp_auth_session_destroy(gsdatap);
++			gsdatap = NULL;
++		}
++
+ 		if (ret != PAM_SUCCESS) {
+ 			goto auth_failed;
+ 		}

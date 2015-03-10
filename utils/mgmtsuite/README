@@ -1,0 +1,14 @@
+MGMTSUITE
+
+        MGMTSUITE is a project management tool of SVN.
+        MGMTSUITE can  do tag and branche.
+        
+Usage: 
+    # python dotagbranche.py
+
+Requires :
+    python-2.5
+    wxPython2.8 for py25
+    svn
+    
+    windows  package url: http://sha-scm.corp.avocent.com/download/

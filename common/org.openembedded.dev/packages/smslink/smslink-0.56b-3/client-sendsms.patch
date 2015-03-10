@@ -1,0 +1,95 @@
+--- smslink-0.56b-3.orig/client/sendsms.c	2006-04-04 11:44:27.000000000 -0700
++++ smslink-0.56b-3/client/sendsms.c	2007-12-04 14:04:08.000000000 -0800
+@@ -891,7 +891,15 @@
+ 
+   /*---------------------------Start real processing loop */
+   /* first resolve server name */
+-  server_ip.s_addr = resolve (host_or_ip);
++//  server_ip.s_addr = resolve (host_or_ip);
++    struct addrinfo hints, *res;
++    int errcode;
++    char *host = host_or_ip;
++    char sms_portstring[33];
++    memset (&hints, 0, sizeof (hints));
++    hints.ai_family = AF_UNSPEC;
++    hints.ai_socktype = SOCK_STREAM;
++    hints.ai_flags |= AI_ADDRCONFIG;
+   
+   /* load message from file if required */
+   if (strlen (msgfile) > 0) {
+@@ -905,8 +913,12 @@
+     /* not provided on command-line -- get it from system */
+     if ((sent = getservbyname ("sms", "tcp")) == NULL) {
+       /* not defined in /etc/services, use compiled-in default */
+-      sent = &ssent;
+-      sent->s_port = htons (DEFSMSPORT);
++//      sent = &ssent;
++//      sent->s_port = htons (DEFSMSPORT);
++	hints.ai_flags |= AI_NUMERICSERV;
++        sprintf(sms_portstring,"%d",DEFSMSPORT);
++        errcode = getaddrinfo (host, sms_portstring, &hints, &res);
++
+       if (debug) {
+ 	fprintf (stderr, "using compiled-in default port <%d> to connect to server\n",
+ 	DEFSMSPORT);
+@@ -914,6 +926,7 @@
+     }
+     else {
+       /* ok, found */
++      errcode = getaddrinfo (host, "sms", &hints, &res);
+       if (debug) {
+ 	fprintf (stderr, "found port <%d> for service sms\n", ntohs (sent->s_port));
+       }
+@@ -921,27 +934,41 @@
+   }
+   else {
+     /* store provided value in struct servent after conversion */
+-    sent = &ssent;
+-    sent->s_port = htons (destport);
++    //sent = &ssent;
++    //sent->s_port = htons (destport);
++    hints.ai_flags |= AI_NUMERICSERV;
++    sprintf(sms_portstring,"%d",destport);
++    errcode = getaddrinfo (host, sms_portstring, &hints, &res);
++
+     if (debug) {
+       fprintf (stderr, "using provided destport <%d> to connect to server\n",
+               destport);
+     }
+   }                                 /* if (destport == 0) */
+-  
++  if (errcode != 0){
++            fprintf(stderr, "%s: gave error %s \n",host, gai_strerror(errcode));
++            exit(1);
++        }
++
+   /* create the socket */
+-  if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+-    syserr ("sendsms: can't create socket");
++//  if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
++    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
++    if (sockfd < 0){
++    	syserr ("sendsms: failed to create socket");
++    }
+   
+   /* build the server socket address parameters */
+-  sockaddr.sin_family = AF_INET;
+-  sockaddr.sin_port = sent->s_port;
+-  sockaddr.sin_addr.s_addr = server_ip.s_addr;
+-  addrlen = sizeof (sockaddr);
++//  sockaddr.sin_family = AF_INET;
++//  sockaddr.sin_port = sent->s_port;
++//  sockaddr.sin_addr.s_addr = server_ip.s_addr;
++//  addrlen = sizeof (sockaddr);
+   
+   /* now connect to the server */
+-  if (connect (sockfd, (struct sockaddr *)&sockaddr, addrlen) == -1)
+-    syserr ("sendsms: can't connect to server");
++//  if (connect (sockfd, (struct sockaddr *)&sockaddr, addrlen) == -1)
++    if(connect(sockfd, res->ai_addr, res->ai_addrlen) < 0 ){
++                close(sockfd);
++                syserr ("sendsms: failed connect to server");
++        }
+     
+   /*......................................Start of dialog */
+   while (TRUE) {                            /* dummy loop */

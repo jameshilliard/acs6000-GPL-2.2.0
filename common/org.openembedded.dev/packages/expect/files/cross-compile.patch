@@ -1,0 +1,619 @@
+Index: expect-5.43/configure.in
+===================================================================
+--- expect-5.43.orig/configure.in
++++ expect-5.43/configure.in
+@@ -42,7 +42,7 @@ else
+   AC_MSG_RESULT(no)
+ fi
+ if test $found = "no" -a "$newest" != "$srcdir/configure" ; then
+-  AC_MSG_WARN([$srcdir/configure appears to be old ($srcdir/configure.in and/or $srcdir/Makefile.in are newer) and the autoconf program to fix this situation was not found.  If you've no idea what this means, enter the command \"touch $srcdir/configure\" and restart $srcdir/configure.])
++  AC_MSG_WARN([$srcdir/configure appears to be old ($srcdir/configure.in and/or $srcdir/Makefile.in are newer) and the autoconf program to fix this situation was not found.  If you've no idea what this means, enter the command \'touch $srcdir/configure\' and restart $srcdir/configure.])
+   exit
+ fi
+ 
+@@ -104,6 +104,15 @@ CY_AC_PATH_TCLCONFIG
+ CY_AC_LOAD_TCLCONFIG
+ CC=$TCL_CC
+ EXP_AND_TCL_LIBS=$TCL_LIBS
++
++# only look for Tk stuff if we have X11 and user doesn't say not to
++AC_ARG_WITH(x, [  --with-x               whether or not to use X (default yes)], , with_x=yes)
++if test "$with_x" = "no"; then
++   no_tk=true
++else
++   CY_AC_PATH_TKH
++fi
++
+ CY_AC_PATH_TKCONFIG
+ CY_AC_LOAD_TKCONFIG
+ EXP_AND_TK_LIBS=$TK_LIBS
+@@ -119,7 +128,7 @@ AC_PROG_RANLIB
+ UNSHARED_RANLIB=$RANLIB
+ 
+ # these are the other subdirectories we need to configure
+-AC_CONFIG_SUBDIRS(testsuite)
++#AC_CONFIG_SUBDIRS(testsuite)
+ 
+ # This is for LynxOS, which needs a flag to force true POSIX when
+ # building.  The flag varies depending how old the compiler is.
+@@ -127,7 +136,7 @@ AC_CONFIG_SUBDIRS(testsuite)
+ # -mposix is for the new gcc (at least 2.5.8)
+ # This modifies the value of $CC to have the POSIX flag added
+ # so it'll configure correctly
+-CY_AC_TCL_LYNX_POSIX
++#CY_AC_TCL_LYNX_POSIX
+ 
+ AC_TYPE_PID_T
+ AC_RETSIGTYPE
+@@ -207,8 +216,8 @@ if test -r /usr/local/bin/stty ; then
+ else
+   STTY_BIN=/bin/stty
+ fi
+-AC_MSG_RESULT($STTY_BIN)
+-AC_DEFINE(STTY_BIN)
++AC_MSG_RESULT(["$STTY_BIN"])
++AC_DEFINE_UNQUOTED(STTY_BIN, ["$STTY_BIN"], [define STTY_BIN])
+ 
+ AC_MSG_CHECKING([if stty reads stdout])
+ 
+@@ -255,7 +264,7 @@ fi
+ 
+ if test ${stty_reads_stdout} -eq 1 ; then
+   AC_MSG_RESULT(yes)
+-  AC_DEFINE(STTY_READS_STDOUT)
++  AC_DEFINE(STTY_READS_STDOUT, 1, [STTY READS_STDOUT])
+ else
+   AC_MSG_RESULT(no)
+ fi
+@@ -270,7 +279,7 @@ esac
+ 
+ if test $solaris -eq 1 ; then
+   AC_MSG_RESULT(yes)
+-  AC_DEFINE(SOLARIS)
++  AC_DEFINE(SOLARIS, 1, [Define to 1 if running Solaris])
+ else
+   AC_MSG_RESULT(no)
+ fi
+@@ -507,7 +516,7 @@ if test $openpty -eq 0 ; then
+ 	# we only need to define OPENPTY once, but since we are overriding
+ 	# the default behavior, we must also handle augment LIBS too.
+ 	# This needn't be done in the 2nd and 3rd tests.
+-	AC_DEFINE(HAVE_OPENPTY)
++	AC_DEFINE(HAVE_OPENPTY, 1, [Define to 1 if have openpty])
+ 	LIBS="$LIBS -lutil"
+   ])
+ fi
+@@ -519,7 +528,7 @@ AC_CHECK_FUNC(openpty, openpty=1 , openp
+ if test $openpty -eq 0 ; then
+   unset ac_cv_lib_util_openpty
+   AC_CHECK_LIB(util, openpty, [
+-	AC_DEFINE(HAVE_OPENPTY)
++	AC_DEFINE(HAVE_OPENPTY, 1, [Define to 1 if have openpty])
+ 	LIBS="$LIBS -lutil"
+   ])
+ fi
+@@ -531,7 +540,7 @@ AC_CHECK_FUNC(openpty, openpty=1 , openp
+ if test $openpty -eq 0 ; then
+   unset ac_cv_lib_util_openpty
+   AC_CHECK_LIB(util, openpty, [
+-	AC_DEFINE(HAVE_OPENPTY)
++	AC_DEFINE(HAVE_OPENPTY, 1, [Define to 1 if have openpty])
+ 	LIBS="$LIBS -lutil"
+   ])
+ fi
+@@ -560,26 +569,28 @@ fi
+ #
+ # Look for various header files
+ #
+-AC_CHECK_HEADER(sys/sysmacros.h, AC_DEFINE(HAVE_SYSMACROS_H))
+-AC_CHECK_HEADER(stdlib.h, ,AC_DEFINE(NO_STDLIB_H))
+-AC_CHECK_HEADER(inttypes.h, AC_DEFINE(HAVE_INTTYPES_H))
++AC_CHECK_HEADERS(sys/sysmacros.h)
++AC_CHECK_HEADERS(stdlib.h, ,AC_DEFINE(NOSTDLIB_H, 1, [Define to 1 if no stdlib.h]))
++AC_CHECK_HEADERS(inttypes.h)
++#AC_CHECK_HEADER(sys/sysmacros.h, AC_DEFINE(HAVE_SYSMACROS_H))
++#AC_CHECK_HEADER(stdlib.h, ,AC_DEFINE(NO_STDLIB_H))
++#AC_CHECK_HEADER(inttypes.h, AC_DEFINE(HAVE_INTTYPES_H))
+ 
+ # Oddly, some systems have stdarg but don't support prototypes
+ # Tcl avoids the whole issue by not using stdarg on UNIX at all!
+ dnl AC_CHECK_HEADER(stdarg.h, AC_DEFINE(HAVE_STDARG_H))
+ 
+-AC_CHECK_HEADER(varargs.h, AC_DEFINE(HAVE_VARARGS_H))
+-AC_CHECK_HEADER(unistd.h, AC_DEFINE(HAVE_UNISTD_H))
++AC_CHECK_HEADERS([varargs.h unistd.h])
+ # If no stropts.h, then the svr4 implementation is broken.
+ # At least it is on my Debian "potato" system. - Rob Savoye
+-AC_CHECK_HEADER(sys/stropts.h, AC_DEFINE(HAVE_STROPTS_H), svr4_ptys_broken=1)
+-AC_CHECK_HEADER(sys/sysconfig.h, AC_DEFINE(HAVE_SYSCONF_H))
+-AC_CHECK_HEADER(sys/fcntl.h, AC_DEFINE(HAVE_SYS_FCNTL_H))
+-AC_CHECK_HEADER(sys/select.h, AC_DEFINE(HAVE_SYS_SELECT_H))
+-AC_CHECK_HEADER(sys/time.h, AC_DEFINE(HAVE_SYS_TIME_H))
+-AC_CHECK_HEADER(sys/ptem.h, AC_DEFINE(HAVE_SYS_PTEM_H))
+-AC_CHECK_HEADER(sys/strredir.h, AC_DEFINE(HAVE_STRREDIR_H))
+-AC_CHECK_HEADER(sys/strpty.h, AC_DEFINE(HAVE_STRPTY_H))
++AC_CHECK_HEADERS(sys/stropts.h, , svr4_ptys_broken=1)
++AC_CHECK_HEADERS(sys/sysconfig.h)
++AC_CHECK_HEADERS(sys/fcntl.h)
++AC_CHECK_HEADERS(sys/select.h)
++AC_CHECK_HEADERS(sys/time.h)
++AC_CHECK_HEADERS(sys/ptem.h)
++AC_CHECK_HEADERS(sys/strredir.h)
++AC_CHECK_HEADERS(sys/strpty.h)
+ 
+ dnl #echo checking for ucbinclude/sys/ioctl.h (ucb-style ioctl.h under SV)
+ dnl #if test -f /usr/ucbinclude/sys/ioctl.h ; then
+@@ -590,7 +601,7 @@ AC_MSG_CHECKING([for sys/bsdtypes.h])
+ if test "ISC_${ISC}" = "ISC_1"   ;    then
+    AC_MSG_RESULT(yes)
+    # if on ISC 1, we need <sys/bsdtypes.h> to get FD_SET macros
+-   AC_HAVE_HEADERS(sys/bsdtypes.h)
++   AC_CHECK_HEADERS(sys/bsdtypes.h)
+ else
+    AC_MSG_RESULT(no)
+ fi
+@@ -598,13 +609,7 @@ fi
+ #
+ # Look for functions that may be missing
+ #
+-dnl AC_CHECK_FUNC(memcpy, AC_DEFINE(HAVE_MEMCPY))
+-AC_CHECK_FUNC(memmove, AC_DEFINE(HAVE_MEMMOVE))
+-AC_CHECK_FUNC(sysconf, AC_DEFINE(HAVE_SYSCONF))
+-AC_CHECK_FUNC(strftime, AC_DEFINE(HAVE_STRFTIME))
+-AC_CHECK_FUNC(strchr, AC_DEFINE(HAVE_STRCHR))
+-AC_CHECK_FUNC(timezone, AC_DEFINE(HAVE_TIMEZONE))
+-AC_CHECK_FUNC(siglongjmp, AC_DEFINE(HAVE_SIGLONGJMP))
++AC_CHECK_FUNCS([memmove sysconf strftime strchr timezone siglongjmp])
+ 
+ # dnl check for memcpy by hand
+ # because Unixware 2.0 handles it specially and refuses to compile
+@@ -615,7 +620,7 @@ char *s1, *s2;
+ memcpy(s1,s2,0);
+ ],
+ 	AC_MSG_RESULT(yes)
+-	AC_DEFINE(HAVE_MEMCPY)
++	AC_DEFINE(HAVE_MEMCPY, 1, [Define to 1 if have memcpy])
+ 	,
+ 	AC_MSG_RESULT(no)
+ )
+@@ -625,47 +630,53 @@ memcpy(s1,s2,0);
+ # and if so that WNOHANG is not defined.  The only place I've
+ # seen this is ISC.
+ AC_MSG_CHECKING([if WNOHANG requires _POSIX_SOURCE])
+-AC_TRY_RUN([
+-#include <sys/wait.h>
+-main() {
++AC_TRY_COMPILE([ #include <sys/wait.h> ],
++[
+ #ifndef WNOHANG
+ 	return 0;
+ #else
+-	return 1;
++#error "WNOHANG defined"
++return 1;
+ #endif
+-}],
+-	AC_MSG_RESULT(yes)
+-	AC_DEFINE(WNOHANG_REQUIRES_POSIX_SOURCE)
+-,
+-	AC_MSG_RESULT(no)
++],
++[	AC_MSG_RESULT(yes)
++	AC_DEFINE(WNOHANG_REQUIRES_POSIX_SOURCE, 1, [Define to 1 if WNOHANG requires _POSIX_SOURCE]) ]
+ ,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++[	AC_MSG_RESULT(no) ]
+ )
+ 
+ AC_MSG_CHECKING([if any value exists for WNOHANG])
+ rm -rf wnohang
+-AC_TRY_RUN([
+-#include <stdio.h>
+-#include <sys/wait.h>
+-main() {
+-#ifdef WNOHANG
+-	FILE *fp = fopen("wnohang","w");
+-	fprintf(fp,"%d",WNOHANG);
+-	fclose(fp);
+-	return 0;
+-#else
+-	return 1;
+-#endif
+-}],
+-	AC_MSG_RESULT(yes)
+-	AC_DEFINE_UNQUOTED(WNOHANG_BACKUP_VALUE, `cat wnohang`)
+-	rm -f wnohang
+-,
+-	AC_MSG_RESULT(no)
+-	AC_DEFINE(WNOHANG_BACKUP_VALUE, 1)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++AC_CACHE_VAL(expect_cv_long_wnohang,
++    [ AC_TRY_RUN([
++    #include <stdio.h>
++    #include <sys/wait.h>
++    main() {
++    #ifdef WNOHANG
++        FILE *fp = fopen("wnohang","w");
++        fprintf(fp,"%d",WNOHANG);
++        fclose(fp);
++        return 0;
++    #else
++        return 1;
++    #endif
++    }],
++    [    AC_MSG_RESULT(yes)
++        expect_cv_long_wnohang=`cat wnohang`
++        rm -f wnohang
++    ]
++    ,
++    [
++        AC_MSG_RESULT(no)
++        expect_cv_long_wnohang=1
++    ]
++    ,
++        AC_MSG_ERROR([Expect can't be cross compiled])
++    )
++    ]
+ )
++#WNOHANG_BACKUP_VALUE=$expect_cv_long_wnohang
++AC_DEFINE_UNQUOTED(WNOHANG_BACKUP_VALUE, $expect_cv_long_wnohang, [WNOHANG_BACKUP_VALUE])
+ 
+ #-----Stolen from Tcl's configure file-------------------------------
+ #	The check below checks whether <sys/wait.h> defines the type
+@@ -676,15 +687,18 @@ main() {
+ #--------------------------------------------------------------------
+ 
+ AC_MSG_CHECKING([union wait])
+-AC_TRY_LINK([#include <sys/types.h> 
+-#include <sys/wait.h>], [
++AC_TRY_LINK([
++#include <sys/types.h>
++#include <sys/wait.h>
++],
++[
+ union wait x;
+ WIFEXITED(x);		/* Generates compiler error if WIFEXITED
+ 			 * uses an int. */
+ ], tcl_ok=yes, tcl_ok=no)
+ AC_MSG_RESULT($tcl_ok)
+ if test $tcl_ok = no; then
+-    AC_DEFINE(NO_UNION_WAIT)
++    AC_DEFINE(NO_UNION_WAIT, 1, [Define to 1 if no union wait])
+ fi
+ 
+ 
+@@ -701,7 +715,7 @@ fi
+ AC_MSG_CHECKING([mask type of select])
+ if egrep "select\(size_t, int" /usr/include/sys/time.h >/dev/null 2>&1; then
+   AC_MSG_RESULT(int)
+-  AC_DEFINE(SELECT_MASK_TYPE, int)
++  AC_DEFINE(SELECT_MASK_TYPE, int, [mask type of select])
+ else
+   AC_MSG_RESULT(none)
+ fi
+@@ -750,7 +764,7 @@ main()
+ 	}
+ }],
+ 	AC_MSG_RESULT(yes)
+-	AC_DEFINE(REARM_SIG)
++	AC_DEFINE(REARM_SIG, 1, [Define to 1 if signal need to re-armed] )
+ ,
+ 	AC_MSG_RESULT(no)
+ , AC_MSG_WARN([Expect can't be cross compiled])
+@@ -775,7 +789,7 @@ esac
+ 
+ if test $convex -eq 1 ; then
+   AC_MSG_RESULT(yes)
+-  AC_DEFINE(CONVEX)
++  AC_DEFINE(CONVEX, 1, [Define CONVEX])
+ else
+   AC_MSG_RESULT(no)
+ fi
+@@ -823,7 +837,7 @@ AC_MSG_CHECKING([for HP style pty alloca
+ # but that's ok, since they don't have PTYMs anyway
+ if test -r /dev/ptym/ptyp0 2>/dev/null ; then
+     AC_MSG_RESULT(yes)
+-    AC_DEFINE(HAVE_PTYM)
++    AC_DEFINE(HAVE_PTYM, 1, [for HP style pty allocation])
+ else
+     AC_MSG_RESULT(no)
+ fi
+@@ -831,7 +845,7 @@ fi
+ AC_MSG_CHECKING([for HP style pty trapping])
+ AC_HEADER_EGREP([struct.*request_info], sys/ptyio.h,
+ 	AC_MSG_RESULT(yes)
+-	AC_DEFINE(HAVE_PTYTRAP)
++	AC_DEFINE(HAVE_PTYTRAP, 1, [ Define to 1 for HP style pty trapping])
+ ,
+ 	AC_MSG_RESULT(no)
+ )
+@@ -839,7 +853,7 @@ AC_HEADER_EGREP([struct.*request_info], 
+ AC_MSG_CHECKING([for AIX new-style pty allocation])
+ if test -r /dev/ptc -a -r /dev/pts ; then
+     AC_MSG_RESULT(yes)
+-    AC_DEFINE(HAVE_PTC_PTS)
++    AC_DEFINE(HAVE_PTC_PTS, 1, [Define to 1 if have /dev/ptc and /dev/pts])
+ else
+     AC_MSG_RESULT(no)
+ fi
+@@ -847,7 +861,7 @@ fi
+ AC_MSG_CHECKING([for SGI old-style pty allocation])
+ if test -r /dev/ptc -a ! -r /dev/pts ; then
+     AC_MSG_RESULT(yes)
+-    AC_DEFINE(HAVE_PTC)
++    AC_DEFINE(HAVE_PTC, 1, [Define to 1 if have /dev/ptc])
+ else
+     AC_MSG_RESULT(no)
+ fi
+@@ -865,7 +879,7 @@ esac
+ 
+ if test x"${sco_clist_ptys}" != x"" ; then
+   AC_MSG_RESULT(yes)
+-  AC_DEFINE(HAVE_SCO_CLIST_PTYS)
++  AC_DEFINE(HAVE_SCO_CLIST_PTYS, 1, [for SCO style pty allocation])
+ else
+   AC_MSG_RESULT(no)
+ fi
+@@ -873,7 +887,8 @@ fi
+ AC_MSG_CHECKING([for SVR4 style pty allocation])
+ if test -r /dev/ptmx -a "x$svr4_ptys_broken" = x ; then
+   AC_MSG_RESULT(yes)
+-  AC_DEFINE(HAVE_PTMX)
++# disable HAVE_PTMX
++#  AC_DEFINE(HAVE_PTMX, 1, [SVR4 style pty allocation])
+   # aargg. Some systems need libpt.a to use /dev/ptmx
+   AC_CHECK_LIB(pt, libpts="-lpt", libpts="")
+   AC_CHECK_FUNC(ptsname, , LIBS="${LIBS} $libpts")
+@@ -888,21 +903,12 @@ fi
+ # Gregory Depp <depp@osf.org> 17Aug93
+ AC_MSG_CHECKING([for OSF/1 style pty allocation])
+ if test -r /dev/ptmx_bsd ; then
+-    AC_DEFINE(HAVE_PTMX_BSD)
++    AC_DEFINE(HAVE_PTMX_BSD, 1, [Define to 1 if OSF/1 style pty allocation])
+     AC_MSG_RESULT(yes)
+ else
+     AC_MSG_RESULT(no)
+ fi
+ 
+-tcgetattr=0
+-tcsetattr=0
+-AC_CHECK_FUNC(tcgetattr, tcgetattr=1)
+-AC_CHECK_FUNC(tcsetattr, tcsetattr=1)
+-if test $tcgetattr -eq 1 -a $tcsetattr -eq 1 ; then
+-    AC_DEFINE(HAVE_TCSETATTR)
+-    AC_DEFINE(POSIX)
+-fi
+-
+ # first check for the pure bsd
+ AC_MSG_CHECKING([for struct sgttyb])
+ AC_TRY_RUN([
+@@ -913,12 +919,13 @@ main()
+   exit(0);
+ }],
+         AC_MSG_RESULT(yes)
+-        AC_DEFINE(HAVE_SGTTYB)
++        AC_DEFINE(HAVE_SGTTYB,1, [Define to 1 if have struct sgttyb])
+         PTY_TYPE=sgttyb
+ ,
+         AC_MSG_RESULT(no)
+ ,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++#	AC_MSG_ERROR([Expect can't be cross compiled])
++        AC_MSG_RESULT(no)
+ )
+ 
+ # mach systems have include files for unimplemented features
+@@ -926,113 +933,111 @@ main()
+ if test $mach -eq 0 ; then
+ 
+   # next check for the older style ttys
+-  # note that if we detect termio.h (only), we still set PTY_TYPE=termios
++  # note that if we detect termio.h (only), we still set AC_DEFINE(PTY_TYPE,termios)
+   # since that just controls which of pty_XXXX.c file is use and
+   # pty_termios.c is set up to handle pty_termio.
+   AC_MSG_CHECKING([for struct termio])
+-  AC_TRY_RUN([#include <termio.h>
+-  main()
+-  {
+-    struct termio tmp;
+-    exit(0);
+-  }],
+-        AC_DEFINE(HAVE_TERMIO)
+-        PTY_TYPE=termios
+-        AC_MSG_RESULT(yes)
+-,
+-        AC_MSG_RESULT(no)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++  AC_TRY_COMPILE([#include <termio.h>],
++    [ struct termio tmp; exit(0); ],
++    [
++      AC_DEFINE(HAVE_TERMIO, 1, [Define to 1 if have struct termio])
++      PTY_TYPE=termios
++      AC_MSG_RESULT(yes)
++    ]
++    ,
++    [
++      AC_MSG_RESULT(no)
++    ]
+ )
+ 
+-  # now check for the new style ttys (not yet posix)
+-  AC_MSG_CHECKING([for struct termios])
+-  AC_TRY_RUN([
++# now check for the new style ttys (not yet posix)
++AC_MSG_CHECKING([for struct termios])
++AC_TRY_COMPILE(
++  [
+   /* including termios.h on Solaris 5.6 fails unless inttypes.h included */
+ #  ifdef HAVE_INTTYPES_H
+ #  include <inttypes.h>
+ #  endif
+ #  include <termios.h>
+-  main()
+-  {
+-    struct termios tmp;
+-    exit(0);
+-  }],
+-        AC_DEFINE(HAVE_TERMIOS)
+-        PTY_TYPE=termios
+-        AC_MSG_RESULT(yes)
+-  ,
+-        AC_MSG_RESULT(no)
++  ],
++  [ struct termios tmp; exit(0); ],
++   [
++    AC_DEFINE(HAVE_TERMIOS, 1, [Define to 1 if have struct termios])
++    PTY_TYPE=termios
++    AC_MSG_RESULT(yes)
++   ]
+   ,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++   [     AC_MSG_RESULT(no) ]
+   )
+ fi
+ 
+ AC_MSG_CHECKING([if TCGETS or TCGETA in termios.h])
+-AC_TRY_RUN([
++AC_TRY_COMPILE([
+ /* including termios.h on Solaris 5.6 fails unless inttypes.h included */
+ #ifdef HAVE_INTTYPES_H
+ #include <inttypes.h>
+ #endif
+ #include <termios.h>
+-main() {
+-#if defined(TCGETS) || defined(TCGETA)
++],
++[
++ #if defined(TCGETS) || defined(TCGETA)
+ 	return 0;
+ #else
++#error "TCGETS and TCGETA not defined"
+ 	return 1;
+ #endif
+-}],
+-	AC_DEFINE(HAVE_TCGETS_OR_TCGETA_IN_TERMIOS_H)
++],
++    AC_DEFINE(HAVE_TCGETS_OR_TCGETA_IN_TERMIOS_H, 1, [Define to 1 if TCGETS or TCGETA in termios.h])
+ 	AC_MSG_RESULT(yes)
+ ,
+ 	AC_MSG_RESULT(no)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
+ )
+ 
+ AC_MSG_CHECKING([if TIOCGWINSZ in termios.h])
+-AC_TRY_RUN([
++AC_TRY_COMPILE([
+ /* including termios.h on Solaris 5.6 fails unless inttypes.h included */
+ #ifdef HAVE_INTTYPES_H
+ #include <inttypes.h>
+ #endif
+ #include <termios.h>
+-main() {
++],
++[
+ #ifdef TIOCGWINSZ
+ 	return 0;
+ #else
++#error "TIOCGWINSZ not defined"
+ 	return 1;
+ #endif
+-}],
+-	AC_DEFINE(HAVE_TIOCGWINSZ_IN_TERMIOS_H)
+-	AC_MSG_RESULT(yes)
++],
++    AC_DEFINE(HAVE_TIOCGWINSZ_IN_TERMIOS_H, 1, [Define to 1 if TIOCGWINSZ in termios.h])
++    AC_MSG_RESULT(yes)
+ ,
+ 	AC_MSG_RESULT(no)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
+ )
+ 
+ # finally check for Cray style ttys
+ AC_MSG_CHECKING([for Cray-style ptys])
+ SETUID=":"
+-AC_TRY_RUN([
+-main(){
+-#ifdef CRAY
++AC_TRY_COMPILE([],
++[
++ #ifdef CRAY
+ 	return 0;
+ #else
++#error "CRAY not defined"
+ 	return 1;
+ #endif
+-}
+ ],
+-	PTY_TYPE=unicos
++[	PTY_TYPE=unicos
+ 	SETUID="chmod u+s"
+ 	AC_MSG_RESULT(yes)
++]
+ ,
+-	AC_MSG_RESULT(no)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++[	AC_MSG_RESULT(no) ]
+ )
+ 
++AC_DEFINE_UNQUOTED(PTY_TYPE, ["$PTY_TYPE"], [Define PTY_TYPE])
++AC_CHECK_FUNCS([tcgetattr tcsetattr])
++
+ #
+ # Check for select and/or poll. If both exist, we prefer select.
+ # if neither exists, define SIMPLE_EVENT.
+@@ -1055,7 +1060,7 @@ else
+   EVENT_TYPE=simple
+   EVENT_ABLE=noevent
+   AC_MSG_RESULT(none)
+-  AC_DEFINE(SIMPLE_EVENT)
++  AC_DEFINE(SIMPLE_EVENT, 1, [Define to 1 if select and poll do not exist])
+ fi
+ 
+ AC_HAVE_FUNCS(_getpty)
+@@ -1068,30 +1073,24 @@ AC_FUNC_SETPGRP
+ # check for timezones
+ #
+ AC_MSG_CHECKING([for SV-style timezone])
+-AC_TRY_RUN([
+-extern char *tzname[2];
+-extern int daylight;
+-main()
+-{
++AC_TRY_COMPILE([],
++[
++    extern char *tzname[2];
++    extern int daylight;
+   int *x = &daylight;
+   char **y = tzname;
+ 
+   exit(0);
+-}],
+-	AC_DEFINE(HAVE_SV_TIMEZONE)
+-	AC_MSG_RESULT(yes),
++],
++[
++	AC_DEFINE(HAVE_SV_TIMEZONE, 1, [Define to 1 if have SV-style timezone])
++	AC_MSG_RESULT(yes)
++],
++[
+ 	AC_MSG_RESULT(no)
+-,
+-	AC_MSG_ERROR([Expect can't be cross compiled])
++]
+ )
+ 
+-# only look for Tk stuff if we have X11 and user doesn't say not to
+-AC_ARG_WITH(x, [  --with-x               whether or not to use X (default yes)], , with_x=yes)
+-if test "$with_x" = "no"; then
+-   no_tk=true
+-else
+-   CY_AC_PATH_TKH
+-fi
+ if test x"$no_tk" != x"true" ; then
+ # libexpectk no longer exists
+ #  X_PROGS="expectk \$(LIBEXPECTK)"

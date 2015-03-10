@@ -1,0 +1,157 @@
+diff -ruN ntpclient-2006/ntpclient.c ntpclient-2006-ipv6/ntpclient.c
+--- ntpclient-2006/ntpclient.c	2006-11-13 07:57:17.000000000 -0800
++++ ntpclient-2006-ipv6/ntpclient.c	2008-08-15 10:36:30.000000000 -0700
+@@ -1,3 +1,4 @@
++/* -*- linux-c -*- */
+ /*
+  * ntpclient.c - NTP client
+  *
+@@ -89,6 +90,7 @@
+ /* end configuration for host systems */
+ 
+ #define JAN_1970        0x83aa7e80      /* 2208988800 1970 - 1900 in seconds */
++#define NTP_PORT_STRING "123"
+ #define NTP_PORT (123)
+ 
+ /* How to multiply by 4294.967296 quickly (and not quite exactly)
+@@ -124,7 +126,6 @@
+ 	int cycle_time;
+ 	int goodness;
+ 	int cross_check;
+-	char serv_addr[4];
+ };
+ 
+ /* prototypes for some local routines */
+@@ -263,7 +264,7 @@
+ #endif
+ }
+ 
+-static int check_source(int data_len, struct sockaddr *sa_source, unsigned int sa_len, struct ntp_control *ntpc)
++static int check_source(int data_len, struct sockaddr *sa_source, unsigned int sa_len)
+ {
+ 	struct sockaddr_in *sa_in=(struct sockaddr_in *)sa_source;
+ 	(void) sa_len;  /* not used */
+@@ -276,16 +277,7 @@
+ 			printf("Source: Address family %d\n",sa_source->sa_family);
+ 		}
+ 	}
+-	/* we could check that the source is the server we expect, but
+-	 * Denis Vlasenko recommends against it: multihomed hosts get it
+-	 * wrong too often. */
+-#if 0
+-	if (memcmp(ntpc->serv_addr, &(sa_in->sin_addr), 4)!=0) {
+-		return 1;  /* fault */
+-	}
+-#else
+-	(void) ntpc; /* not used */
+-#endif
++
+ 	if (NTP_PORT != ntohs(sa_in->sin_port)) {
+ 		return 1;  /* fault */
+ 	}
+@@ -432,47 +424,45 @@
+ 	return 1;
+ }
+ 
+-static void stuff_net_addr(struct in_addr *p, char *hostname)
++static
++int setup_transmit6(const char *hostname, const char *service, int cycle_time)
+ {
+-	struct hostent *ntpserver;
+-	ntpserver=gethostbyname(hostname);
+-	if (ntpserver == NULL) {
+-		herror(hostname);
+-		exit(1);
+-	}
+-	if (ntpserver->h_length != 4) {
+-		/* IPv4 only, until I get a chance to test IPv6 */
+-		fprintf(stderr,"oops %d\n",ntpserver->h_length);
+-		exit(1);
++	int s = -1;
++	struct addrinfo hints, *res, *res_saved;
++	int ret;
++
++	memset(&hints, 0, sizeof(struct addrinfo));
++
++	hints.ai_flags = 0;
++	hints.ai_family = AF_UNSPEC;
++	hints.ai_socktype = SOCK_DGRAM;
++	hints.ai_protocol = 0;
++	
++	ret = -1;
++
++	while (ret < 0) {
++		ret = getaddrinfo(hostname, service, &hints, &res);
++		if(ret < 0){
++			perror("getaddrinfo");
++			sleep(cycle_time);
++		}
+ 	}
+-	memcpy(&(p->s_addr),ntpserver->h_addr_list[0],4);
+-}
+ 
+-static void setup_receive(int usd, unsigned int interface, short port)
+-{
+-	struct sockaddr_in sa_rcvr;
+-	memset(&sa_rcvr,0,sizeof sa_rcvr);
+-	sa_rcvr.sin_family=AF_INET;
+-	sa_rcvr.sin_addr.s_addr=htonl(interface);
+-	sa_rcvr.sin_port=htons(port);
+-	if(bind(usd,(struct sockaddr *) &sa_rcvr,sizeof sa_rcvr) == -1) {
+-		perror("bind");
+-		fprintf(stderr,"could not bind to udp port %d\n",port);
+-		exit(1);
++	res_saved = res;
++	while(res){
++		s = socket(res->ai_family, res->ai_socktype,
++			   res->ai_protocol);
++		if(s >= 0){
++			if(connect(s, res->ai_addr, res->ai_addrlen) == 0){
++				break;
++			}
++		}
++		res = res->ai_next;
+ 	}
+-	listen(usd,3);
+-}
+ 
+-static void setup_transmit(int usd, char *host, short port, struct ntp_control *ntpc)
+-{
+-	struct sockaddr_in sa_dest;
+-	memset(&sa_dest,0,sizeof sa_dest);
+-	sa_dest.sin_family=AF_INET;
+-	stuff_net_addr(&(sa_dest.sin_addr),host);
+-	memcpy(ntpc->serv_addr,&(sa_dest.sin_addr),4); /* XXX asumes IPv4 */
+-	sa_dest.sin_port=htons(port);
+-	if (connect(usd,(struct sockaddr *)&sa_dest,sizeof sa_dest)==-1)
+-		{perror("connect");exit(1);}
++	freeaddrinfo(res_saved);
++
++	return s;
+ }
+ 
+ static void primary_loop(int usd, struct ntp_control *ntpc)
+@@ -519,7 +509,7 @@
+ 			perror("recvfrom");
+ 		} else if (pack_len>0 && (unsigned)pack_len<sizeof_incoming){
+ 			get_packet_timestamp(usd, &udp_arrival_ntp);
+-			if (check_source(pack_len, &sa_xmit, sa_xmit_len, ntpc)!=0) continue;
++			if (check_source(pack_len, &sa_xmit, sa_xmit_len)!=0) continue;
+ 			if (rfc1305print(incoming_word, &udp_arrival_ntp, ntpc, &error)!=0) continue;
+ 			/* udp_handle(usd,incoming,pack_len,&sa_xmit,sa_xmit_len); */
+ 		} else {
+@@ -685,13 +675,7 @@
+ 		ntpc.set_clock, ntpc.cross_check );
+ 	}
+ 
+-	/* Startup sequence */
+-	if ((usd=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP))==-1)
+-		{perror ("socket");exit(1);}
+-
+-	setup_receive(usd, INADDR_ANY, udp_local_port);
+-
+-	setup_transmit(usd, hostname, NTP_PORT, &ntpc);
++	usd = setup_transmit6(hostname, NTP_PORT_STRING, ntpc.cycle_time);
+ 
+ 	primary_loop(usd, &ntpc);
+ 

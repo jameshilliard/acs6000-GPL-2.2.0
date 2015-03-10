@@ -1,0 +1,1523 @@
+Index: linux-2.6.19/arch/ppc/platforms/4xx/Kconfig
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/4xx/Kconfig	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/arch/ppc/platforms/4xx/Kconfig	2007-10-20 18:19:33.000000000 -0700
+@@ -145,6 +145,18 @@
+ 	help
+ 	  This option enables support for the AMCC PPC440GRx evaluation board.
+ 
++config GOLDENGATE
++	bool "Golden Gate"
++	select WANT_EARLY_SERIAL
++	help
++	  This option enables support for the Golden Gate board.
++
++config SHASTA
++	bool "Shasta"
++	select WANT_EARLY_SERIAL
++	help
++	  This option enables support for the Shasta board.
++
+ endchoice
+ 
+ config EP405PC
+@@ -168,7 +180,7 @@
+ 
+ config 440EPX
+ 	bool
+-	depends on SEQUOIA
++	depends on SEQUOIA || GOLDENGATE
+ 	select PPC_FPU
+ 	default y
+ 
+@@ -184,7 +196,7 @@
+ 
+ config 440GRX
+ 	bool
+-	depends on RAINIER
++	depends on RAINIER || SHASTA
+ 	default y
+ 
+ config 440GX
+@@ -236,7 +248,7 @@
+ 
+ config IBM_OCP
+ 	bool
+-	depends on ALPR || ASH || BAMBOO || BUBINGA || CPCI405 || EBONY || EP405 || LUAN || OCOTEA || P3P440 || PPChameleonEVB || RAINIER || REDWOOD_5 || REDWOOD_6 || SEQUOIA || SYCAMORE || TAIHU || WALNUT || YELLOWSTONE || YOSEMITE || YUCCA
++	depends on ALPR || ASH || BAMBOO || BUBINGA || CPCI405 || EBONY || EP405 || LUAN || OCOTEA || P3P440 || PPChameleonEVB || RAINIER || REDWOOD_5 || REDWOOD_6 || SEQUOIA || SYCAMORE || TAIHU || WALNUT || YELLOWSTONE || YOSEMITE || YUCCA || GOLDENGATE || SHASTA
+ 	default y
+ 
+ config IBM_EMAC4
+Index: linux-2.6.19/arch/ppc/platforms/4xx/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/4xx/Makefile	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/arch/ppc/platforms/4xx/Makefile	2007-10-20 18:19:33.000000000 -0700
+@@ -23,6 +23,8 @@
+ obj-$(CONFIG_YELLOWSTONE)	+= yosemite.o
+ obj-$(CONFIG_YOSEMITE)		+= yosemite.o
+ obj-$(CONFIG_YUCCA)		+= yucca.o
++obj-$(CONFIG_GOLDENGATE)	+= goldengate.o
++obj-$(CONFIG_SHASTA)		+= goldengate.o
+ 
+ obj-$(CONFIG_405GP)		+= ibm405gp.o
+ obj-$(CONFIG_REDWOOD_5)		+= ibmstb4.o
+Index: linux-2.6.19/arch/ppc/platforms/4xx/goldengate.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.19/arch/ppc/platforms/4xx/goldengate.c	2007-10-20 18:19:33.000000000 -0700
+@@ -0,0 +1,665 @@
++/*
++ * arch/ppc/platforms/4xx/goldengate.c
++ *
++ * Golden Gate/Shasta board specific routines
++ *
++ * Copyright 2007 Avocent Corporation
++ *	Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Based on sequoia.c from Stefan Roese <sr@denx.de>
++ *	Copyright 2004 MontaVista Software Inc.
++ *	Copyright 2006 AMCC
++ *	Copyright 2006 DENX Software Engineering
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ *
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/pci.h>
++#include <linux/types.h>
++#include <linux/delay.h>
++#include <linux/initrd.h>
++#include <linux/irq.h>
++#include <linux/root_dev.h>
++#include <linux/tty.h>
++#include <linux/serial.h>
++#include <linux/serial_core.h>
++#include <linux/platform_device.h>
++#include <linux/mtd/partitions.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/ndfc.h>
++#include <linux/mtd/map.h>
++#include <linux/m41t00.h>
++
++#include <asm/machdep.h>
++#include <asm/ocp.h>
++#include <asm/bootinfo.h>
++#include <asm/ppc4xx_pic.h>
++#include <asm/ibm44x.h>
++#include <asm/ppcboot.h>
++
++#include <syslib/gen550.h>
++#include <syslib/ibm440gx_common.h>
++
++#ifdef CONFIG_SHASTA
++#define BOARDNAME  "ACS5000"
++#else
++#define BOARDNAME  "ACS6000"
++#endif
++
++extern bd_t __res;
++
++static struct ibm44x_clocks clocks __initdata;
++
++/*
++ * Golden Gate/Shasta external IRQ triggering/polarity settings
++ */
++unsigned char ppc4xx_uic_ext_irq_cfg[] __initdata = {
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index0 - IRQ4: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index1 - IRQ7: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index2 - IRQ8: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index3 - IRQ9: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index4 - IRQ0: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index5 - IRQ1: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index6 - IRQ5: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index7 - IRQ6: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index8 - IRQ2: */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE), /* Index9 - IRQ3: */
++};
++
++static unsigned long goldengate_fpga_addr;
++
++unsigned long goldengate_get_fpga_addr(void)
++{
++	return goldengate_fpga_addr;
++}
++
++/*
++ * get size of system memory from Board Info .
++ */
++unsigned long __init goldengate_find_end_of_memory(void)
++{
++	/* board info structure defined in /include/asm-ppc/ppcboot.h */
++	return  __res.bi_memsize;
++}
++
++static void __init goldengate_calibrate_decr(void)
++{
++	unsigned int freq;
++
++	if (mfspr(SPRN_CCR1) & CCR1_TCS)
++		freq = GOLDENGATE_TMRCLK;
++	else
++		freq = clocks.cpu;
++
++	ibm44x_calibrate_decr(freq);
++
++}
++
++static int goldengate_show_cpuinfo(struct seq_file *m)
++{
++	seq_printf(m, "vendor\t\t: Avocent\n");
++	seq_printf(m, "machine\t\t: " BOARDNAME "\n");
++
++	return 0;
++}
++
++#ifndef CONFIG_SHASTA
++static inline int
++goldengate_map_irq(struct pci_dev *dev, unsigned char idsel, unsigned char pin)
++{
++	switch (idsel) {
++	case 0x0a:
++		switch (PCI_FUNC(dev->devfn)) {
++			case 0:
++				return GOLDENGATE_EXT1_INT; /* PCI1520 slot 1*/
++			case 1:
++				return GOLDENGATE_EXT2_INT; /* PCI1520 slot 2 */
++		}
++	}
++	return 0;
++}
++#endif
++
++static void __init goldengate_set_emacdata(void)
++{
++	struct ocp_def *def;
++	struct ocp_func_emac_data *emacdata;
++
++	/* Set mac_addr, phy mode and unsupported phy features for each EMAC */
++
++	def = ocp_get_one_device(OCP_VENDOR_IBM, OCP_FUNC_EMAC, 0);
++	emacdata = def->additions;
++	memcpy(emacdata->mac_addr, __res.bi_enetaddr, 6);
++	emacdata->phy_mode = PHY_MODE_RGMII;
++	emacdata->phy_map = ~(1<<1);
++
++	def = ocp_get_one_device(OCP_VENDOR_IBM, OCP_FUNC_EMAC, 1);
++	emacdata = def->additions;
++	memcpy(emacdata->mac_addr, __res.bi_enet1addr, 6);
++	emacdata->phy_mode = PHY_MODE_RGMII;
++	emacdata->phy_map = ~(1<<0);
++}
++
++#ifndef CONFIG_SHASTA
++static int goldengate_exclude_device(unsigned char bus, unsigned char devfn)
++{
++	return (bus == 0 && devfn == 0);
++}
++
++#define PCI_READW(offset) \
++        (readw((void *)((u32)pci_reg_base + offset)))
++
++#define PCI_WRITEW(value, offset) \
++	(writew(value, (void *)((u32)pci_reg_base + offset)))
++
++#define PCI_WRITEL(value, offset) \
++	(writel(value, (void *)((u32)pci_reg_base + offset)))
++
++#define PCI_CFG_OUT(offset, value) \
++	(out_le32 (pci_cfg_base + offset, value))
++
++#define PCI_CFG_IN(offset) \
++	(in_le32(pci_cfg_base + offset))
++
++static void __init goldengate_setup_pci(void)
++{
++	void *pci_reg_base;
++	void *pci_cfg_base;
++	unsigned long memory_size;
++
++	memory_size = ppc_md.find_end_of_memory();
++
++	pci_reg_base = ioremap64(GOLDENGATE_PCIL0_BASE, GOLDENGATE_PCIL0_SIZE);
++	pci_cfg_base = ioremap64(GOLDENGATE_PCI_CFGREGS_BASE, 64);
++
++	PCI_CFG_OUT(GOLDENGATE_PCI_CFGA_OFFSET, 0x80000000 | (PCI_COMMAND & 0xfc));
++	PCI_CFG_OUT(GOLDENGATE_PCI_CFGD_OFFSET,
++		    (PCI_CFG_IN(GOLDENGATE_PCI_CFGD_OFFSET) |
++		     PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER));
++
++	/* Disable region first */
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM0MA);
++
++	/* PLB starting addr: 0x0000000180000000 */
++	PCI_WRITEL(GOLDENGATE_PCI_PHY_MEM_BASE, GOLDENGATE_PCIL0_PMM0LA);
++
++	/* PCI start addr, 0x80000000 (PCI Address) */
++	PCI_WRITEL(GOLDENGATE_PCI_MEM_BASE, GOLDENGATE_PCIL0_PMM0PCILA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM0PCIHA);
++
++	/* Enable no pre-fetch, enable region */
++	PCI_WRITEL(((0xffffffff -
++		     (GOLDENGATE_PCI_UPPER_MEM - GOLDENGATE_PCI_MEM_BASE)) | 0x01),
++		   GOLDENGATE_PCIL0_PMM0MA);
++
++	/* Disable region one */
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM1MA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM1LA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM1PCILA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM1PCIHA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM1MA);
++
++	/* Disable region two */
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM2MA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM2LA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM2PCILA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM2PCIHA);
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PMM2MA);
++
++	/* Now configure the PCI->PLB windows, we only use PTM1
++	 *
++	 * For Inbound flow, set the window size to all available memory
++	 * This is required because if size is smaller,
++	 * then Eth/PCI DD would fail as PCI card not able to access
++	 * the memory allocated by DD.
++	 */
++
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PTM1MS);	/* disabled region 1 */
++	PCI_WRITEL(0, GOLDENGATE_PCIL0_PTM1LA);	/* begin of address map */
++
++	memory_size = 1 << fls(memory_size - 1);
++
++	/* Size low + Enabled */
++	PCI_WRITEL((0xffffffff - (memory_size - 1)) | 0x1, GOLDENGATE_PCIL0_PTM1MS);
++
++	eieio();
++	iounmap(pci_reg_base);
++	iounmap(pci_cfg_base);
++}
++
++static void __init goldengate_setup_hose(void)
++{
++	unsigned int bar_response, bar;
++	struct pci_controller *hose;
++
++	goldengate_setup_pci();
++
++	hose = pcibios_alloc_controller();
++
++	if (!hose)
++		return;
++
++	hose->first_busno = 0;
++	hose->last_busno = 0xff;
++
++	hose->pci_mem_offset = GOLDENGATE_PCI_MEM_OFFSET;
++
++	pci_init_resource(&hose->io_resource,
++			  GOLDENGATE_PCI_LOWER_IO,
++			  GOLDENGATE_PCI_UPPER_IO,
++			  IORESOURCE_IO,
++			  "PCI host bridge");
++
++	pci_init_resource(&hose->mem_resources[0],
++			  GOLDENGATE_PCI_LOWER_MEM,
++			  GOLDENGATE_PCI_UPPER_MEM,
++			  IORESOURCE_MEM,
++			  "PCI host bridge");
++
++	ppc_md.pci_exclude_device = goldengate_exclude_device;
++
++	hose->io_space.start = GOLDENGATE_PCI_LOWER_IO;
++	hose->io_space.end = GOLDENGATE_PCI_UPPER_IO;
++	hose->mem_space.start = GOLDENGATE_PCI_LOWER_MEM;
++	hose->mem_space.end = GOLDENGATE_PCI_UPPER_MEM;
++	isa_io_base =
++		(unsigned long)ioremap64(GOLDENGATE_PCI_IO_BASE, GOLDENGATE_PCI_IO_SIZE);
++	hose->io_base_virt = (void *)isa_io_base;
++
++	setup_indirect_pci(hose, GOLDENGATE_PCI_CFGA_PLB32, GOLDENGATE_PCI_CFGD_PLB32);
++	hose->set_cfg_type = 1;
++
++	/* Zero config bars */
++	for (bar = PCI_BASE_ADDRESS_1; bar <= PCI_BASE_ADDRESS_2; bar += 4) {
++		early_write_config_dword(hose, hose->first_busno,
++					 PCI_FUNC(hose->first_busno), bar,
++					 0x00000000);
++		early_read_config_dword(hose, hose->first_busno,
++					PCI_FUNC(hose->first_busno), bar,
++					&bar_response);
++	}
++
++	hose->last_busno = pciauto_bus_scan(hose, hose->first_busno);
++
++	ppc_md.pci_swizzle = common_swizzle;
++	ppc_md.pci_map_irq = goldengate_map_irq;
++}
++#endif
++
++static void __init goldengate_early_serial_map(void)
++{
++	struct uart_port port;
++
++	/* Setup ioremapped serial port access */
++	memset(&port, 0, sizeof(port));
++	port.membase = ioremap64(PPC440EPX_UART0_ADDR, 8);
++	port.irq = UART0_INT;
++	port.uartclk = 24000000;
++	port.regshift = 0;
++	port.iotype = SERIAL_IO_MEM;
++	port.flags = ASYNC_BOOT_AUTOCONF | ASYNC_SKIP_TEST;
++	port.line = 0;
++
++	if (early_serial_setup(&port) != 0)
++		printk("Early serial init of port 0 failed\n");
++
++#if defined(CONFIG_SERIAL_TEXT_DEBUG) || defined(CONFIG_KGDB)
++	/* Configure debug serial access */
++	gen550_init(0, &port);
++#endif
++
++	port.membase = ioremap64(PPC440EPX_UART1_ADDR, 8);
++	port.irq = UART1_INT;
++	port.line = 1;
++
++	if (early_serial_setup(&port) != 0)
++		printk("Early serial init of port 1 failed\n");
++
++#if defined(CONFIG_SERIAL_TEXT_DEBUG) || defined(CONFIG_KGDB)
++	/* Configure debug serial access */
++	gen550_init(1, &port);
++#endif
++
++	{
++	/* Check other UARTs */
++	char *uart;
++	struct goldengate_fpga *fpga;
++	int p, nports = 0;
++	int irqs[] = {	GOLDENGATE_EXT6_INT,
++			GOLDENGATE_EXT7_INT,
++			GOLDENGATE_EXT8_INT};
++
++	uart = (char *)ioremap64(GOLDENGATE_UART_BASE_ADDR, 0x800);
++	fpga = (struct goldengate_fpga *)goldengate_fpga_addr;
++	switch (fpga->brd_sw_id & 3) {
++		case 0:
++			nports = 16;
++			break;
++		case 1:
++			nports = 32;
++			break;
++		case 2:
++			nports = 48;
++			break;
++	}
++	for (p = 0; p < nports; p ++) {
++		port.membase = uart + 0x10 * p + 0x80 * (p/8);
++		port.irq = irqs[p / 16];
++		port.line = p + 2;
++
++		if (early_serial_setup(&port) != 0) {
++			printk("Early serial init of port %d failed\n", p + 2);
++		}
++	}
++	}
++}
++
++/*
++ * NAND FLASH configuration (for 440EP(x) NDFC)
++ */
++static struct resource goldengate_ndfc = {
++	.start = (u32)GOLDENGATE_NAND_FLASH_REG_ADDR,
++	.end = (u32)GOLDENGATE_NAND_FLASH_REG_ADDR + GOLDENGATE_NAND_FLASH_REG_SIZE,
++	.flags = IORESOURCE_MEM,
++};
++
++/* todo: add logic to detect booting from NAND (NAND on CS0) */
++#define CS_NAND_0	3	/* use chip select 3 for NAND device 0 */
++#define NAND_SIZE       0x08000000
++
++static struct mtd_partition nand_parts[] = {
++        {
++                .name   = "kernel1",
++                .offset = 0,
++                .size   = 0x00200000,
++	},
++        {
++                .name   = "kernel2",
++                .offset = 0x00200000,
++                .size   = 0x00200000,
++	},
++	{
++                .name   = "config1",
++                .offset = 0x00400000,
++                .size   = 0x00500000,
++        },
++	{
++                .name   = "config2",
++                .offset = 0x00900000,
++                .size   = 0x00500000,
++        },
++	{
++                .name   = "filesystem1",
++                .offset = 0x00e00000,
++                .size   = NAND_SIZE/2 - 0x00900000,
++	},
++	{
++                .name   = "filesystem2",
++                .offset = NAND_SIZE/2 + 0x00500000,
++                .size   = NAND_SIZE/2 - 0x00900000,
++	},
++	{
++                .name   = "user",
++                .offset = NAND_SIZE - 0x00400000,
++                .size   = 0x00400000,
++	}
++};
++
++struct ndfc_controller_settings goldengate_ndfc_settings = {
++	.ccr_settings = (NDFC_CCR_BS(CS_NAND_0) |
++			 NDFC_CCR_ARAC1),
++	.ndfc_erpn = (GOLDENGATE_NAND_FLASH_REG_ADDR) >> 32,
++};
++
++struct platform_nand_ctrl goldengate_nand_ctrl = {
++	.priv = &goldengate_ndfc_settings,
++};
++
++static struct platform_device goldengate_ndfc_device = {
++	.name = "ndfc-nand",
++	.id = 0,
++	.dev = {
++		.platform_data = &goldengate_nand_ctrl,
++	},
++	.num_resources = 1,
++	.resource = &goldengate_ndfc,
++};
++
++static struct ndfc_chip_settings goldengate_chip0_settings = {
++	.bank_settings = 0x80002222,
++};
++
++static struct platform_nand_chip goldengate_nand_chip0 = {
++	.nr_chips = 1,
++	.chip_offset = CS_NAND_0,
++	.nr_partitions = ARRAY_SIZE(nand_parts),
++	.partitions = nand_parts,
++	.chip_delay = 50,
++	.priv = &goldengate_chip0_settings,
++};
++
++static struct platform_device goldengate_nand_device = {
++	.name = "ndfc-chip",
++	.id = 0,
++	.num_resources = 1,
++	.resource = &goldengate_ndfc,
++	.dev = {
++		.platform_data = &goldengate_nand_chip0,
++		.parent = &goldengate_ndfc_device.dev,
++	}
++};
++
++static int goldengate_setup_flash(void)
++{
++	/* todo: add logic to detect booting from NAND (NAND on CS0) */
++
++	platform_device_register(&goldengate_ndfc_device);
++	platform_device_register(&goldengate_nand_device);
++
++	return 0;
++}
++arch_initcall(goldengate_setup_flash);
++
++#define SER_PART_SZ	0x01000
++#define ENV_PART_SZ	0x02000
++#define BOOT_PART_SZ	0x7d000
++
++static struct mtd_partition goldengate_flash_partitions[] = {
++	{
++		.name = "serialnb",
++		.offset = 0,
++		.size = SER_PART_SZ,
++	},
++	{
++		.name = "env",
++		.size = ENV_PART_SZ,
++	},
++	{
++		.name = "u-boot",
++		.size = BOOT_PART_SZ,
++	}
++};
++
++struct map_info goldengate_flash_map = {
++	.name = "NOR flash",
++	.bankwidth = 1,
++};
++
++static struct mtd_info *goldengate_mtd;
++
++static int goldengate_init_nor_flash(void)
++{
++	unsigned long flash_base, flash_size;
++
++	flash_base = __res.bi_flashstart;
++	flash_size = __res.bi_flashsize;
++
++	goldengate_flash_map.size = flash_size;
++	goldengate_flash_map.phys = flash_base;
++	goldengate_flash_map.virt =
++		(void __iomem *)ioremap64(flash_base + 0x100000000ull, goldengate_flash_map.size);
++
++	if (!goldengate_flash_map.virt) {
++		printk("init_goldengate_flash: failed to ioremap\n");
++		return -EIO;
++	}
++
++	goldengate_flash_partitions[1].offset = goldengate_flash_map.size -
++		ENV_PART_SZ - BOOT_PART_SZ;
++	goldengate_flash_partitions[2].offset = goldengate_flash_partitions[1].size + goldengate_flash_partitions[1].offset;
++
++	simple_map_init(&goldengate_flash_map);
++
++	goldengate_mtd = do_map_probe("jedec_probe",&goldengate_flash_map);
++
++	if (goldengate_mtd) {
++		goldengate_mtd->owner = THIS_MODULE;
++		return add_mtd_partitions(goldengate_mtd,
++				goldengate_flash_partitions,
++				ARRAY_SIZE(goldengate_flash_partitions));
++	}
++
++	return -ENXIO;
++}
++
++late_initcall(goldengate_init_nor_flash);
++
++#if defined(CONFIG_SENSORS_M41T00)
++static struct m41t00_platform_data goldengate_rtc_data = {
++	.type = M41T00_TYPE_M41T00,
++	.i2c_addr = 0x68,
++};
++
++static struct platform_device goldengate_rtc_device = {
++	.name = M41T00_DRV_NAME,
++	.dev = {
++		.platform_data = &goldengate_rtc_data,
++	},
++};
++
++static int __init
++goldengate_rtc_init(void)
++{
++	platform_device_register(&goldengate_rtc_device);
++
++	ppc_md.get_rtc_time = m41t00_get_rtc_time;
++	ppc_md.set_rtc_time = m41t00_set_rtc_time;
++}
++arch_initcall(goldengate_rtc_init);
++
++
++static int __init
++goldengate_rtc_hookup(void)
++{
++	struct timespec	tv;
++
++	tv.tv_nsec = 0;
++	tv.tv_sec = (ppc_md.get_rtc_time)();
++	do_settimeofday(&tv);
++	return 0;
++}
++late_initcall(goldengate_rtc_hookup);
++#endif
++
++static void __init goldengate_setup_arch(void)
++{
++	struct goldengate_fpga *fpga;
++	goldengate_fpga_addr = (unsigned long)ioremap64(GOLDENGATE_FPGA_BASE_ADDR, 8);
++	fpga = (struct goldengate_fpga *)goldengate_fpga_addr;
++	int i;
++
++	/* start with Avocent pinout */
++	if (fpga->fpga_version < 0x20) {
++		fpga->misc &= ~0x08;
++	} else {
++		for (i = 0; i < 6; i ++) {
++			fpga->pinout_sel[i] = 0;
++		}
++	}
++
++	/* reset modem, PCCARD power controller, UARTs and PHYs */
++	fpga->res_uart |= 0xfc;
++	fpga->misc |= 0xe0;
++	udelay(200000);
++	fpga->res_uart &= ~0xfc;
++	fpga->misc &= ~0xe0;
++	udelay(200000);
++
++	/* enable UART leds */
++	fpga->misc |= 0x04;
++
++	/* set second I2C bus */
++	SDR_WRITE(DCRN_SDR_PFC1, SDR_READ(DCRN_SDR_PFC1) | 0x00020000);
++
++	/* configure UART0 as 4-wire interface and with RTS/CTS */
++	SDR_WRITE(DCRN_SDR_PFC1, SDR_READ(DCRN_SDR_PFC1) | 0x020C0000);
++
++	goldengate_set_emacdata();
++
++	/* parm1 = sys clock is OK , parm 2 ser_clock to be checked */
++	ibm440gx_get_clocks(&clocks, 33333333, 6 * 1843200);
++	ocp_sys_info.opb_bus_freq = clocks.opb;
++
++	/* init to some ~sane value until calibrate_delay() runs */
++        loops_per_jiffy = 50000000/HZ;
++
++#ifndef CONFIG_SHASTA
++	/* Setup PCI host bridge */
++	goldengate_setup_hose();
++#endif
++
++#ifdef CONFIG_BLK_DEV_INITRD
++	if (initrd_start)
++		ROOT_DEV = Root_RAM0;
++	else {
++#ifdef CONFIG_ROOT_NFS
++		ROOT_DEV = Root_NFS;
++#else
++		ROOT_DEV = Root_HDA1;
++#endif
++	}
++#endif
++
++	goldengate_early_serial_map();
++
++	/* Identify the system */
++	printk("Avocent " BOARDNAME " Platform\n");
++}
++
++static void __init goldengate_init_irq(void)
++{
++	ppc4xx_pic_init();
++}
++
++void __init platform_init(unsigned long r3, unsigned long r4,
++			  unsigned long r5, unsigned long r6, unsigned long r7)
++{
++	ibm44x_platform_init(r3, r4, r5, r6, r7);
++
++	ppc_md.setup_arch = goldengate_setup_arch;
++	ppc_md.show_cpuinfo = goldengate_show_cpuinfo;
++	ppc_md.find_end_of_memory = goldengate_find_end_of_memory;
++	ppc_md.get_irq = NULL;		/* Set in ppc4xx_pic_init() */
++
++	ppc_md.calibrate_decr = goldengate_calibrate_decr;
++	ppc_md.time_init = NULL;
++	ppc_md.set_rtc_time = NULL;
++	ppc_md.get_rtc_time = NULL;
++
++	ppc_md.init_IRQ = goldengate_init_irq;
++
++#ifdef CONFIG_KGDB
++	ppc_md.early_serial_map = goldengate_early_serial_map;
++#endif
++}
++
++
++
++
+Index: linux-2.6.19/arch/ppc/platforms/4xx/goldengate.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.19/arch/ppc/platforms/4xx/goldengate.h	2007-10-20 18:19:33.000000000 -0700
+@@ -0,0 +1,102 @@
++/*
++ * arch/ppc/platforms/4xx/goldengate.h
++ *
++ * Golden Gate board definitions
++ *
++ * Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Copyright 2004 MontaVista Software Inc.
++ * Copyright 2006 AMCC
++ * Copyright 2007 Avocent Corporation
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#ifdef __KERNEL__
++#ifndef __ASM_GOLDENGATE_H__
++#define __ASM_GOLDENGATE_H__
++
++#include <platforms/4xx/ppc440epx.h>
++
++/* Default clock rate */
++#define GOLDENGATE_TMRCLK     50000000
++#define GOLDENGATE_SYSCLK     33333333
++
++/* Board Control and Status Registers */
++#define GOLDENGATE_FPGA_BASE_ADDR	0x1c0000000ULL
++#define GOLDENGATE_UART_BASE_ADDR	0x1c8000000ULL
++#define BASE_BAUD			33177600/3/16
++
++#ifndef __ASSEMBLY__
++struct goldengate_fpga {
++	unsigned char config_sts;	/* CS0 and CFG selector status */
++	unsigned char res_uart;		/* UART reset */
++	unsigned char misc;		/* miscellaneous reset/control */
++	unsigned char brd_sw_id;	/* board & switch ID status */
++	unsigned char fpga_version;	/* FPGA version */
++	unsigned char pinout_sel[6];	/* pinout selection */
++};
++
++extern unsigned long goldengate_get_fpga_addr(void);
++#endif /* __ASSEMBLY__ */
++
++#define GOLDENGATE_NAND_FLASH_REG_ADDR	0x1D0000000ULL
++#define GOLDENGATE_NAND_FLASH_REG_SIZE	0x2000
++
++/* PCI support */
++#define GOLDENGATE_PCI_CFGREGS_BASE	0x00000001eec00000ULL
++#define GOLDENGATE_PCI_CFGA_PLB32	0xeec00000
++#define GOLDENGATE_PCI_CFGD_PLB32	0xeec00004
++#define GOLDENGATE_PCI_CFGA_OFFSET	0
++#define GOLDENGATE_PCI_CFGD_OFFSET	0x4
++
++#define GOLDENGATE_PCI_IO_BASE		0x00000001e8000000ULL
++#define GOLDENGATE_PCI_IO_SIZE		0x00010000
++#define GOLDENGATE_PCI_MEM_OFFSET  	0x00000000
++#define GOLDENGATE_PCI_PHY_MEM_BASE	0x000000080000000ULL
++/* PLB base address base as seen by the core, implemented on PLB3 */
++/* PLB base address as seen by the SOC : 0x000000180000000ULL    */
++
++#define GOLDENGATE_PCI_LOWER_IO		0x00000000
++#define GOLDENGATE_PCI_UPPER_IO		0x0000ffff
++#define GOLDENGATE_PCI_LOWER_MEM	0x80000000
++#define GOLDENGATE_PCI_UPPER_MEM	0x8fffffff	/* to be checked with AS & TR should be bfffffff (test-only????????????) */
++#define GOLDENGATE_PCI_MEM_BASE		0x80000000
++
++#define GOLDENGATE_PCIL0_BASE		0x00000001ef400000ULL
++#define GOLDENGATE_PCIL0_SIZE		0x40
++
++#define GOLDENGATE_PCIL0_PMM0LA		0x000
++#define GOLDENGATE_PCIL0_PMM0MA		0x004
++#define GOLDENGATE_PCIL0_PMM0PCILA	0x008
++#define GOLDENGATE_PCIL0_PMM0PCIHA	0x00C
++#define GOLDENGATE_PCIL0_PMM1LA		0x010
++#define GOLDENGATE_PCIL0_PMM1MA		0x014
++#define GOLDENGATE_PCIL0_PMM1PCILA	0x018
++#define GOLDENGATE_PCIL0_PMM1PCIHA	0x01C
++#define GOLDENGATE_PCIL0_PMM2LA		0x020
++#define GOLDENGATE_PCIL0_PMM2MA		0x024
++#define GOLDENGATE_PCIL0_PMM2PCILA	0x028
++#define GOLDENGATE_PCIL0_PMM2PCIHA	0x02C
++#define GOLDENGATE_PCIL0_PTM1MS		0x030
++#define GOLDENGATE_PCIL0_PTM1LA		0x034
++#define GOLDENGATE_PCIL0_PTM2MS		0x038
++#define GOLDENGATE_PCIL0_PTM2LA		0x03C
++
++#define GOLDENGATE_EXT1_INT		62
++#define GOLDENGATE_EXT2_INT		67
++#define GOLDENGATE_EXT3_INT		68
++#define GOLDENGATE_EXT4_INT		27
++#define GOLDENGATE_EXT5_INT		64
++#define GOLDENGATE_EXT6_INT		65
++#define GOLDENGATE_EXT7_INT		50
++#define GOLDENGATE_EXT8_INT		51
++#define GOLDENGATE_EXT9_INT		52
++
++#define GOLDENGATE_GPIO_BASE		0x00000001ef600b00ULL
++
++#endif                          /* __ASM_GOLDENGATE_H__ */
++#endif                          /* __KERNEL__ */
+Index: linux-2.6.19/include/asm-ppc/ibm4xx.h
+===================================================================
+--- linux-2.6.19.orig/include/asm-ppc/ibm4xx.h	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/include/asm-ppc/ibm4xx.h	2007-10-20 18:19:33.000000000 -0700
+@@ -1,5 +1,4 @@
+ /*
+- *
+  *    Copyright (c) 1999 Grant Erickson <grant@lcse.umn.edu>
+  *
+  *    Module name: ibm4xx.h
+@@ -132,6 +131,14 @@
+ #include <platforms/4xx/sequoia.h>
+ #endif
+ 
++#ifdef CONFIG_GOLDENGATE
++#include <platforms/4xx/goldengate.h>
++#endif
++
++#ifdef CONFIG_SHASTA
++#include <platforms/4xx/goldengate.h>
++#endif
++
+ #ifndef __ASSEMBLY__
+ #ifdef CONFIG_40x
+ /*
+Index: linux-2.6.19/arch/ppc/syslib/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/syslib/Makefile	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/arch/ppc/syslib/Makefile	2007-10-20 18:19:33.000000000 -0700
+@@ -77,6 +77,7 @@
+ obj-$(CONFIG_SANDPOINT)		+= pci_auto.o todc_time.o
+ obj-$(CONFIG_SBC82xx)		+= todc_time.o
+ obj-$(CONFIG_SEQUOIA)		+= pci_auto.o
++obj-$(CONFIG_GOLDENGATE)	+= pci_auto.o
+ obj-$(CONFIG_SPRUCE)		+= cpc700_pic.o pci_auto.o \
+ 				   todc_time.o
+ obj-$(CONFIG_SYCAMORE)		+= todc_time.o
+Index: linux-2.6.19/drivers/pcmcia/ti113x.h
+===================================================================
+--- linux-2.6.19.orig/drivers/pcmcia/ti113x.h	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/drivers/pcmcia/ti113x.h	2007-10-20 18:19:33.000000000 -0700
+@@ -300,6 +300,10 @@
+ 		new |= I365_INTR_ENA;
+ 	if (new != reg)
+ 		exca_writeb(socket, I365_INTCTL, new);
++#ifdef CONFIG_GOLDENGATE
++        config_writel(socket, TI122X_MFUNC, 0x00001022);
++        config_writel(socket, TI113X_SYSTEM_CONTROL, 0x08449060L);
++#endif
+ 	return 0;
+ }
+ 
+Index: linux-2.6.19/arch/ppc/platforms/4xx/goldengate-sysctl.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.19/arch/ppc/platforms/4xx/goldengate-sysctl.c	2007-10-20 18:19:33.000000000 -0700
+@@ -0,0 +1,448 @@
++#include "goldengate.h"
++
++static int proc_handle_ports(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char *string;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		switch (fpga->brd_sw_id & 3) {
++			case 0:
++				string = "16";
++				break;
++			case 1:
++				string = "32";
++				break;
++			case 2:
++				string = "48";
++				break;
++			default:
++				string = "0";
++				break;
++		}
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_modem(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char *string;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		if (fpga->brd_sw_id & 8) {
++			string = "1";
++		} else {
++			string = "0";
++		}
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_aux(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char *string;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		if (fpga->brd_sw_id & 8) {
++			string = "0";
++		} else {
++			string = "1";
++		}
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_power(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char *string;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		if (fpga->brd_sw_id & 4) {
++			string = "2";
++		} else {
++			string = "1";
++		}
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_fpgaver(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[6];
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		memset(string, 0, 6);
++		sprintf(string, "%d.%d", fpga->fpga_version/16, fpga->fpga_version%16);
++		if (copy_to_user(buffer, string, 6))
++			return -EFAULT;
++		*lenp = 6;
++		*ppos += 6;
++	}
++	return 0;
++}
++
++#ifdef MII_TEST
++static int proc_handle_mii(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[10];
++	int val;
++	unsigned int emacregs;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	emacregs = (unsigned int) ioremap64(0x1ef600f00ull, 0x100);
++	if (write) {
++		if (copy_from_user(string, buffer, 10))
++			return -EFAULT;
++		if (sscanf(string, "%x", &val)) {
++			out_be32(emacregs + 0x5c, val);
++		}
++	} else {
++		snprintf(string, 10, "%08x",
++			in_be32(emacregs + 0x5c));
++		if (copy_to_user(buffer, string, 10))
++			return -EFAULT;
++		*lenp = 10;
++		*ppos += 10;
++	}
++	iounmap((void *)emacregs);
++	return 0;
++}
++#endif
++
++static int proc_handle_gpioread(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char *string;
++	void __iomem *gpio_base;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		gpio_base = ioremap64(GOLDENGATE_GPIO_BASE, 0x1000);
++		if (*(unsigned long *)(gpio_base+0x1c) & (unsigned long)(table->data)) {
++			string = "1";
++		} else {
++			string = "0";
++		}
++		iounmap((void *)gpio_base);
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos+= sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_buzzer(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	int val;
++	void __iomem *gpio_base;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && (val == 0 || val == 1)) {
++			gpio_base = ioremap64(GOLDENGATE_GPIO_BASE, 0x80);
++			if (val) {
++				*(unsigned long *)(gpio_base) |= 0x10000000L;
++			} else {
++				*(unsigned long *)(gpio_base) &= ~0x10000000L;
++			}
++			iounmap((void *)gpio_base);
++                }
++	} else {
++		gpio_base = ioremap64(GOLDENGATE_GPIO_BASE, 0x80);
++		if (*((unsigned long *)(gpio_base) + 7) & 0x10000000L) {
++			val = 1;
++		} else {
++			val = 0;
++		}
++		iounmap((void *)gpio_base);
++		memset(string, 0, sizeof(int));
++		snprintf(string, sizeof(int), "%d", val);
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_led(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	int val;
++	struct goldengate_fpga *fpga;
++	fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && val >= 0 && val <= 3) {
++			fpga->misc = (fpga->misc & ~3) | val;
++                }
++	} else {
++		val = fpga->misc & 3;
++		memset(string, 0, sizeof(int));
++		snprintf(string, sizeof(int), "%d", val);
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_cisco(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	int val;
++	struct goldengate_fpga *fpga;
++	fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && (val == 0 || val == 1)) {
++			if (val) {
++				fpga->misc |= 8;
++			} else {
++				fpga->misc &= ~8;
++			}
++                }
++	} else {
++		if (fpga->misc & 8) {
++			val = 1;
++		} else {
++			val = 0;
++		}
++		memset(string, 0, sizeof(int));
++		snprintf(string, sizeof(int), "%d", val);
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_pinout(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	int val;
++	unsigned long port;
++	struct goldengate_fpga *fpga;
++	fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++	port = (unsigned long)table->data;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++		if (sscanf(string, "%d", &val) && (val == 0 || val == 1)) {
++			if (val) {
++				fpga->pinout_sel[port/8] |= (1 << (port%8));
++			} else {
++				fpga->pinout_sel[port/8] &= ~(1 << (port%8));
++			}
++                }
++	} else {
++		if (fpga->pinout_sel[port/8] & (1 << (port%8))) {
++			if (copy_to_user(buffer, "1", sizeof(int)))
++				return -EFAULT;
++		} else {
++			if (copy_to_user(buffer, "0", sizeof(int)))
++				return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++enum {
++	CTL_BOARD_DUMMY = 0,
++	CTL_POWERSTATUS1,
++	CTL_POWERSTATUS2,
++	CTL_BUZZER,
++	CTL_PINOUT,
++	CTL_LED,
++	CTL_CISCO
++};
++
++static char pinout_port_names[48][3];
++static struct ctl_table pinout_dir_table[49];
++
++static struct ctl_table board_dir_table[] =
++{
++	{
++		.ctl_name = CTL_POWERSTATUS1,
++		.procname = "power1",
++		.maxlen = sizeof(int),
++		.data = (void *)0x00000800L,
++		.mode = 0644,
++		.proc_handler = &proc_handle_gpioread,
++	},
++	{
++		.ctl_name = CTL_POWERSTATUS2,
++		.procname = "power2",
++		.maxlen = sizeof(int),
++		.data = (void *)0x00000400L,
++		.mode = 0644,
++		.proc_handler = &proc_handle_gpioread,
++	},
++	{
++		.ctl_name = CTL_BUZZER,
++                .procname = "buzzer",
++		.maxlen = sizeof(int),
++                .mode = 0644,
++                .proc_handler = proc_handle_buzzer,
++        },
++	{
++		.ctl_name = CTL_PINOUT,
++                .procname = "pinout",
++                .mode = 0555,
++                .child = pinout_dir_table,
++        },
++	{
++		.ctl_name = CTL_LED,
++                .procname = "led",
++		.maxlen = sizeof(int),
++                .mode = 0644,
++                .proc_handler = proc_handle_led,
++	},
++	{
++		.ctl_name = CTL_CISCO,
++                .procname = "cisco",
++		.maxlen = sizeof(int),
++                .mode = 0644,
++                .proc_handler = proc_handle_cisco,
++	},
++        {0}
++};
++
++static int goldengate_sysctl_init(void)
++{
++	unsigned long gpio_base;
++	struct goldengate_fpga *fpga;
++	int i, ports;
++
++	/* Configure buzzer pin as output, low */
++	gpio_base = (unsigned long) ioremap64(GOLDENGATE_GPIO_BASE, 0x1000);
++	*(unsigned long *)(gpio_base)      &= ~0x10000000L; // OR
++	*(unsigned long *)(gpio_base+4)    |= 0x10000000L;  // TCR
++	*(unsigned long *)(gpio_base+8)    &= ~0x03000000L; // OSRL
++	*(unsigned long *)(gpio_base+0x10) &= ~0x03000000L; // TSRL
++	*(unsigned long *)(gpio_base+0x18) &= ~0x10000000L; // ODR
++	iounmap((void *)gpio_base);
++
++	fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++	if ((fpga->brd_sw_id & 0x04) == 0) {
++		/* only one power supply - remove power2 */
++		board_dir_table[CTL_POWERSTATUS2-1].procname = NULL;
++	}
++	if (fpga->fpga_version < 0x20) {
++		board_dir_table[CTL_PINOUT-1].procname = NULL;
++	} else {
++		board_dir_table[CTL_CISCO-1].procname = NULL;
++		if ((fpga->brd_sw_id & 3) == 0) {
++			ports = 16;
++		} else if ((fpga->brd_sw_id & 3) == 1) {
++			ports = 32;
++		} else if ((fpga->brd_sw_id & 3) == 2) {
++			ports = 48;
++		} else {
++			ports = 0;
++		}
++		for (i = 0; i < ports; i ++) {
++			memset(pinout_dir_table + i, 0, sizeof(ctl_table));
++			snprintf(pinout_port_names[i], 3, "%d", i + 1);
++			pinout_dir_table[i].ctl_name = i + 1;
++			pinout_dir_table[i].procname = pinout_port_names[i];
++			pinout_dir_table[i].maxlen = sizeof(int);
++			pinout_dir_table[i].mode = 0644;
++			pinout_dir_table[i].proc_handler = proc_handle_pinout;
++			pinout_dir_table[i].data = (void *)i;
++		}
++		memset(pinout_dir_table + i, 0, sizeof(ctl_table));
++	}
++	return 0;
++}
++
+Index: linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/gsp-sysctl.c	2007-10-20 18:19:33.000000000 -0700
++++ linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c	2007-10-20 18:19:33.000000000 -0700
+@@ -10,6 +10,11 @@
+ 	CTL_BDINFO = 1,
+ 	CTL_BOARD,
+ 	CTL_WDT,
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#ifdef MII_TEST
++	CTL_MII,
++#endif
++#endif
+ };
+ 
+ enum {
+@@ -18,8 +23,19 @@
+ 	CTL_BDINFO_MAC2,
+ 	CTL_BDINFO_SERIAL,
+ 	CTL_BDINFO_FAMILY,
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	CTL_BDINFO_PORTS,
++	CTL_BDINFO_MODEM,
++	CTL_BDINFO_AUX,
++	CTL_BDINFO_POWER,
++	CTL_BDINFO_FPGAVER,
++#endif
+ };
+ 
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#include "4xx/goldengate-sysctl.c"
++#endif
++
+ extern bd_t __res;
+ 
+ static int proc_handle_mac(ctl_table *table, int write, struct file *filp,
+@@ -127,6 +143,43 @@
+ 		.mode = 0644,
+ 		.proc_handler = &proc_handle_family,
+ 	},
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	{
++		.ctl_name = CTL_BDINFO_PORTS,
++		.procname = "ports",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_ports,
++	},
++	{
++		.ctl_name = CTL_BDINFO_MODEM,
++		.procname = "modem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_modem,
++	},
++	{
++		.ctl_name = CTL_BDINFO_AUX,
++		.procname = "aux",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_aux,
++	},
++	{
++		.ctl_name = CTL_BDINFO_POWER,
++		.procname = "power",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_power,
++	},
++	{
++		.ctl_name = CTL_BDINFO_FPGAVER,
++		.procname = "fpgaver",
++		.maxlen = 6,
++		.mode = 0644,
++		.proc_handler = &proc_handle_fpgaver,
++	},
++#endif
+ 	{0}
+ };
+ 
+@@ -216,6 +269,17 @@
+                 .mode = 0555,
+                 .child = wdt_dir_table,
+         },
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#ifdef MII_TEST
++	{
++		.ctl_name = CTL_MII,
++                .procname = "mii",
++		.maxlen = 10,
++                .mode = 0644,
++                .proc_handler = proc_handle_mii,
++        },
++#endif
++#endif
+         {0}
+ };
+ 
+@@ -236,6 +300,9 @@
+ {
+ 	printk("Avocent sysctl\n");
+ 
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	goldengate_sysctl_init();
++#endif
+ 	register_sysctl_table(avocent_table, 1);
+ 	return 0;
+ }
+Index: linux-2.6.19/drivers/serial/8250.c
+===================================================================
+--- linux-2.6.19.orig/drivers/serial/8250.c	2007-10-20 18:19:32.000000000 -0700
++++ linux-2.6.19/drivers/serial/8250.c	2007-10-20 18:33:58.000000000 -0700
+@@ -46,6 +46,9 @@
+ 
+ #include "8250.h"
+ 
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#include <platforms/4xx/goldengate.h>
++#endif
+ /*
+  * Configuration:
+  *   share_irqs - whether we pass IRQF_SHARED to request_irq().  This option
+@@ -136,6 +139,9 @@
+ 	unsigned char		mcr_mask;	/* mask of user bits */
+ 	unsigned char		mcr_force;	/* mask of forced bits */
+ 	unsigned char		lsr_break_flag;
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	unsigned char       mstatus;
++#endif
+ 
+ 	/*
+ 	 * We provide a per-port pm hook.
+@@ -1291,6 +1297,27 @@
+ {
+ 	unsigned int status = serial_in(up, UART_MSR);
+ 
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	if (up->port.line == 1) {
++		struct goldengate_fpga *fpga;
++		status &= ~(UART_MSR_DCD | UART_MSR_RI | UART_MSR_DSR | UART_MSR_DDCD);
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		if ((fpga->config_sts & 0x20) == 0) {
++			status |= UART_MSR_DSR;
++		}
++		if ((fpga->config_sts & 0x10) == 0) {
++			status |= UART_MSR_DCD;
++		}
++		if ((fpga->config_sts & 0x08) == 0) {
++			status |= UART_MSR_RI;
++		}
++		if (((up->mstatus & UART_MSR_DCD) && (status & UART_MSR_DCD) == 0) ||
++			((up->mstatus & UART_MSR_DCD) == 0 && (status & UART_MSR_DCD))) {
++			status |= UART_MSR_DDCD;
++		}
++	}
++	up->mstatus = status;
++#endif
+ 	if (status & UART_MSR_ANY_DELTA && up->ier & UART_IER_MSI) {
+ 		if (status & UART_MSR_TERI)
+ 			up->port.icount.rng++;
+@@ -1522,6 +1549,17 @@
+ 	mcr = (mcr & up->mcr_mask) | up->mcr_force | up->mcr;
+ 
+ 	serial_out(up, UART_MCR, mcr);
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	if (port->line == 1) {
++		struct goldengate_fpga *fpga;
++		fpga = (struct goldengate_fpga *)goldengate_get_fpga_addr();
++		if (mcr & UART_MCR_DTR) {
++			fpga->res_uart &= ~1;
++		} else {
++			fpga->res_uart = 1;
++		}
++	}
++#endif
+ }
+ 
+ static void serial8250_break_ctl(struct uart_port *port, int break_state)

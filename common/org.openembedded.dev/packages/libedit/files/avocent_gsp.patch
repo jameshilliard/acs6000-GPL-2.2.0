@@ -1,0 +1,489 @@
+Index: src/editline/readline.h
+===================================================================
+--- src/editline/readline.h.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/editline/readline.h	2008-03-21 20:08:14.000000000 -0700
+@@ -40,6 +40,7 @@
+ 
+ /* typedefs */
+ typedef int	  Function(const char *, int);
++typedef int	  IFunction(void);
+ typedef void	  VFunction(void);
+ typedef void	  VCPFunction(char *);
+ typedef char	 *CPFunction(const char *, int);
+@@ -89,6 +90,15 @@
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
++
++#define rl_completer_word_break_characters rl_basic_word_break_characters
++
++#define META(c) (c | 0x80)
++
++#ifndef TAB
++#define TAB '\t'
++#endif
++
+ extern const char	*rl_library_version;
+ extern char		*rl_readline_name;
+ extern FILE		*rl_instream;
+@@ -98,9 +108,8 @@
+ extern int		 history_base, history_length;
+ extern int		 max_input_history;
+ extern char		*rl_basic_word_break_characters;
+-extern char		*rl_completer_word_break_characters;
+ extern char		*rl_completer_quote_characters;
+-extern Function		*rl_completion_entry_function;
++extern CPFunction		*rl_completion_entry_function;
+ extern CPPFunction	*rl_attempted_completion_function;
+ extern int		 rl_attempted_completion_over;
+ extern int		rl_completion_type;
+@@ -113,6 +122,17 @@
+ extern char		*rl_terminal_name;
+ extern int		rl_already_prompted;
+ extern char		*rl_prompt;
++
++extern int rl_set_keyboard_input_timeout (int);
++extern void rl_parse (char *);
++extern void rl_insert_text(const char *);
++extern int rl_on_new_line (void);
++extern int rl_on_new_line_with_prompt (void);
++extern int rl_catch_signals;
++extern int rl_getc (FILE *stream);
++extern int rl_done;
++extern IFunction *rl_event_hook;
++
+ /*
+  * The following is not implemented
+  */
+@@ -123,7 +143,7 @@
+ extern int		rl_ignore_completion_duplicates;
+ extern int		(*rl_getc_function)(FILE *);
+ extern VFunction	*rl_redisplay_function;
+-extern VFunction	*rl_completion_display_matches_hook;
++extern void (*rl_completion_display_matches_hook) (char **matches, int num_matches, int max_length);
+ extern VFunction	*rl_prep_term_function;
+ extern VFunction	*rl_deprep_term_function;
+ extern int		readline_echoing_p;
+Index: src/refresh.c
+===================================================================
+--- src/refresh.c.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/refresh.c	2008-03-21 20:08:14.000000000 -0700
+@@ -1113,6 +1113,16 @@
+ 	el->el_refresh.r_oldcv = 0;
+ }
+ 
++protected void
++re_clear_vdisplay(EditLine *el)
++{
++	int i;
++
++	el->el_refresh.r_cursor.h = 0;
++	el->el_refresh.r_cursor.v = 0;
++	for (i = 0; i < el->el_term.t_size.v; i++)
++		el->el_vdisplay[i][0] = '\0';
++}
+ 
+ /* re_clear_lines():
+  *	Make sure all lines are *really* blank
+Index: src/read.c
+===================================================================
+--- src/read.c.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/read.c	2008-03-21 20:08:14.000000000 -0700
+@@ -553,6 +553,9 @@
+ 
+ 		case CC_REDISPLAY:
+ 			re_clear_lines(el);
++			/* FALLTHROUGH */
++
++		case CC_REDISPLAY_NOCLEAR:
+ 			re_clear_display(el);
+ 			/* FALLTHROUGH */
+ 
+Index: src/filecomplete.c
+===================================================================
+--- src/filecomplete.c.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/filecomplete.c	2008-03-21 20:08:14.000000000 -0700
+@@ -75,6 +75,8 @@
+ #include "histedit.h"
+ #include "filecomplete.h"
+ 
++extern void (*el_rl_completion_display_matches_hook)(char **matches, int num_matches, int max_length);
++
+ static char break_chars[] = { ' ', '\t', '\n', '"', '\\', '\'', '`', '@', '$',
+     '>', '<', '=', ';', '|', '&', '{', '(', '\0' };
+ 
+@@ -477,16 +479,15 @@
+ 			el_insertstr(el, matches[0]);
+ 		}
+ 
+-		if (what_to_do == '?')
+-			goto display_matches;
+-
+ 		if (matches[2] == NULL && strcmp(matches[0], matches[1]) == 0) {
+ 			/*
+ 			 * We found exact match. Add a space after
+ 			 * it, unless we do filename completion and the
+ 			 * object is a directory.
+ 			 */
+-			el_insertstr(el, (*append_char_function)(matches[0])); 
++			el_insertstr(el, (*app_func)(matches[0])); 
++		} else if (what_to_do == '?') {
++			goto display_matches;
+ 		} else if (what_to_do == '!') {
+     display_matches:
+ 			/*
+@@ -504,6 +505,12 @@
+ 			/* newline to get on next line from command line */
+ 			(void)fprintf(el->el_outfile, "\n");
+ 
++			if (el_rl_completion_display_matches_hook) {
++	 			(*el_rl_completion_display_matches_hook)(matches, matches_num, maxlen);
++				retval = CC_REDISPLAY_NOCLEAR;
++				goto exit_cleanup;
++			}
++
+ 			/*
+ 			 * If there are too many items, ask user for display
+ 			 * confirmation.
+@@ -521,7 +528,7 @@
+ 			if (match_display)
+ 				fn_display_match_list(el, matches, matches_num,
+ 					maxlen);
+-			retval = CC_REDISPLAY;
++			retval = CC_REDISPLAY_NOCLEAR;
+ 		} else if (matches[0][0]) {
+ 			/*
+ 			 * There was some common match, but the name was
+@@ -536,6 +543,8 @@
+ 			retval = CC_NORM;
+ 		}
+ 
++exit_cleanup:
++
+ 		/* free elements of array and the array itself */
+ 		for (i = 0; matches[i]; i++)
+ 			free(matches[i]);
+Index: src/histedit.h
+===================================================================
+--- src/histedit.h.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/histedit.h	2008-03-21 20:08:14.000000000 -0700
+@@ -78,6 +78,7 @@
+ #define	CC_ERROR	6
+ #define	CC_FATAL	7
+ #define	CC_REDISPLAY	8
++#define	CC_REDISPLAY_NOCLEAR	10
+ #define	CC_REFRESH_BEEP	9
+ 
+ /*
+Index: src/readline.c
+===================================================================
+--- src/readline.c.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/readline.c	2008-03-21 20:10:21.000000000 -0700
+@@ -83,8 +83,9 @@
+ void rl_prep_terminal(int);
+ void rl_deprep_terminal(void);
+ 
+-/* for rl_complete() */
+-#define TAB		'\r'
++#define MIN_KEYBOARD_TIMEOUT 100000
++
++static int _keyboard_input_timeout = MIN_KEYBOARD_TIMEOUT; 
+ 
+ /* see comment at the #ifdef for sense of this */
+ /* #define GDB_411_HACK */
+@@ -104,7 +105,7 @@
+ char *rl_line_buffer = NULL;
+ VCPFunction *rl_linefunc = NULL;
+ int rl_done = 0;
+-VFunction *rl_event_hook = NULL;
++IFunction *rl_event_hook = NULL;
+ KEYMAP_ENTRY_ARRAY emacs_standard_keymap,
+     emacs_meta_keymap,
+     emacs_ctlx_keymap;
+@@ -121,9 +122,8 @@
+ int rl_inhibit_completion = 0;
+ int rl_attempted_completion_over = 0;
+ char *rl_basic_word_break_characters = break_chars;
+-char *rl_completer_word_break_characters = NULL;
+ char *rl_completer_quote_characters = NULL;
+-Function *rl_completion_entry_function = NULL;
++CPFunction *rl_completion_entry_function = NULL;
+ CPPFunction *rl_attempted_completion_function = NULL;
+ Function *rl_pre_input_hook = NULL;
+ Function *rl_startup1_hook = NULL;
+@@ -137,10 +137,12 @@
+ int _rl_print_completions_horizontally = 0;
+ VFunction *rl_redisplay_function = NULL;
+ Function *rl_startup_hook = NULL;
+-VFunction *rl_completion_display_matches_hook = NULL;
++void (*rl_completion_display_matches_hook) (char **matches, int num_matches, int max_length) = NULL;
+ VFunction *rl_prep_term_function = (VFunction *)rl_prep_terminal;
+ VFunction *rl_deprep_term_function = (VFunction *)rl_deprep_terminal;
+ 
++void (*el_rl_completion_display_matches_hook)(char **matches, int num_matches, int max_length) = NULL;
++
+ /*
+  * The current prompt string.
+  */
+@@ -169,7 +171,7 @@
+  * This is the character appended to the completed words if at the end of
+  * the line. Default is ' ' (a space).
+  */
+-int rl_completion_append_character = ' ';
++int rl_completion_append_character = 0;
+ 
+ /* stuff below is used internally by libedit for readline emulation */
+ 
+@@ -191,6 +193,14 @@
+ static int		 _rl_event_read_char(EditLine *, char *);
+ static void		 _rl_update_pos(void);
+ 
++int rl_set_keyboard_input_timeout (int u)
++{
++  int o = _keyboard_input_timeout;
++
++  if (u >= MIN_KEYBOARD_TIMEOUT) _keyboard_input_timeout = u;
++
++  return (o);
++}
+ 
+ /* ARGSUSED */
+ static char *
+@@ -229,7 +239,7 @@
+ {
+ 	int i;
+ 
+-	i = (*rl_getc_function)(NULL);
++	i = (*rl_getc_function)(rl_instream);
+ 	if (i == -1)
+ 		return 0;
+ 	*c = i;
+@@ -241,6 +251,78 @@
+  * READLINE compatibility stuff
+  */
+ 
++void rl_parse(char *line)
++{
++	parse_line(e, line);
++}
++
++int rl_on_new_line_with_prompt (void)
++{
++	if (e == NULL || h == NULL)
++		rl_initialize();
++
++	re_clear_lines(e);
++	re_clear_display(e);
++	re_refresh(e);
++	return (0);
++}
++
++int rl_on_new_line (void)
++{
++	if (e == NULL || h == NULL)
++		rl_initialize();
++
++	re_clear_vdisplay(e);
++	re_goto_bottom(e);
++	//re_refresh(e);
++	return (0);
++}
++
++#if !defined (O_NDELAY)
++#  if defined (FNDELAY)
++#    define O_NDELAY FNDELAY
++#  endif
++#endif
++
++int sh_unset_nodelay_mode (int fd)
++{
++  int flags, bflags;
++
++  if ((flags = fcntl (fd, F_GETFL, 0)) < 0)
++    return -1;
++
++  bflags = 0;
++
++#ifdef O_NONBLOCK
++  bflags |= O_NONBLOCK;
++#endif
++
++#ifdef O_NDELAY
++  bflags |= O_NDELAY;
++#endif
++
++  if (flags & bflags)
++    {
++      flags &= ~bflags;
++      return (fcntl (fd, F_SETFL, flags));
++    }
++
++  return 0;
++}
++
++int rl_getc ( FILE *stream )
++{
++  int result;
++  unsigned char c;
++
++  result = read (fileno (stream), &c, sizeof (unsigned char));
++
++  if (result == sizeof (unsigned char)) return (c);
++
++  return (EOF);
++
++}
++
+ /*
+  * initialize rl compat stuff
+  */
+@@ -248,7 +330,6 @@
+ rl_initialize(void)
+ {
+ 	HistEvent ev;
+-	const LineInfo *li;
+ 	int editmode = 1;
+ 	struct termios t;
+ 
+@@ -295,6 +376,7 @@
+ 	}
+ 	el_set(e, EL_PROMPT, _get_prompt);
+ 	el_set(e, EL_SIGNAL, rl_catch_signals);
++	el_rl_completion_display_matches_hook = rl_completion_display_matches_hook;
+ 
+ 	/* set default mode to "emacs"-style and read setting afterwards */
+ 	/* so this can be overriden */
+@@ -328,9 +410,6 @@
+ 	 * Unfortunately, some applications really do use rl_point
+ 	 * and rl_line_buffer directly.
+ 	 */
+-	li = el_line(e);
+-	/* a cheesy way to get rid of const cast. */
+-	rl_line_buffer = memchr(li->buffer, *li->buffer, 1);
+ 	_rl_update_pos();
+ 
+ 	if (rl_startup_hook)
+@@ -339,7 +418,6 @@
+ 	return (0);
+ }
+ 
+-
+ /*
+  * read one line from input stream and return it, chomping
+  * trailing newline (if there is any)
+@@ -1507,8 +1585,9 @@
+ _rl_completion_append_character_function(const char *dummy
+     __attribute__((__unused__)))
+ {
+-	static char buf[2];
+-	buf[1] = rl_completion_append_character;
++	static char buf[2] = {0};
++
++	buf[0] = rl_completion_append_character;
+ 	return buf;
+ }
+ 
+@@ -1531,6 +1610,8 @@
+ 		return (CC_REFRESH);
+ 	}
+ 
++	_rl_update_pos();
++
+ 	/* Just look at how many global variables modify this operation! */
+ 	return fn_complete(e,
+ 	    (CPFunction *)rl_completion_entry_function,
+@@ -1658,7 +1739,7 @@
+ 	char dest[8];
+ 	if (c >= sizeof(map) / sizeof(map[0]) || c < 0)
+ 		return -1;
+-	map[(unsigned char)c] = fun;
++	map[c & 0x7F] = fun; // discard the meta (esc) !!!!
+ 	el_set(e, EL_ADDFN, name, name, rl_bind_wrapper);
+ 	vis(dest, c, VIS_WHITE|VIS_NOSLASH, 0);
+ 	el_set(e, EL_BIND, dest, name);
+@@ -1774,6 +1855,12 @@
+ 	return ((el_set(e, EL_BIND, "", var, value) == -1) ? 1 : 0);
+ }
+ 
++void rl_insert_text(const char *buf)
++{
++	el_insertstr(e, buf);
++	re_refresh(e);
++}
++
+ void
+ rl_stuff_char(int c)
+ {
+@@ -1788,12 +1875,31 @@
+ _rl_event_read_char(EditLine *el, char *cp)
+ {
+ 	int	n, num_read = 0;
++	fd_set readfds, exceptfds;
++	struct timeval timeout;
+ 
+ 	*cp = 0;
+ 	while (rl_event_hook) {
+ 
+ 		(*rl_event_hook)();
+ 
++		if (rl_done) return(-1);
++
++		FD_ZERO (&readfds);
++		FD_ZERO (&exceptfds);
++		FD_SET (el->el_infd, &readfds);
++		FD_SET (el->el_infd, &exceptfds);
++		timeout.tv_sec = 0;
++		timeout.tv_usec = _keyboard_input_timeout;
++		n = select (el->el_infd + 1, &readfds, NULL, &exceptfds, &timeout);
++		if (n == 0) continue;
++		if ((n < 0) || /* Nothing to read. */
++		    (FD_ISSET(el->el_infd, &exceptfds))) return (0);
++
++		if (rl_getc_function) {
++			*cp = (*rl_getc_function)(rl_instream);
++			num_read = *cp != EOF ? 1 : 0;
++		} else {
+ #if defined(FIONREAD)
+ 		if (ioctl(el->el_infd, FIONREAD, &n) < 0)
+ 			return(-1);
+@@ -1814,6 +1920,7 @@
+ 		num_read = read(el->el_infd, cp, 1);
+ 		return(-1);
+ #endif
++		}
+ 
+ 		if (num_read < 0 && errno == EAGAIN)
+ 			continue;
+@@ -1831,8 +1938,11 @@
+ {
+ 	const LineInfo *li = el_line(e);
+ 
++	if (rl_line_buffer) free(rl_line_buffer);
++	rl_line_buffer = strdup(li->buffer);
+ 	rl_point = li->cursor - li->buffer;
+ 	rl_end = li->lastchar - li->buffer;
++	rl_line_buffer[rl_point] = 0;
+ }
+ 
+ void
+Index: src/vis.c
+===================================================================
+--- src/vis.c.orig	2007-08-30 15:03:08.000000000 -0700
++++ src/vis.c	2008-03-21 20:08:14.000000000 -0700
+@@ -215,6 +215,7 @@
+ 		if ((flag & VIS_NOSLASH) == 0) *dst++ = '\\';		      \
+ 		if (c & 0200) {						      \
+ 			c &= 0177; *dst++ = 'M';			      \
++			*dst++ = '-';			      \
+ 		}							      \
+ 		if (iscntrl(c)) {					      \
+ 			*dst++ = '^';					      \
+@@ -223,7 +224,7 @@
+ 			else						      \
+ 				*dst++ = c + '@';			      \
+ 		} else {						      \
+-			*dst++ = '-'; *dst++ = c;			      \
++			*dst++ = c;			      \
+ 		}							      \
+ 	}								      \
+ } while (/*CONSTCOND*/0)

@@ -1,0 +1,22 @@
+Index: pwdb-0.62/libpwdb/Makefile
+===================================================================
+--- pwdb-0.62.orig/libpwdb/Makefile
++++ pwdb-0.62/libpwdb/Makefile
+@@ -67,8 +67,8 @@ install: all
+ 	$(INSTALL) -m 644 radius/public.h $(INCLUDED)/pwdb_radius.h
+ 	$(INSTALL) -m 644 radius.h $(INCLUDED)/radius.h
+ 	$(INSTALL) -m 644 _pwdb_macros.h $(INCLUDED)/_pwdb_macros.h
++	$(INSTALL) -d $(LIBDIR)
+ 	$(INSTALL) -m 755 $(LIBFILENAME) $(LIBDIR)
+-	$(LDCONFIG)
+ 	ln -sf $(LIBFILENAME) $(LIBDIR)/$(LIBDYNAME)
+ 	$(INSTALL) -m 644 $(LIBSTATIC) $(LIBDIR)
+ 
+@@ -81,7 +81,6 @@ remove:
+ 	rm -f $(INCLUDED)/pam_public.h
+ 	rm -f $(INCLUDED)/pam_map.h
+ 	rm -f $(LIBDIR)/$(LIBDYNAME)*
+-	$(LDCONFIG)
+ 	rm -f $(LIBDIR)/$(LIBSTATIC)
+ 
+ .c.o:

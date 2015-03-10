@@ -1,0 +1,58 @@
+From ee79306844d8c5342a95fc07fba0bec0c49152c8 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Mon, 2 Jun 2008 17:34:27 +0800
+Subject: [PATCH] add rtc support to MPC8313ERDB BSP on 2.6.23
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts |    7 +++++++
+ arch/powerpc/sysdev/fsl_soc.c         |    2 ++
+ 2 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index 1db8972..dd5b102 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -84,12 +84,19 @@
+ 		};
+ 
+ 		i2c@3000 {
++			#address-cells = <1>;
++			#size-cells = <0>;
+ 			device_type = "i2c";
+ 			compatible = "fsl-i2c";
+ 			reg = <3000 100>;
+ 			interrupts = <e 8>;
+ 			interrupt-parent = < &ipic >;
+ 			dfsrr;
++			rtc@68 {
++				device_type="rtc";
++				compatible="dallas,ds1339";
++				reg=<68>;
++			};
+ 		};
+ 
+ 		i2c@3100 {
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index d3e9219..cf817fd 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -394,6 +394,7 @@ static struct i2c_driver_device i2c_devices[] __initdata = {
+ 	{"ricoh,rs5c372b", "rtc-rs5c372", "rs5c372b",},
+ 	{"ricoh,rv5c386",  "rtc-rs5c372", "rv5c386",},
+ 	{"ricoh,rv5c387a", "rtc-rs5c372", "rv5c387a",},
++	{"dallas,ds1339",  "rtc-ds1307",  "ds1339",},
+ };
+ 
+ static int __init of_find_i2c_driver(struct device_node *node, struct i2c_board_info *info)
+@@ -425,6 +426,7 @@ static void __init of_register_i2c_devices(struct device_node *adap_node, int bu
+ 			continue;
+ 		}
+ 
++		memset(&info, 0, sizeof(info));
+ 		info.irq = irq_of_parse_and_map(node, 0);
+ 		if (info.irq == NO_IRQ)
+ 			info.irq = -1;
+-- 
+1.5.5.1.248.g4b17
+

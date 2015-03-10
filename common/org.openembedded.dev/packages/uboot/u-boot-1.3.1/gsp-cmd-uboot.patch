@@ -1,0 +1,525 @@
+Index: u-boot-1.2.0/utils/Makefile
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/utils/Makefile	2007-06-04 17:05:41.000000000 -0700
+@@ -0,0 +1,29 @@
++PLATFORM = LINUX_LC6
++
++# Uncomment for debugging
++#DEBUG = -g -ggdb
++
++DEFINES = -D$(PLATFORM) $(DEBUG)
++BINDIR = $(DESTDIR)/sbin
++
++CFLAGS += -O2 $(INCLUDES) $(DEFINES)
++LDFLAGS = $(subst -s,,$(subst -S,,-s))
++
++TARGETS = cmd_uboot
++
++UBOOT_DIR = ..
++
++all: $(TARGETS)
++
++cmd_uboot: CFLAGS += -I$(UBOOT_DIR)/include -DUSE_HOSTCC
++
++cmd_uboot:	cmd_uboot.o cyc_env.o crc32.o
++	$(CC) $(LDFLAGS) -o $@ $^
++
++crc32.c:
++	@rm -f $(obj)crc.c
++	ln -s $(UBOOT_DIR)/lib_generic/crc32.c crc32.c
++
++install:
++	install -d $(BINDIR)
++	install -m 755 $(TARGETS) $(BINDIR)
+Index: u-boot-1.2.0/utils/cyc_env.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/utils/cyc_env.c	2007-06-04 16:52:14.000000000 -0700
+@@ -0,0 +1,189 @@
++/*****************************************************************
++* File: cyc_env.c
++*
++* Copyright (C) 2003 Cyclades Corporation
++*
++* www.cyclades.com
++*
++* This program is free software; you can redistribute it and/or
++* modify it under the terms of the GNU General Public License
++* as published by the Free Software Foundation; either version
++* 2 of the License, or (at your option) any later version.
++*
++* Description: API for u-boot enviroment variables
++*
++****************************************************************/
++
++#include <config.h>
++#include <command.h>
++#include <environment.h>
++#include <linux/stddef.h>
++#include <malloc.h>
++#include <string.h>
++#include "cyc_env.h"
++
++#undef DEBUG_ENV
++#ifdef DEBUG_ENV
++#define DEBUGF(fmt,args...) printf(fmt ,##args)
++#else
++#define DEBUGF(fmt,args...)
++#endif
++
++static env_t *env_ptr = NULL;
++
++/*
++ * The application must call this routine just after reading
++ * /proc/flash/boot_ori and before any other call to this interface
++*/
++char *cyc_set_env_ptr(char *ptr)
++{
++	env_ptr = (env_t *)(ptr - sizeof(env_t));
++
++	return((char *)env_ptr->data);
++}
++
++/*
++ * Checks if the crc32 of the u-boot enviroment variables is valid.
++*/
++int cyc_check_crc(void)
++{
++	return (crc32(0, env_ptr->data, ENV_SIZE) == env_ptr->crc);
++}
++
++/*
++ * Copies the idefault environment variables to the u-boot env-t struct and
++ * calculates the crc32.
++*/
++
++void cyc_set_default_env(char *def_vars[])
++{
++	int i, len, size;
++
++	memset(env_ptr->data, 0, ENV_SIZE);
++
++	for(i=0, size=0; def_vars[i]; i+=2) {
++		len = strlen(def_vars[i]);
++		if (size + len > ENV_SIZE-2) break;
++		memcpy(&env_ptr->data[size], def_vars[i], len);
++		size += len;
++		env_ptr->data[size++] = '=';
++		len = strlen(def_vars[i+1]);
++		if (size + len > ENV_SIZE-3) break;
++		memcpy(&env_ptr->data[size], def_vars[i+1], len);
++		size += len+1;
++	}
++
++	if (size < ENV_SIZE)
++		memset(&env_ptr->data[size], 0, ENV_SIZE-size);
++
++	env_ptr->crc = crc32(0, env_ptr->data, ENV_SIZE);
++}
++
++static int
++envmatch (unsigned char *s1, unsigned char *env)
++{
++	unsigned char *save_env = env;
++
++	for  ( ; *s1 == *env && *s1 != '='; s1++, env++) ;
++
++	if ((*s1 == '=') ||
++		(*s1 == '\0' && *env == '=')) return(env - save_env + 1);
++
++	return(-1);
++}
++
++int cyc_setenv (char *name, char *val)
++{
++	int   len, oldval;
++	unsigned char *env, *nxt = NULL;
++
++	/*
++	 * search if variable with this name already exists
++	 */
++	oldval = -1;
++	for (env=env_ptr->data; *env; env=nxt+1) {
++		for (nxt=env; *nxt; ++nxt)
++			;
++		if ((oldval = envmatch((unsigned char *)name, (unsigned char *)env)) >= 0)
++			break;
++	}
++
++	/*
++	 * Delete any existing definition
++	 */
++	if (oldval >= 0) {
++
++		if (*++nxt == '\0') {
++			if (env > env_ptr->data) {
++				env--;
++			} else {
++				*env = '\0';
++			}
++		} else {
++			for (;;) {
++				*env = *nxt++;
++				if ((*env == '\0') && (*nxt == '\0'))
++					break;
++				++env;
++			}
++		}
++		*++env = '\0';
++	}
++
++	/* Delete only ? */
++	if (!val || !*val) {
++		env_ptr->crc = crc32(0, env_ptr->data, ENV_SIZE);
++		return 0;
++	}
++
++	/*
++	 * Append new definition at the end
++	 */
++	for (env=env_ptr->data; *env || *(env+1); ++env)
++		;
++	if (env > env_ptr->data)
++		++env;
++	/*
++	 * Overflow when:
++	 * "name" + "=" + "val" +"\0\0"  > ENV_SIZE - (env-env_ptr->data)
++	 */
++	len = strlen(name) + 3 + strlen(val);
++
++	if (len > (&env_ptr->data[ENV_SIZE]-env)) {
++		return 1;
++	}
++	while ((*env = *name++) != '\0')
++		env++;
++
++	*env = '=';
++	while ((*++env = *val++) != '\0') ;
++
++	/* end is marked with double '\0' */
++	*++env = '\0';
++
++	/* Update CRC */
++	env_ptr->crc = crc32(0, env_ptr->data, ENV_SIZE);
++
++	return 0;
++}
++
++
++char *cyc_getenv (unsigned char *name)
++{
++
++	int   oldval;
++	unsigned char *env, *nxt = NULL;
++
++	/*
++	 * search if variable with this name already exists
++	 */
++	oldval = -1;
++	for (env=env_ptr->data; *env; env=nxt+1) {
++		for (nxt=env; *nxt; ++nxt)
++			;
++		if ((oldval = envmatch(name, env)) >= 0)
++			return(char *)(env+oldval);
++	}
++
++	return (NULL);
++}
+Index: u-boot-1.2.0/utils/cyc_env.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/utils/cyc_env.h	2007-06-04 16:52:14.000000000 -0700
+@@ -0,0 +1,21 @@
++/*****************************************************************
++* File: cyc_env.h
++*
++* Copyright (C) 2003 Cyclades Corporation
++*
++* www.cyclades.com
++*
++* This program is free software; you can redistribute it and/or
++* modify it under the terms of the GNU General Public License
++* as published by the Free Software Foundation; either version
++* 2 of the License, or (at your option) any later version.
++*
++* Description: API for u-boot enviroment variables
++*
++****************************************************************/
++
++char *cyc_set_env_ptr(char *ptr);
++int cyc_check_crc(void);
++void cyc_set_default_env(char *def_vars[]);
++int cyc_setenv (char *name, char *val);
++char *cyc_getenv (unsigned char *name);
+Index: u-boot-1.2.0/utils/cmd_uboot.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/utils/cmd_uboot.c	2007-06-04 17:07:15.000000000 -0700
+@@ -0,0 +1,266 @@
++#include <fcntl.h>
++#include <stdio.h>
++#include <errno.h>
++
++#include <unistd.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/time.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/ioctl.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include <net/if.h>
++#include <net/if_arp.h>
++
++#include <config.h>
++#include "cyc_env.h"
++
++static char def_serialnb[13];
++static char def_ethaddr[18];
++static char def_eth1addr[18];
++static char def_baud[8];
++static char def_tftp_path[64];
++static char def_fallback[4];
++static char def_netretry[5];
++
++char *NameValListDefault [] = {
++	"serial#", def_serialnb,
++	"ethaddr", def_ethaddr,
++	"eth1addr", def_eth1addr,
++	"bootcmd", "hw_boot",
++	"baudrate", def_baud,
++	"wdt", "yes",
++	"fecmode1", "auto",
++	"fecmode2", "auto",
++	"bootfile", def_tftp_path,
++	"ipaddr", "192.168.160.10",
++	"serverip", "192.168.160.1",
++	"currentimage", "1",
++	"fallback", def_fallback,
++	"netretry", def_netretry,
++	NULL, NULL
++};
++
++static char om_buf[CFG_ENV_SIZE];
++static int list=0, set_default=0, silent=0, onlyVal=0;
++
++static
++int read_write_boot_file(char *buf, int rw)
++{
++	int	fd, count;
++	int flags = rw ? O_WRONLY : O_RDONLY;
++
++	if ((fd = open(CFG_ENV_FILE, flags)) == -1) {
++		if (!silent)
++			fprintf(stderr, "Error opening %s: %s\n", CFG_ENV_FILE, strerror(errno));
++		return(1);
++	}
++
++	if (rw) {
++		count = write(fd, buf, CFG_ENV_SIZE);
++	} else {
++		count = read(fd, buf, CFG_ENV_SIZE);
++	}
++
++	close(fd);
++
++	if (count != CFG_ENV_SIZE) {
++		if (!silent)
++			printf("\r\nError (%d) %s file (" CFG_ENV_FILE ") count=%d\r\n", errno,
++				rw ? "writing" : "reading", count);
++		return (2);
++	}
++	return(0);
++}
++
++static
++void show_config(char *env)
++{
++	while(*env) {
++		printf("%s\n", env);
++		env += strlen(env) + 1;
++	}
++}
++
++/* read from file
++   if file is '-', read from standard input
++   use the same format as for the output of cmd_uboot -l
++
++   (oku)
++*/
++static
++int set_from_file(const char *in_file)
++{
++	FILE *fin;
++	char name[256], value[256], line[256];
++	const char *p;
++	char *q;
++
++	if(strcmp(in_file, "-") == 0)
++		fin = stdin;
++	else
++		fin = fopen(in_file, "r");
++
++	if(!fin) return -1;
++
++	while(fgets(line, sizeof(line), fin)){
++		p = line;
++
++		/* parse name */
++		q = name;
++		while(*p && *p != '=' && (q < name + sizeof(name) - 1))
++			*q++ = *p++;
++		*q = 0;
++
++		/* parse value */
++		q = value;
++		if(*p == '='){
++			p++;
++			while(*p && (*p != '\n') && (*p != '\r') && (q < value + sizeof(value) - 1))
++				*q++ = *p++;
++		}
++		*q = 0;
++
++		/* set it: */
++		cyc_setenv(name, value);
++	}
++
++	if(fin != stdin) fclose(fin);
++
++	return 0;
++}
++
++static
++void show_usage(char *prog)
++{
++	printf("\nUsage: %s [-ldq] [-p param] [-n value]\n", prog);
++	printf("\n-l         : list all configured parameters");
++	printf("\n-d         : set default values");
++	printf("\n-q         : silent mode");
++	printf("\n-p <param> : parameter name");
++	printf("\n-P <param> : print value without parameter name");
++	printf("\n-n <value> : new parameter value\n");
++	printf("\nReturns 0 on success\n");
++	exit(1);
++}
++
++int main(int argc, char *argv[])
++{
++	char	*p, *s;
++	char	*name = NULL, *val = NULL, *new = NULL, *file_in = NULL;
++	extern char *optarg;
++	extern int optind;
++	int opt, ret = 0;
++
++	while ((opt = getopt(argc, argv, "lqdP:p:n:i:")) != EOF) {
++		switch (opt) {
++		case 'l':		/* list */
++			list = 1;
++			break;
++		case 'd':		/* default */
++			set_default = 1;
++			break;
++		case 'q':		/* quite mode */
++			silent = 1;
++			break;
++		case 'p':		/* parameter name */
++			name = optarg;
++			break;
++		case 'P':		/* parameter name */
++			onlyVal = 1;
++			name = optarg;
++			break;
++		case 'n':		/* parameter value */
++			new = optarg;
++			break;
++		case'i':
++			file_in = optarg;
++			break;
++		default:
++			if (silent) return(3);
++			printf("Error: invalid option '%c'\n", opt);
++			show_usage(argv[0]);
++		}
++	}
++
++	if (!(list || set_default || name || file_in)) {
++		if (silent) return(4);
++		printf("Error: an option d, p, l or i must be given\n");
++		show_usage(argv[0]);
++	}
++
++	if ((opt=read_write_boot_file(om_buf, 0))) return(opt);
++
++	p = cyc_set_env_ptr(om_buf + sizeof(om_buf));
++
++	if (list) {
++		if (!cyc_check_crc()) return(5);
++		show_config(p);
++		return(0);
++	}
++
++	if (set_default) {
++		sprintf(def_serialnb, "000000000000");
++#ifdef BUILTIN_SERIALNB
++		get_builtin_serialnb(def_serialnb);
++#endif
++		sprintf(def_ethaddr, "00:e0:86:00:00:01");
++#ifdef BUILTIN_ETHADDR
++		get_builtin_ethaddr(def_ethaddr);
++#endif
++		sprintf(def_eth1addr, "00:e0:86:00:00:01");
++#ifdef BUILTIN_ETH1ADDR
++		get_builtin_eth1addr(def_eth1addr);
++#endif
++		sprintf(def_baud, "%d", CONFIG_BAUDRATE);
++		strcpy(def_tftp_path, "avoImage.bin");
++		strcpy(def_fallback, "no");
++		strcpy(def_netretry, "no");
++#ifdef CONFIG_EXTRA_ENV_SETTINGS
++		for (s = CONFIG_EXTRA_ENV_SETTINGS; *s; s += strlen(s) + 1) {
++			if (! strncmp(s, "bootfile=", 9)) {
++				snprintf(def_tftp_path, 64, "%s", s + 9);
++			}
++			if (! strncmp(s, "fallback=", 9)) {
++				snprintf(def_fallback, 4, "%s", s + 9);
++			}
++			if (! strncmp(s, "netretry=", 9)) {
++				snprintf(def_netretry, 5, "%s", s + 9);
++			}
++		}
++#endif
++		cyc_set_default_env(NameValListDefault);
++		if ((opt=read_write_boot_file(om_buf, 1))) return(opt);
++		if (!silent) show_config(p);
++		return(0);
++	}
++
++	if(name){
++
++		val = cyc_getenv((unsigned char *)name);
++
++		if (onlyVal) {
++			if (val) printf("%s\n\r", val);
++			return(0);
++		}
++
++		if (val && !silent) printf("\n\r%s = %s \n\r\n", name, val);
++	}
++
++	if (file_in){
++		ret = set_from_file(file_in);
++		if(ret == 0){
++			if((ret = read_write_boot_file(om_buf, 1))) return ret;
++			if (!silent) show_config(p);
++		}else
++			return ret;
++	}else if (new) {
++		cyc_setenv(name, new);
++		if ((ret = read_write_boot_file(om_buf, 1))) return ret;
++		if (!silent) show_config(p);
++	}
++
++	return(0);
++}

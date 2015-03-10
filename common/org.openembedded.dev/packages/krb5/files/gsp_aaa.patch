@@ -1,0 +1,225 @@
+Index: src/appl/libpty/open_slave.c
+===================================================================
+--- src.orig/appl/libpty/open_slave.c	2002-06-12 18:31:32.000000000 -0700
++++ src/appl/libpty/open_slave.c	2008-08-20 15:32:37.000000000 -0700
+@@ -66,6 +66,7 @@
+     if (chown(slave, 0, 0) == -1)
+ 	return PTY_OPEN_SLAVE_CHOWNFAIL;
+ 
++#undef HAVE_REVOKE /* GSP AAA [EL] */
+ #ifdef HAVE_REVOKE
+     if (revoke(slave) < 0) {
+ 	return PTY_OPEN_SLAVE_REVOKEFAIL;
+Index: src/appl/telnet/libtelnet/misc.c
+===================================================================
+--- src.orig/appl/telnet/libtelnet/misc.c	2002-11-15 12:21:18.000000000 -0800
++++ src/appl/telnet/libtelnet/misc.c	2008-08-20 15:32:37.000000000 -0700
+@@ -42,6 +42,7 @@
+ char *RemoteHostName;
+ char *LocalHostName;
+ char *UserNameRequested = 0;
++char *Target = 0;
+ int ConnectedCount = 0;
+ 
+ 	void
+@@ -62,6 +63,7 @@
+ 	if (UserNameRequested) {
+ 		free(UserNameRequested);
+ 		UserNameRequested = 0;
++		if (Target) Target = 0;
+ 	}
+ }
+ 
+@@ -74,6 +76,11 @@
+ 	if (UserNameRequested)
+ 		free(UserNameRequested);
+ 	UserNameRequested = name ? strdup(name) : 0;
++	Target = 0;
++	if (UserNameRequested) {
++		Target = strchr(UserNameRequested, ':');
++		if (Target) *Target++ = 0;
++	}
+ }
+ 
+ 	void
+Index: src/appl/telnet/libtelnet/kerberos5.c
+===================================================================
+--- src.orig/appl/telnet/libtelnet/kerberos5.c	2006-12-01 13:27:28.000000000 -0800
++++ src/appl/telnet/libtelnet/kerberos5.c	2008-08-20 15:32:37.000000000 -0700
+@@ -742,8 +742,10 @@
+ 	 * the name buffer comes from telnetd/telnetd{-ktd}.c
+ 	 */
+ 	if (UserNameRequested) {
++		if (Target) *(Target-1) = ':';
+ 		strncpy(name, UserNameRequested, 255);
+ 		name[255] = '\0';
++		if (Target) *(Target-1) = 0;
+ 	}
+ 
+ 	if (UserNameRequested &&
+Index: src/appl/telnet/libtelnet/misc.h
+===================================================================
+--- src.orig/appl/telnet/libtelnet/misc.h	2001-10-09 20:18:22.000000000 -0700
++++ src/appl/telnet/libtelnet/misc.h	2008-08-20 15:32:37.000000000 -0700
+@@ -33,6 +33,7 @@
+  *	@(#)misc.h	8.1 (Berkeley) 6/4/93
+  */
+ 
++extern char *Target;
+ extern char *UserNameRequested;
+ extern char *LocalHostName;
+ extern char *RemoteHostName;
+Index: src/appl/telnet/telnetd/sys_term.c
+===================================================================
+--- src.orig/appl/telnet/telnetd/sys_term.c	2007-04-04 14:39:26.000000000 -0700
++++ src/appl/telnet/telnetd/sys_term.c	2008-08-20 15:32:37.000000000 -0700
+@@ -193,6 +193,10 @@
+ #define setpgrp(a,b) setpgrp()
+ #endif
+ 
++#ifndef	NEWINIT
++extern char *login_serial;
++#endif
++
+ int dup_tty(int);
+ static char **addarg(char **, char *);
+ 
+@@ -1047,6 +1051,11 @@
+ 	return(0);
+ }
+ 
++#ifndef	NEWINIT
++static char *lhost;
++static char *getLocalIpAddress(void);
++#endif
++
+ 
+ #ifdef	NEWINIT
+ char *gen_id = "fe";
+@@ -1113,6 +1122,8 @@
+ 		
+ 	} else {
+ 		
++		lhost = getLocalIpAddress();
++
+ 		pty_update_utmp (PTY_LOGIN_PROCESS, getpid(), "LOGIN", line,
+ 				 host, PTY_TTYSLOT_USABLE);
+ 		getptyslave();
+@@ -1203,6 +1214,33 @@
+ 
+ #ifndef	NEWINIT
+ 
++static char *getLocalIpAddress(void)
++{
++	struct sockaddr_storage addr;
++	socklen_t addrlen;
++	char ntop[NI_MAXHOST];
++	int r;
++
++	/* Get IP address of client. */
++	addrlen = sizeof(addr);
++	memset(&addr, 0, sizeof(addr));
++
++	if (getsockname(0, (struct sockaddr *)&addr, &addrlen) < 0) {
++		fatalperror(net, strerror(errno));
++		return NULL;
++	}
++
++	/* Get the address in ascii. */
++	if ((r = getnameinfo((struct sockaddr *)&addr, addrlen, ntop,
++	    sizeof(ntop), NULL, 0, NI_NUMERICHOST)) != 0) {
++		write(net, "getLocalIpAddress: getnameinfo failed: ", 39);
++		fatalperror(net, r == EAI_SYSTEM ? strerror(errno) : gai_strerror(r));
++		return NULL;
++	}
++	return strdup(ntop);
++}
++
++
+ /*
+  * start_login(host)
+  *
+@@ -1224,7 +1262,6 @@
+ 	char termbuf[64];
+ #endif
+ 
+-
+ 	/*
+ 	 * -h : pass on name of host.
+ 	 *		WARNING:  -h is accepted by login if and only if
+@@ -1235,6 +1272,16 @@
+ 	 */
+ 	argv = addarg(0, "login");
+ 
++	if (login_serial) {
++		argv = addarg(argv, "-s");
++		argv = addarg(argv, login_serial);
++	} else {
++		if (lhost) {
++			argv = addarg(argv, "-l");
++			argv = addarg(argv, lhost);
++		}
++	}
++
+ #if	!defined(NO_LOGIN_H)
+ 
+ # if	defined (AUTHENTICATION) && defined(NO_LOGIN_F) && defined(LOGIN_R)
+Index: src/appl/telnet/telnetd/telnetd.c
+===================================================================
+--- src.orig/appl/telnet/telnetd/telnetd.c	2006-10-15 06:23:48.000000000 -0700
++++ src/appl/telnet/telnetd/telnetd.c	2008-08-20 15:32:37.000000000 -0700
+@@ -155,6 +155,10 @@
+ 
+ extern void usage (void);
+ 
++#ifndef	NEWINIT
++char *login_serial = NULL;
++#endif
++
+ /*
+  * The string to pass to getopt().  We do it this way so
+  * that only the actual options that we support will be
+@@ -190,6 +194,9 @@
+ #ifdef KRB5
+ 	'R', ':', 't', ':',
+ #endif
++#ifndef	NEWINIT
++	'Z', ':',
++#endif
+ 	'\0'
+ };
+ 
+@@ -472,6 +479,11 @@
+ 				}
+ 			}
+ 			break;
++#ifndef	NEWINIT
++		case 'Z':
++			login_serial = optarg;
++			break;
++#endif
+ 		default:
+ 			fprintf(stderr, "telnetd: %c: unknown option\n", ch);
+ 			/* FALLTHROUGH */
+Index: src/lib/krb5/os/locate_kdc.c
+===================================================================
+--- src.orig/lib/krb5/os/locate_kdc.c	2007-04-10 14:52:23.000000000 -0700
++++ src/lib/krb5/os/locate_kdc.c	2008-08-20 15:34:47.000000000 -0700
+@@ -374,7 +374,7 @@
+ 		cp = strchr(host, '\t');
+ 		if (cp)
+ 		    *cp = 0;
+-		cp = strchr(host, ':');
++		cp = strrchr(host, ':');
+ 		if (cp)
+ 		    *cp = 0;
+ 	    }
+@@ -406,7 +406,7 @@
+ 	cp = strchr(host, '\t');
+ 	if (cp)
+ 	    *cp = 0;
+-	port = strchr(host, ':');
++	port = strrchr(host, ':');
+ 	if (port) {
+ 	    *port = 0;
+ 	    port++;

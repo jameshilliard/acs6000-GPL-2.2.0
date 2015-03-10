@@ -1,0 +1,61 @@
+Index: wide-dhcpv6-20070507/dhcp6c.c
+===================================================================
+--- wide-dhcpv6-20070507.orig/dhcp6c.c	2007-03-23 00:21:14.000000000 -0700
++++ wide-dhcpv6-20070507/dhcp6c.c	2008-08-12 15:44:19.000000000 -0700
+@@ -112,7 +112,7 @@
+ static inline int get_ifname __P((char **, int *, char *, int));
+ 
+ static void usage __P((void));
+-static void client6_init __P((void));
++static void client6_init __P((char *));
+ static void client6_startall __P((int));
+ static void free_resources __P((struct dhcp6_if *));
+ static void client6_mainloop __P((void));
+@@ -210,7 +210,12 @@
+ 
+ 	setloglevel(debug);
+ 
+-	client6_init();
++	if (argc > 1) {
++		dprintf(LOG_ERR, FNAME, "Only one interface must be given.");
++		exit(1);
++	}
++
++	client6_init(argv[0]);
+ 	while (argc-- > 0) { 
+ 		if ((ifp = ifinit(argv[0])) == NULL) {
+ 			dprintf(LOG_ERR, FNAME, "failed to initialize %s",
+@@ -253,14 +258,17 @@
+ /*------------------------------------------------------------*/
+ 
+ void
+-client6_init()
++client6_init(char *ifname)
+ {
+ 	struct addrinfo hints, *res;
+ 	static struct sockaddr_in6 sa6_allagent_storage;
+ 	int error, on = 1;
++	char filename[120];
++
++	snprintf(filename, sizeof(filename), "%s.%s", DUID_FILE, ifname);
+ 
+ 	/* get our DUID */
+-	if (get_duid(DUID_FILE, &client_duid)) {
++	if (get_duid(filename, &client_duid)) {
+ 		dprintf(LOG_ERR, FNAME, "failed to get a DUID");
+ 		exit(1);
+ 	}
+Index: wide-dhcpv6-20070507/dhcp6c.h
+===================================================================
+--- wide-dhcpv6-20070507.orig/dhcp6c.h	2005-11-30 22:35:11.000000000 -0800
++++ wide-dhcpv6-20070507/dhcp6c.h	2008-08-12 15:40:18.000000000 -0700
+@@ -30,7 +30,8 @@
+  */
+ #define DHCP6C_CONF SYSCONFDIR "/dhcp6c.conf"
+ #define DHCP6C_PIDFILE "/var/run/dhcp6c.pid"
+-#define DUID_FILE LOCALDBDIR "/dhcp6c_duid"
++//#define DUID_FILE LOCALDBDIR "/dhcp6c_duid"
++#define DUID_FILE "/etc/dhcp6c_duid"
+ 
+ extern struct dhcp6_timer *client6_timo __P((void *));
+ extern int client6_start __P((struct dhcp6_if *));

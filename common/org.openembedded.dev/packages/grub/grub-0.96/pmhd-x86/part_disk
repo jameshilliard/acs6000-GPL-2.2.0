@@ -1,0 +1,78 @@
+#!/bin/bash
+
+echo "Checking for hard disk"
+
+rm -f /tmp/hdprobe.def
+
+if [ -d /sys/block/sda ]; then
+  DISK="/dev/sda"
+else if [ -d /sys/block/hda ]; then
+  DISK="/dev/hda"
+else
+  exit 1
+fi
+fi
+
+echo "Found hard disk ${DISK}"
+echo ${DISK} > /tmp/hdprobe.def
+		
+echo "Creating partitions"
+
+# The disk is paritioned in the following way:
+# 1 boot partition (for grub )
+# 2 serial and licence # partition
+# 3 partition for kernel image 1
+# 4 Extended partition
+# 5 partition for kernel image 2
+# 6 configuration for image 1 (/etc directory)
+# 7 configuration for image 2
+# 8 root file system for image 1
+# 9 root file system for image 2
+# 10 user parition
+# 11 swap
+
+sfdisk -uM ${DISK}<<EOF
+,1,L
+,1,L
+,2,L
+,,E
+,2,L
+,10,L
+,10,L
+,400,L
+,400,L
+,20,L
+,10,S
+EOF
+
+sfdisk -A1 ${DISK}
+
+if [ $? -ne 0 ] ; then
+  echo "installation failed"
+  exit 1
+fi
+
+MAJOR=`ls -l ${DISK} | sed -rn 's/.* +([0-9]+), +0 +.*/\1/p'`
+	
+idx=1
+while [ $idx -le 11 ]
+do
+  if [ ! -b ${DISK}$idx ] ; then
+    mknod ${DISK}$idx block $MAJOR $idx
+  fi
+  idx=$(expr $idx + 1)
+done
+	
+echo "Formating disk partitions"
+mkfs -t ext2 -q ${DISK}1
+mkfs -t ext2 -q ${DISK}2
+mkfs -t ext2 -q ${DISK}3
+mkfs -t ext2 -q ${DISK}5
+mkfs -t ext2 -q ${DISK}6
+mkfs -t ext2 -q ${DISK}7
+mkfs -t ext2 -q ${DISK}8
+mkfs -t ext2 -q ${DISK}9
+mkfs -t ext2 -q ${DISK}10
+mkswap ${DISK}11
+
+exit 0

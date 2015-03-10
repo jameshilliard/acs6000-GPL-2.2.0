@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# ifenslave will be called twice on ifup, here and in
+# the if-up.d/ script.
+# This is needed for dhcp - the interface has to have its
+# slaves before dhclient starts.
+
+if [ -n "$IF_SLAVES" ] ; then
+	for S in $IF_SLAVES ; do
+		ifconfig $S down
+		# suppress warnings, works anway...
+	done
+	ifconfig $IFACE up
+	/sbin/ifenslave $IFACE $IF_SLAVES > /dev/null 2>&1
+fi
+

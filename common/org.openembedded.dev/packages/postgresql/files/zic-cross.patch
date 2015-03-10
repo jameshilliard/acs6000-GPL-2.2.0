@@ -1,0 +1,13 @@
+Index: postgresql-8.1.1/src/timezone/Makefile
+===================================================================
+--- postgresql-8.1.1.orig/src/timezone/Makefile
++++ postgresql-8.1.1/src/timezone/Makefile
+@@ -34,7 +34,7 @@ zic: $(ZICOBJS)
+ 	$(CC) $(CFLAGS) $(ZICOBJS) $(LDFLAGS) $(LIBS) -o $@$(X)
+ 
+ install: all installdirs
+-	./zic -d $(DESTDIR)$(datadir)/timezone $(TZDATAFILES)
++	zic -d $(DESTDIR)$(datadir)/timezone $(TZDATAFILES)
+ 
+ installdirs:
+ 	$(mkinstalldirs) $(DESTDIR)$(datadir)

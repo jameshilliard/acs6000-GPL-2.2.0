@@ -1,0 +1,112 @@
+function print_debug(p1, p2)
+{
+  if ( DEBUG == 1) {
+    print $2 " " $3 " STATE " STATE " SUBSYSTEM " SUBSYSTEM > "/dev/stderr"
+  }
+}
+
+BEGIN {
+  FS="[ =\"]+";
+  STATE=0;
+  SUBSYSTEM=""
+  MSG_RTN=""
+}
+
+$2 == "SUBSYSTEM" {
+  print_debug( $2, $3 );
+  if ( STATE != 0) {
+    next;
+  }
+  SUBSYSTEM=$3;
+  if ( $3 == "net" ) {
+    STATE=2;
+  } else {
+    STATE=1;
+  }
+  next;
+}
+
+$2 == "ATTR{address}" {
+  if ( STATE != 2) {
+    next;
+  }
+  print_debug( $2, $3 );
+  if ( SUBSYSTEM != "net" ) {
+    MSG_RTN="Invalid ATTR{address} cause in SYSFS data.";
+    exit;
+  }
+  MSG_RTN="KERNEL!=\"wifi*\", SUBSYSTEM==\"net\", ATTR{address}==\"" $3 "\", NAME=\"" NEWNAME "\""
+  STATE=3;
+  exit;
+}
+
+$2 == "SUBSYSTEMS" {
+  print_debug( $2, $3 );
+  if ( STATE != 1 ) {
+    next;
+  }
+  if ( $3 == "pcmcia" || $3 == "pci" || $3 == "ide" ) {
+    STATE=2;
+    next;
+  }
+  if ( $3 == "usb" ) {
+    STATE=4;
+    next;
+  }
+}
+
+$2 == "DRIVERS" {
+  print_debug( $2, $3 );
+  if ( STATE != 4 ) {
+    next;
+  }
+  if ( $3 == "usb") {
+    STATE=5;
+    next;
+  }
+}
+
+$2 == "ATTRS{serial}" {
+  print_debug( $2, $3 );
+  if ( STATE != 5 ) {
+    next;
+  }
+  if ( SUBSYSTEM == "block" ) {
+    MSG_RTN="KERNEL==\"sd[a-z][0-9]\", SYSFS{serial}==\"" $3 "\", NAME=\"" NEWNAME "\""
+    STATE=3;
+    exit;
+  }
+  MSG_RTN="Invalid SUBSYSTEM '" SUBSYSTEM "' in SYSFS data.";
+  exit;
+}
+
+$2 == "ATTRS{modalias}" {
+  print_debug( $2, $3 );
+  if ( STATE != 2 ) {
+    next;
+  }
+  if ( SUBSYSTEM == "tty" ) {
+    MSG_RTN="KERNEL==\"ttyS*\", SYSFS{modalias}==\"" $3 "\", NAME=\"" NEWNAME "\""
+    STATE=3;
+    exit;
+  }
+  if ( SUBSYSTEM == "block" ) {
+    MSG_RTN="KERNEL==\"hd[a-z][0-9]\", SYSFS{modalias}==\"" $3 "\", NAME=\"" NEWNAME "\""
+    STATE=3;
+    exit;
+  }
+  MSG_RTN="Invalid SUBSYSTEM '" SUBSYSTEM "' in SYSFS data.";
+  exit;
+}
+
+END {
+  if (STATE != 3) {
+    if ( MSG_RTN == "" ) {
+      print "Invalid parameters in SYSFS data from device '" OLDNAME "'.";
+    } else {
+      print MSG_RTN;
+    }
+    exit 1;
+  }
+  print MSG_RTN;
+}

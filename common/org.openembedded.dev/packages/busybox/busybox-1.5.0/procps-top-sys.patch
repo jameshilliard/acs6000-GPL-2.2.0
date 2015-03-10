@@ -1,0 +1,116 @@
+diff -ruN busybox-1.5.0.orig/procps/top.c busybox-1.5.0/procps/top.c
+--- busybox-1.5.0.orig/procps/top.c	2007-03-22 13:21:37.000000000 -0700
++++ busybox-1.5.0/procps/top.c	2007-07-04 19:07:51.000000000 -0700
+@@ -36,6 +36,7 @@
+ #if ENABLE_FEATURE_TOP_CPU_USAGE_PERCENTAGE
+ 	unsigned long ticks;
+ 	unsigned pcpu; /* delta of ticks */
++	unsigned pscpu; /* system time */
+ #endif
+ 	unsigned pid, ppid;
+ 	unsigned uid;
+@@ -55,6 +56,7 @@
+ static int prev_hist_count;
+ /* static int hist_iterations; */
+ static unsigned total_pcpu;
++static unsigned total_pscpu;
+ /* static unsigned long total_vsz; */
+ #endif
+ 
+@@ -147,6 +149,7 @@
+ 
+ 	get_jiffy_counts();
+ 	total_pcpu = 0;
++	total_pscpu = 0;
+ 	/* total_vsz = 0; */
+ 	new_hist = xmalloc(sizeof(struct save_hist)*ntop);
+ 	/*
+@@ -180,6 +183,7 @@
+ 			/* hist_iterations++; */
+ 		} while (i != last_i);
+ 		/* total_vsz += cur->vsz; */
++		total_pscpu += cur->pscpu;
+ 	}
+ 
+ 	/*
+@@ -292,14 +296,14 @@
+ 	unsigned pmem_shift, pmem_scale;
+ 
+ #if ENABLE_FEATURE_TOP_CPU_USAGE_PERCENTAGE
+-	unsigned pcpu_shift, pcpu_scale;
++	unsigned pcpu_shift, pcpu_scale, pscpu_shift, pscpu_scale;
+ 	unsigned busy_jifs;
+ 
+ 	/* what info of the processes is shown */
+ 	printf(OPT_BATCH_MODE ? "%.*s" : "\e[7m%.*s\e[0m", scr_width,
+-		"  PID USER     STATUS   VSZ  PPID %CPU %MEM COMMAND");
++		"  PID USER     STATUS   VSZ  PPID %CPU %SYS %MEM COMMAND");
+ #define MIN_WIDTH \
+-	sizeof( "  PID USER     STATUS   VSZ  PPID %CPU %MEM C")
++	sizeof( "  PID USER     STATUS   VSZ  PPID %CPU %SYS %MEM C")
+ #else
+ 	printf(OPT_BATCH_MODE ? "%.*s" : "\e[7m%.*s\e[0m", scr_width,
+ 		"  PID USER     STATUS   VSZ  PPID %MEM COMMAND");
+@@ -332,23 +336,35 @@
+ 	 * we assume that unsigned is at least 32-bit.
+ 	 */
+ 	pcpu_shift = 6;
++	pscpu_shift = 6;
+ 	pcpu_scale = (1000*64*(uint16_t)busy_jifs ? : 1);
++	pscpu_scale = (1000*64*(uint16_t)busy_jifs ? : 1);
+ 	while (pcpu_scale < (1U<<(bits_per_int-2))) {
+ 		pcpu_scale *= 4;
+ 		pcpu_shift += 2;
+ 	}
++	while (pscpu_scale < (1U<<(bits_per_int-2))) {
++		pscpu_scale *= 4;
++		pscpu_shift += 2;
++	}
+ 	pcpu_scale /= ( (uint16_t)(jif.total-prev_jif.total)*total_pcpu ? : 1);
++	pscpu_scale /= ( (uint16_t)(jif.total-prev_jif.total)*total_pcpu ? : 1);
+ 	/* we want (s->pcpu * pcpu_scale) to never overflow */
+ 	while (pcpu_scale >= 1024) {
+ 		pcpu_scale /= 4;
+ 		pcpu_shift -= 2;
+ 	}
++	while (pscpu_scale >= 1024) {
++		pscpu_scale /= 4;
++		pscpu_shift -= 2;
++	}
+ 	/* printf(" pmem_scale=%u pcpu_scale=%u ", pmem_scale, pcpu_scale); */
+ #endif
+ 	while (count-- > 0) {
+ 		div_t pmem = div((s->vsz*pmem_scale) >> pmem_shift, 10);
+ 		int col = scr_width+1;
+ 		USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(div_t pcpu;)
++		USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(div_t pscpu;)
+ 
+ 		if (s->vsz >= 100*1024)
+ 			sprintf(vsz_str_buf, "%6ldM", s->vsz/1024);
+@@ -357,13 +373,18 @@
+ 		USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(
+ 		pcpu = div((s->pcpu*pcpu_scale) >> pcpu_shift, 10);
+ 		)
++		USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(
++		pscpu = div((s->pscpu*pscpu_scale) >> pscpu_shift, 10);
++		)
+ 		col -= printf("\n%5u %-8s %s  "
+ 				"%s%6u"
+ 				USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE("%3u.%c")
++				USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE("%3u.%c")
+ 				"%3u.%c ",
+ 				s->pid, get_cached_username(s->uid), s->state,
+ 				vsz_str_buf, s->ppid,
+ 				USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(pcpu.quot, '0'+pcpu.rem,)
++				USE_FEATURE_TOP_CPU_USAGE_PERCENTAGE(pscpu.quot, '0'+pscpu.rem,)
+ 				pmem.quot, '0'+pmem.rem);
+ 		if (col > 0)
+ 			printf("%.*s", col, s->comm);
+@@ -489,6 +510,7 @@
+ 			top[n].vsz = p->vsz;
+ #if ENABLE_FEATURE_TOP_CPU_USAGE_PERCENTAGE
+ 			top[n].ticks = p->stime + p->utime;
++			top[n].pscpu = p->stime;
+ #endif
+ 			top[n].uid = p->uid;
+ 			strcpy(top[n].state, p->state);

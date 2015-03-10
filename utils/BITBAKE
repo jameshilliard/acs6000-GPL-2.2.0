@@ -1,0 +1,62 @@
+#!/bin/bash --noprofile
+
+set -e
+
+if [ "x${GSPENV}" == "x" ]
+then
+    echo "ERROR: Not in GSP environment"
+    exit 1
+fi
+
+OPTSRC="/opt/sources"
+USERSRC=${DL_DIR:-${HOME}/sources}
+
+if [ ! -e ${USERSRC} ]
+then
+    install -d ${USERSRC}
+elif [ ! -d ${USERSRC} ]
+then
+    echo "Not a directory ${USERSRC}"
+    return 1
+fi
+
+if [ -d ${OPTSRC} ]
+then
+    for LINK in $(ls ${USERSRC})
+    do
+        if [ -L ${USERSRC}/${LINK} ]
+        then
+            if [ ! $(readlink -e ${USERSRC}/${LINK}) ]
+            then
+                echo "Remove dangling link ${USERSRC}/${LINK}"
+                rm -f ${USERSRC}/${LINK}
+            fi
+        fi
+    done
+
+    for FILE in $(ls ${OPTSRC})
+    do
+        if [ -e ${USERSRC}/${FILE} -o -L ${OPTSRC}/${FILE} -o -d ${OPTSRC}/${FILE} ]
+        then
+            continue
+        else
+            ln -sf ${OPTSRC}/${FILE} ${USERSRC}/${FILE}
+        fi
+    done
+fi
+
+BASEDIR=$(dirname ${BITBAKE})
+RESULT=$(echo ${PATH} | sed -rn "s;${BASEDIR}(:|$);;p")
+
+if [ -z "${RESULT}" ]
+then
+    export PATH="${BASEDIR}:${PATH}"
+fi
+
+if [ -f ${BUILDDIR}/build.rc ]
+then
+    echo "Invoke ${BUILDDIR}/build.rc"
+    source ${BUILDDIR}/build.rc
+fi
+
+exec ${BITBAKE} $*

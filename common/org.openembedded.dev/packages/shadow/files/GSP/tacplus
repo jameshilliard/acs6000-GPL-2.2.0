@@ -1,0 +1,9 @@
+#
+# The PAM configuration file for the 'tacplus' service
+#
+auth     requisite   pam_securetty.so
+auth     sufficient  pam_otk.so
+auth     optional    pam_shm.so
+auth     requisite   pam_tacplus.so
+account  required    pam_tacplus.so
+session  required    pam_tacplus.so

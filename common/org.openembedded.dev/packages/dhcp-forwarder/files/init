@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#$Header: /home/Shangrila/thirdparty/tauri/org.openembedded.dev/packages/dhcp-forwarder/files/init,v 1.3 2006/11/07 10:30:31 jiff_mmc Exp $
+
+CONFFILE=/etc/dhcp-fwd.cfg
+DAEMON=/usr/sbin/dhcp-fwd
+
+case "$1" in
+	start)
+		start-stop-daemon -S -x $DAEMON -- -c $CONFFILE
+		;;
+	stop)
+		start-stop-daemon -K -x $DAEMON
+		;;
+	restart | force-reload)
+		$0 stop
+		sleep 2
+		$0 start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|force-reload}"
+		exit 1 
+esac
+
+exit 0

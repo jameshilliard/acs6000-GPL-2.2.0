@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if ! grep -q /dev/ram /proc/cmdline ; then
+  mount -o remount,rw /dev/root / -t root 2>/dev/null
+fi
+
+if ! test -e /etc/.configured; then
+	> /etc/.configured
+fi
+

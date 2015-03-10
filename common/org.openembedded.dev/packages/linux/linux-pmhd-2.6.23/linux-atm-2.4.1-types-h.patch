@@ -1,0 +1,112 @@
+Steve Papacharalambous <stevep@freescale.com> 12jun07:
+
+This patch fixes the build errors caused by the change in the linux kernel
+headers to move the definitions of the __bexx types to linux/types.h in
+the later 2.6 kernel headers.
+Typical error caused by this change that this patch fixes:
+[snip]
+gcc -DHAVE_CONFIG_H -I. -I. -I../..     -I../../src/include -g -O2 -Wall -Wshadow -Wpointer-arith -Wwrite-strings -Wstrict-prototypes -c atmarpd.c
+gcc -DHAVE_CONFIG_H -I. -I. -I../..     -I../../src/include -g -O2 -Wall -Wshadow -Wpointer-arith -Wwrite-strings -Wstrict-prototypes -c arp.c
+In file included from arp.c:19:
+/opt/freescale/usr/local/gcc-4.1.59-eglibc-2.5.59/powerpc-linux-gnu/powerpc-linux-gnu/libc/usr/include/linux/if_arp.h:133:
+error: expected specifier-qualifier-list before '__be16'
+make[3]: *** [arp.o] Error 1
+make[3]: Leaving directory
+`/home/stevep/work/ltib/rpm/BUILD/linux-atm-2.4.1/src/arpd'
+make[2]: *** [all-recursive] Error 1
+make[2]: Leaving directory
+`/home/stevep/work/ltib/rpm/BUILD/linux-atm-2.4.1/src
+[/snip]
+
+Patch originated by Steve Papacharalambous.
+
+
+
+diff --exclude CVS -uNr linux-atm-2.4.1/src/arpd/arp.c linux-atm-2.4.1.modified/src/arpd/arp.c
+--- linux-atm-2.4.1/src/arpd/arp.c	Mon Sep  3 19:41:05 2001
++++ linux-atm-2.4.1.modified/src/arpd/arp.c	Tue Jun 12 11:22:43 2007
+@@ -16,6 +16,7 @@
+ #include <sys/socket.h> /* for linux/if_arp.h */
+ #include <netinet/in.h> /* for ntohs, etc. */
+ #define _LINUX_NETDEVICE_H /* very crude hack for glibc2 */
++#include <linux/types.h>
+ #include <linux/if_arp.h>
+ #include <linux/if_ether.h>
+ #include <atm.h>
+diff --exclude CVS -uNr linux-atm-2.4.1/src/arpd/itf.c linux-atm-2.4.1.modified/src/arpd/itf.c
+--- linux-atm-2.4.1/src/arpd/itf.c	Mon Sep  3 19:41:05 2001
++++ linux-atm-2.4.1.modified/src/arpd/itf.c	Tue Jun 12 11:23:46 2007
+@@ -13,6 +13,7 @@
+ #include <linux/atmclip.h>
+ #include <sys/socket.h>
+ #define _LINUX_NETDEVICE_H /* glibc2 */
++#include <linux/types.h>
+ #include <linux/if_arp.h>
+ 
+ #include "atmd.h"
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/io.c linux-atm-2.4.1.modified/src/mpoad/io.c
+--- linux-atm-2.4.1/src/mpoad/io.c	Mon Sep  3 19:41:06 2001
++++ linux-atm-2.4.1.modified/src/mpoad/io.c	Tue Jun 12 11:25:30 2007
+@@ -19,6 +19,7 @@
+ _syscall3(int,poll,struct pollfd *,ufds,unsigned int,nfds,int,timeout);
+ #endif
+ #include <atm.h>
++#include <linux/types.h>
+ #include <linux/atmioc.h>
+ #include <linux/atmmpc.h>
+ #include <sys/types.h>
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/k_interf.c linux-atm-2.4.1.modified/src/mpoad/k_interf.c
+--- linux-atm-2.4.1/src/mpoad/k_interf.c	Mon Sep  3 19:41:06 2001
++++ linux-atm-2.4.1.modified/src/mpoad/k_interf.c	Tue Jun 12 11:26:34 2007
+@@ -9,6 +9,7 @@
+ #include <sys/param.h> /* for OPEN_MAX   */
+ #include <stdint.h>
+ #include <netinet/in.h> /* for ntohl()    */
++#include <linux/types.h>
+ #include <linux/atmmpc.h>
+ #include <atm.h>
+ #include "k_interf.h"
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/lecs.c linux-atm-2.4.1.modified/src/mpoad/lecs.c
+--- linux-atm-2.4.1/src/mpoad/lecs.c	Mon Sep  3 19:41:06 2001
++++ linux-atm-2.4.1.modified/src/mpoad/lecs.c	Tue Jun 12 11:31:00 2007
+@@ -11,6 +11,7 @@
+ #include <errno.h>
+ #include <atm.h>
+ #include <atmsap.h>
++#include <linux/types.h>   /* for MPOA Device type TLV */
+ #include <linux/atmmpc.h>   /* for MPOA Device type TLV */
+ #include "lecs.h"
+ #include "k_interf.h"
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/main.c linux-atm-2.4.1.modified/src/mpoad/main.c
+--- linux-atm-2.4.1/src/mpoad/main.c	Mon Sep  3 19:41:06 2001
++++ linux-atm-2.4.1.modified/src/mpoad/main.c	Tue Jun 12 11:28:35 2007
+@@ -9,6 +9,7 @@
+ #include <time.h>
+ #include <sys/ioctl.h>
+ #include <atm.h>
++#include <linux/types.h>
+ #include <linux/atmdev.h>
+ #include <linux/atmmpc.h>
+ #include <sys/socket.h>
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/p_factory.c linux-atm-2.4.1.modified/src/mpoad/p_factory.c
+--- linux-atm-2.4.1/src/mpoad/p_factory.c	Tue Jun 12 11:32:01 2007
++++ linux-atm-2.4.1.modified/src/mpoad/p_factory.c	Tue Jun 12 11:29:36 2007
+@@ -5,6 +5,7 @@
+ #include <sys/types.h>
+ #include <stdint.h>
+ #include <netinet/in.h>
++#include <linux/types.h>
+ #include <linux/atmmpc.h>
+ #include <sys/socket.h>
+ #include <unistd.h>
+diff --exclude CVS -uNr linux-atm-2.4.1/src/mpoad/p_recogn.c linux-atm-2.4.1.modified/src/mpoad/p_recogn.c
+--- linux-atm-2.4.1/src/mpoad/p_recogn.c	Mon Sep  3 19:41:06 2001
++++ linux-atm-2.4.1.modified/src/mpoad/p_recogn.c	Tue Jun 12 11:30:14 2007
+@@ -7,6 +7,7 @@
+ #include <stdlib.h>
+ #include <sys/time.h>
+ #include <atm.h>
++#include <linux/types.h>
+ #include <linux/atmmpc.h>
+ #include <netinet/in.h>
+ #include <limits.h> /* For UINT_MAX */

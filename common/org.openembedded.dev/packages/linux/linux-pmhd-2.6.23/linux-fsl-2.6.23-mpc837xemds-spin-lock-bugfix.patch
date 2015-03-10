@@ -1,0 +1,23 @@
+Fix a bug about the spin-lock
+
+Signed-off-by: Xie Xiaobo <X.Xie@freescale.com>
+---
+ crypto/ocf/talitos/talitos.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/crypto/ocf/talitos/talitos.c b/crypto/ocf/talitos/talitos.c
+index 062ca21..c7af5a6 100644
+--- a/crypto/ocf/talitos/talitos.c
++++ b/crypto/ocf/talitos/talitos.c
+@@ -1316,6 +1316,8 @@ talitos_doneprocessing(struct talitos_softc *sc, unsigned long chnum)
+ 	u32 v;
+ 
+ #ifdef TALITOS_TASKLET
++	/* enter the channel scheduler */
++	spin_lock_irqsave(&sc->sc_chnfifolock[sc->sc_num_channels], flags);
+ 
+ 	/* mask SEC interrupt */
+ 	v = talitos_read(sc->sc_base_addr + TALITOS_IMR);
+-- 
+1.5.2
+

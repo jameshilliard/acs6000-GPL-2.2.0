@@ -1,0 +1,47 @@
+--- pam_unix2-1.15.orig/src/unix_auth.c	2003-02-10 08:35:24.000000000 -0800
++++ pam_unix2-1.15/src/unix_auth.c	2008-10-15 14:57:35.000000000 -0700
+@@ -56,6 +56,12 @@
+ #include <rpc/rpc.h>
+ #include <rpc/key_prot.h>
+ 
++#ifdef AVCT_MULTI_CHAR
++#include <locale.h>
++#include <wchar.h>
++#include <wctype.h>
++#endif
++
+ #define PAM_SM_AUTH
+ #include <security/pam_modules.h>
+ 
+@@ -245,8 +251,30 @@
+ 	__pam_log (LOG_DEBUG, "pam_get_user failed: return %d", retval);
+       return (retval == PAM_CONV_AGAIN ? PAM_INCOMPLETE:retval);
+     }
+-
++#ifdef AVCT_MULTI_CHAR
++  /*Setting the locale */
++  setlocale(LC_ALL,"");
++
++  if(strstr(setlocale(LC_ALL,NULL),"UTF-8") == NULL)
++  	setlocale(LC_ALL,"en_US.UTF-8");
++  wchar_t wcname[strlen(name)+1];
++  int wclength = 0 , wcflag = 0;
++
++  /*convert to multibyte */
++  wclength = mbstowcs(wcname,name,strlen(name)+1);
++  
++  if ( wctype("alnum") == (wctype_t) 0){
++	if (name == NULL || *wcname != L'_')
++		wcflag = 1;
++  }
++  else{
++	if (name == NULL || (!iswalnum(*wcname) && *wcname != L'_'))
++		 wcflag = 1;
++  }
++  if(wcflag)  
++#else
+   if (name == NULL || (!isalnum(*name) && *name != '_'))
++#endif
+     {
+       if (name)
+ 	{

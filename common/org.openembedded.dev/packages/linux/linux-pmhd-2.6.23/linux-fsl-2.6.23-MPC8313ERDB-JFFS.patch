@@ -1,0 +1,90 @@
+From ea39637f253d24e66f32d39593b7ed1c225a32e5 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Mon, 2 Jun 2008 16:05:50 +0800
+Subject: [PATCH] add JFFS partition support to MPC8313ERDB BSP on 2.6.23
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |   15 +++++++++++++
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |   32 +++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+), 0 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index 06fbd0c..a9fed8f 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -53,6 +53,21 @@
+ 					"Reserve-NAND", "Kernel-NAND", "DTB-NAND";
+ 	};
+ 
++	nor@fe000000 {
++		device_type = "rom";
++		compatible = "direct-mapped";
++		reg = <fe000000 00800000>; /*8MB*/
++		probe-type = "CFI";
++		bank-width = <2>;
++		partitions = <
++			00000000 00100001  /* U-BOOT  1M RO */
++			00100000 00200001  /* kernel 2M RO  */
++			00300000 00400000  /* Ramdisk File system 4M RW  */
++			00700000 00080001  /*  DTB 512K RO */
++			00780000 00080000>; /* JFFS2 512K RW */
++		partition-names = "U-Boot", "Kernel", "Ramdisk", "DTB", "JFFS2" ;
++	};
++
+ 	soc8313@e0000000 {
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+index b7dc5aa..0eadc2e 100644
+--- a/arch/powerpc/platforms/83xx/mpc8313_rdb.c
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -15,6 +15,7 @@
+ 
+ #include <linux/pci.h>
+ 
++#include <linux/of_platform.h>
+ #include <asm/time.h>
+ #include <asm/ipic.h>
+ #include <asm/udbg.h>
+@@ -150,6 +151,37 @@ err:
+ 
+ arch_initcall(fsl_elbc_of_init);
+ 
++static struct of_device_id mpc831x_soc_ids[] = {
++	{ .type = "soc", },
++	{},
++};
++
++extern int of_platform_bus_probe(struct device_node *, struct of_device_id *, struct device *);
++
++static int __init mpc831x_declare_of_platform_devices(void)
++{
++	if (!machine_is(mpc8313_rdb))
++		return 0;
++
++	of_platform_bus_probe(NULL, mpc831x_soc_ids, NULL);
++		return 0;
++}
++device_initcall(mpc831x_declare_of_platform_devices);
++
++static int __init mpc8313_register_mtd(void)
++{
++	struct device_node *np;
++
++	/*for NOR flash*/
++	np = of_find_compatible_node(NULL, "rom", "direct-mapped");
++	if (np == NULL)
++		return 0;
++	of_platform_device_create(np, np->name, NULL);
++
++	return 0;
++}
++arch_initcall(mpc8313_register_mtd);
++
+ define_machine(mpc8313_rdb) {
+ 	.name			= "MPC8313 RDB",
+ 	.probe			= mpc8313_rdb_probe,
+-- 
+1.5.5.1.248.g4b17
+

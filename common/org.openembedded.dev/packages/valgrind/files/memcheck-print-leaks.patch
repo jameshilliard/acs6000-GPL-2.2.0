@@ -1,0 +1,103 @@
+--- valgrind-3.2.3+/memcheck/mc_leakcheck.c	2007-01-07 23:43:09.000000000 -0800
++++ valgrind-3.2.3/memcheck/mc_leakcheck.c	2008-01-09 09:51:55.000000000 -0800
+@@ -144,6 +144,7 @@
+       SizeT        total_bytes;
+       SizeT        indirect_bytes;
+       UInt         num_blocks;
++      char         *text;
+    }
+    LossRecord;
+ 
+@@ -294,6 +295,11 @@
+          loss, extra->n_this_record, extra->n_total_records,
+          xpost
+       );
++      if (l->text)
++         VG_(message)(Vg_UserMsg,
++            " containing text: %s",
++            l->text
++         );
+       if (VG_(clo_xml)) {
+          // Nb: don't put commas in these XML numbers 
+          VG_(message)(Vg_UserMsg, "  <leakedbytes>%lu</leakedbytes>", 
+@@ -310,6 +316,11 @@
+          loss, extra->n_this_record, extra->n_total_records,
+          xpost
+       );
++      if (l->text)
++         VG_(message)(Vg_UserMsg,
++            " containing text: %s",
++            l->text
++         );
+       if (VG_(clo_xml)) {
+          VG_(message)(Vg_UserMsg, "  <leakedbytes>%d</leakedbytes>", 
+                                   l->total_bytes);
+@@ -512,6 +523,57 @@
+ static SizeT blocks_reachable;
+ static SizeT blocks_suppressed;
+ 
++static
++char *add_found_text(char *existing_text, Addr start, SizeT len)
++{
++	int i, printable = 0;
++	char *mem = (char *)start;
++	char *new_text, *p;
++
++	/* We don't want to make the text list *too* long. */
++	if (len > 150)
++		return existing_text;
++
++	/* What proportion of this is printable? */
++	for (i = 0; i < len; ++i)
++		if ((mem[i] >= ' ') && (mem[i] <= '~'))
++			printable++;
++
++	/* If more than 75% is printable, try to print it. */
++	if (printable * 4 < len * 3)
++		return existing_text;
++
++	if (existing_text) {
++		int existing_len = VG_(strlen)(existing_text);
++		if (existing_len + len > 300)
++			return existing_text;
++		new_text = VG_(realloc)(existing_text, existing_len + (len * 2) + 5);
++		p = new_text + existing_len;
++		*(p++) = ',';
++		*(p++) = ' ';
++	} else {
++		new_text = VG_(malloc)((len * 2) + 3);
++		p = new_text;
++	}
++
++	*(p++) = '"';
++
++	for (i = 0; i < len; ++i) {
++		char c = mem[i];
++		if ((c >= ' ') && (c <= '~')) *(p++) = c;
++		else if (c == '\0') { *(p++) = '\\'; *(p++) = '0'; }
++		else if (c == '\n') { *(p++) = '\\'; *(p++) = 'n'; }
++		else if (c == '\r') { *(p++) = '\\'; *(p++) = 'r'; }
++		else if (c == '\t') { *(p++) = '\\'; *(p++) = 't'; }
++		else if (c == '\\') { *(p++) = '\\'; *(p++) = '\\'; }
++		else *(p++) = '.';
++	}
++
++	*(p++) = '"';
++	*p = '\0';
++	return new_text;
++}
++
+ static void full_report(ThreadId tid)
+ {
+    Int i;
+@@ -588,8 +650,10 @@
+ 	 p->indirect_bytes = lc_markstack[i].indirect;
+          p->num_blocks   = 1;
+          p->next         = errlist;
++         p->text         = NULL;
+          errlist         = p;
+       }
++      p->text = add_found_text(p->text, lc_shadows[i]->data, lc_shadows[i]->size);
+    }
+ 
+    /* Print out the commoned-up blocks and collect summary stats. */

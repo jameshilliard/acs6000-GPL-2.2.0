@@ -1,0 +1,32 @@
+diff --exclude CVS -uNr linux-2.6.20/drivers/net/gianfar.h linux-2.6.20.modified/drivers/net/gianfar.h
+--- linux-2.6.20/drivers/net/gianfar.h	2007-07-01 10:48:28.000000000 -0400
++++ linux-2.6.20.modified/drivers/net/gianfar.h	2007-07-03 16:35:09.000000000 -0400
+@@ -50,7 +50,7 @@
+ #include "gianfar_mii.h"
+ 
+ /* The maximum number of packets to be handled in one call of gfar_poll */
+-#define GFAR_DEV_WEIGHT 64
++#define GFAR_DEV_WEIGHT 16
+ 
+ /* Length for FCB */
+ #define GMAC_FCB_LEN 8
+@@ -86,8 +86,8 @@
+ 
+ /* These need to be powers of 2 for this driver */
+ #ifdef CONFIG_GFAR_NAPI
+-#define DEFAULT_TX_RING_SIZE	256
+-#define DEFAULT_RX_RING_SIZE	256
++#define DEFAULT_TX_RING_SIZE	64
++#define DEFAULT_RX_RING_SIZE	64
+ #else
+ #define DEFAULT_TX_RING_SIZE    64
+ #define DEFAULT_RX_RING_SIZE    64
+@@ -106,7 +106,7 @@
+ #define JUMBO_BUFFER_SIZE 9728
+ #define JUMBO_FRAME_SIZE 9600
+ 
+-#define DEFAULT_FIFO_TX_THR 0x100
++#define DEFAULT_FIFO_TX_THR 0x80
+ #define DEFAULT_FIFO_TX_STARVE 0x40
+ #define DEFAULT_FIFO_TX_STARVE_OFF 0x80
+ #define DEFAULT_BD_STASH 1

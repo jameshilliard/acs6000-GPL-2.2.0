@@ -1,0 +1,88 @@
+Index: netkit-bootparamd-0.17/configure
+===================================================================
+--- netkit-bootparamd-0.17.orig/configure
++++ netkit-bootparamd-0.17/configure
+@@ -55,7 +55,7 @@ fi
+ 
+ BINDIR="$EXECPREFIX/bin"
+ SBINDIR="$EXECPREFIX/sbin"
+-MANDIR="$PREFIX/man"
++MANDIR="$PREFIX/share/man"
+ 
+ echo "Directories: $BINDIR $SBINDIR $MANDIR "
+ 
+@@ -76,7 +76,6 @@ if [ x"$CC" = x ]; then
+     for TRY in egcs gcc g++ CC c++ cc; do
+        (
+            $TRY __conftest.c -o __conftest || exit 1;
+-           ./__conftest || exit 1;
+        ) >/dev/null 2>&1 || continue;
+        CC=$TRY
+        break;
+@@ -92,7 +91,6 @@ else
+     echo -n 'Checking if C compiler works... '
+     if (
+           $CC __conftest.c -o __conftest || exit 1
+-          ./__conftest || exit 1
+        ) >/dev/null 2>&1; then
+          echo 'yes'
+      else
+@@ -172,13 +170,11 @@ int main() {
+ EOF
+ if (
+       $CC $CFLAGS  __conftest.c  -o __conftest || exit 1
+-      ./__conftest || exit 1
+    ) >/dev/null 2>&1; then
+     echo 'yes'
+ else
+     if (
+           $CC $CFLAGS -D__USE_BSD_SIGNAL __conftest.c  -o __conftest || exit 1
+-          ./__conftest || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-D__USE_BSD_SIGNAL'
+         CFLAGS="$CFLAGS -D__USE_BSD_SIGNAL"
+@@ -210,7 +206,6 @@ if (
+ else
+     if (
+           $CC $CFLAGS -D_GNU_SOURCE __conftest.c  -o __conftest || exit 1
+-          ./__conftest || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-D_GNU_SOURCE'
+         CFLAGS="$CFLAGS -D_GNU_SOURCE"
+@@ -241,20 +236,17 @@ int main() {
+ EOF
+ if (
+       $CC $CFLAGS  __conftest.c $LIBBSD -o __conftest || exit 1
+-      ./__conftest || exit 1
+    ) >/dev/null 2>&1; then
+     echo 'ok'
+ else
+     if (
+           $CC $CFLAGS  __conftest.c -lsnprintf $LIBBSD -o __conftest || exit 1
+-          ./__conftest || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-lsnprintf'
+         LIBS="$LIBS -lsnprintf"
+     else
+         if (
+               $CC $CFLAGS  __conftest.c -ldb $LIBBSD -o __conftest || exit 1
+-              ./__conftest || exit 1
+            ) >/dev/null 2>&1; then
+             echo '-ldb'
+             LIBS="$LIBS -ldb"
+Index: netkit-bootparamd-0.17/rpc.bootparamd/Makefile
+===================================================================
+--- netkit-bootparamd-0.17.orig/rpc.bootparamd/Makefile
++++ netkit-bootparamd-0.17/rpc.bootparamd/Makefile
+@@ -22,9 +22,9 @@ callbootd: callbootd.o bootparam_prot_cl
+ 	${CC} $(LDFLAGS) $^ $(LIBS) -o $@
+ 
+ install: bootparamd callbootd
+-	install -s -m $(DAEMONMODE) bootparamd \
++	install -m $(DAEMONMODE) bootparamd \
+ 		$(INSTALLROOT)$(SBINDIR)/rpc.bootparamd
+-	install -s -m $(BINMODE) callbootd $(INSTALLROOT)$(BINDIR)/callbootd
++	install -m $(BINMODE) callbootd $(INSTALLROOT)$(BINDIR)/callbootd
+ 	install -m $(MANMODE) bootparamd.8 \
+ 		$(INSTALLROOT)$(MANDIR)/man8/rpc.bootparamd.8
+ 	ln -sf rpc.bootparamd.8 $(INSTALLROOT)$(MANDIR)/man8/bootparamd.8

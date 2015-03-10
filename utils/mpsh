@@ -1,0 +1,149 @@
+#!/bin/bash
+
+VERBOSE="0"
+# Export bitbake/bin into PATH variable.
+export PATH=`pwd`/bitbake/bin:$PATH
+export POWERPC_LINUX=1
+
+function note () {
+    if [ ${VERBOSE} != "0" ]
+    then
+        echo -e "note: $*"
+    fi
+}
+
+function _realpath () {
+    pn="$@"
+
+    pushd $(dirname ${pn}) > /dev/null
+    if [ $? == 0 ]
+    then
+        pn="${PWD}/$(basename ${pn})"
+        echo "${pn}"
+        popd > /dev/null
+    fi
+    return 0
+}
+
+function REALPATH () {
+    for pn in "$@"
+    do
+        _realpath $pn
+    done
+}
+
+usage="Usage: ${0} -p PROJDIR -b BUILD -o OEDIR [-d DL_DIR] [-t TMPDIR] [-v]\n
+\t-p PROJDIR  \tproject directory\n
+\t-b BUILD    \tbuild name\n
+\t-o OEDIR    \tOpenEmbedded repository\n
+\t-d DL_DIR   \tdirectory where files download to\n
+\t-t TMPDIR   \ttemp directory for build output\n
+\t-v          \tVERBOSE"
+
+#if [ $# -lt 2 ]
+#then
+#    echo -e $usage
+#    exit 1
+#fi
+
+if [ "${GSPENV:+set}" == "set" ]
+then
+    note "already in GSP environment, Ctrl+D to exit"
+    exit 1
+fi
+
+PROJDIR=mergepoint
+BUILD=prebuilt
+OEDIR=common
+DL_DIR=${HOME}/sources
+SITE_RC=shanghai
+
+while getopts p:b:o:d:t:s:v option
+do
+    case "$option"
+    in
+        p) PROJDIR=$OPTARG ;;
+        b) BUILD=$OPTARG ;;
+        o) OEDIR=$OPTARG ;;
+        d) DL_DIR=$OPTARG ;;
+        t) TMPDIR=$OPTARG ;;
+        s) SITE_RC=$OPTARG ;;
+        v)  ((VERBOSE ++)) ;;
+        .*) echo "$usage"; exit 1 ;;
+    esac
+done
+
+#: ${PROJDIR:?"${usage}"}
+#: ${OEDIR:?"${usage}"}
+#: ${BUILD:?"${usage}"}
+
+BUILDDIR=${PROJDIR}/${BUILD}
+
+DIRS="OEDIR PROJDIR BUILDDIR"
+
+[ ${TMPDIR} ] && DIRS="TMPDIR ${DIRS}"
+[ ${DL_DIR} ] && DIRS="DL_DIR ${DIRS}"
+if [ ${TMPDIR} ]
+then 
+    [ -e ${TMPDIR} ] || mkdir ${TMPDIR}
+fi
+
+if [ ${DL_DIR} ] 
+then
+    [ -e ${DL_DIR} ] || mkdir ${DL_DIR}
+fi
+
+for DIRNAME in ${DIRS}
+do
+    DIR=$(eval echo \${$DIRNAME})
+#    note DIR $(eval note $DIR), DIRNAME $DIRNAME
+    if [ -d ${DIR} ]
+    then
+#        DIR=$(realpath ${DIR})
+        DIR=$(REALPATH ${DIR})
+        eval ${DIRNAME}=${DIR}
+        export ${DIRNAME}
+        note export ${DIRNAME}=${DIR}
+    else
+        echo "error: Directory ${DIR} not exists"
+        exit 1
+    fi
+done
+
+export BBPATH="${OEDIR}/com.avocent.dev:${OEDIR}/org.openembedded.dev"
+
+if test -f ${PROJDIR}/project.rc
+then
+    note "Invoke ${PROJDIR}/project.rc"
+    source ${PROJDIR}/project.rc
+fi
+
+export BBPATH="${BUILDDIR}:${BBPATH}"
+
+if test -f ${BUILDDIR}/build.rc
+then
+    note "Invoke ${BUILDDIR}/build.rc"
+    source ${BUILDDIR}/build.rc
+fi
+
+source utils/sites/${SITE_RC}.rc
+
+BITBAKE=$(which bitbake 2> /dev/null )
+
+echo -en "\nSearching for bitbake in PATH...    "
+
+if [ -z ${BITBAKE} ]
+then
+    echo -e "[ not found ]\n"
+else
+    echo -e "[ found ]\n"
+    bitbake --version
+fi
+
+note "PATH=${PATH}"
+note "BBPATH=${BBPATH}"
+
+echo -e "\n*** Avocent Generic Software Platform (GSP), press Ctrl+D to exit ***\n"
+
+export GSPENV="1"
+exec  ${SHELL} --rcfile $(dirname $0)/gsp.rc

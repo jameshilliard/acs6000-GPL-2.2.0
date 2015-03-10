@@ -1,0 +1,39 @@
+VERSIONTOOL
+
+        VERSIONTOOL is a project management tool of SVN .
+        VERSIONTOOL can  manage package's revision for project.
+        
+Usage: 
+    # python doversion.py
+    
+    Project:
+        Version:  
+            Manage: It can set active flag in the selection list for this project.
+            Add: It can  add  a  package list for this project.
+                Name: It can contain any character but the name is only.
+                Active: This name set active  flag.
+                Packages Revision: It is actuall revision number in subversion repository.
+                Default: If there's active flag for any package, the active version will be used, or, the given version will be used.
+                Force : Use the given version for all packages, whatever set active flag or not.
+                Comment: It can type detailinformation.
+         Diff:
+            Diff: It made a comparison of the two selection. (HEAD mean is Default mode)
+            Save: It can save result to file.
+                
+    Package:
+        Version:
+           Manage: It can set active flag in the selection list for this package.
+            Add: It can  add  a  revision number  for this package.
+                Name:  It is actuall revision number in subversion repository.
+                Active: This name set active  flag.
+                Comment: It can type detailinformation.
+         Diff:
+            Diff: It made a comparison of the two selection, but the former is less-than the latter.
+            Save: It can save result to file.                
+
+Requires :
+    python-2.5
+    wxPython2.8 for py25
+    svn
+    
+    windows  package url: http://sha-scm.corp.avocent.com/download/

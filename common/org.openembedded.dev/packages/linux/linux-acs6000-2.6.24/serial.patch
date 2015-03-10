@@ -1,0 +1,43 @@
+Index: linux-2.6-denx/drivers/serial/serial_core.c
+===================================================================
+--- linux-2.6-denx.orig/drivers/serial/serial_core.c	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/drivers/serial/serial_core.c	2008-06-03 22:29:02.000000000 -0700
+@@ -1669,6 +1669,17 @@
+ 		return 0;
+ 
+ 	mmio = port->iotype >= UPIO_MEM;
++	if (drv->major == 4) {
++		char devname[30];
++		switch (port->line) {
++			case 0: strcpy(devname,"ttyS0");break;
++			case 1: strcpy(devname,"ttyA1");break;
++			default: sprintf(devname,"ttyS%d",port->line-1);break;
++		}
++		ret = sprintf(buf, "%s: uart:%s",
++				devname, uart_type(port));
++	} else
++
+ 	ret = sprintf(buf, "%d: uart:%s %s%08llX irq:%d",
+ 			port->line, uart_type(port),
+ 			mmio ? "mmio:0x" : "port:",
+@@ -1696,16 +1707,16 @@
+ 
+ 		ret += sprintf(buf + ret, " tx:%d rx:%d",
+ 				port->icount.tx, port->icount.rx);
+-		if (port->icount.frame)
++	//	if (port->icount.frame)
+ 			ret += sprintf(buf + ret, " fe:%d",
+ 				port->icount.frame);
+-		if (port->icount.parity)
++	//	if (port->icount.parity)
+ 			ret += sprintf(buf + ret, " pe:%d",
+ 				port->icount.parity);
+-		if (port->icount.brk)
++	//	if (port->icount.brk)
+ 			ret += sprintf(buf + ret, " brk:%d",
+ 				port->icount.brk);
+-		if (port->icount.overrun)
++	//	if (port->icount.overrun)
+ 			ret += sprintf(buf + ret, " oe:%d",
+ 				port->icount.overrun);
+ 	

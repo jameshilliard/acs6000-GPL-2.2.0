@@ -1,0 +1,38 @@
+Index: pam_unix2-1.30/po/ja.po
+===================================================================
+--- pam_unix2-1.30.orig/po/ja.po
++++ pam_unix2-1.30/po/ja.po
+@@ -191,12 +191,12 @@ msgstr "パスワードデータベー�
+ 
+ #: src/unix_passwd.c:196
+ #, c-format
+-msgid "Less then %d weeks since the last change."
++msgid "Less than %d weeks since the last change."
+ msgstr "最後の変更から%d週間未満です。"
+ 
+ #: src/unix_passwd.c:200
+ #, c-format
+-msgid "Less then %d days since the last change."
++msgid "Less than %d days since the last change."
+ msgstr "最後の変更から%d日未満です。"
+ 
+ #: src/unix_passwd.c:256
+Index: pam_unix2-1.30/po/zh_CN.po
+===================================================================
+--- pam_unix2-1.30.orig/po/zh_CN.po
++++ pam_unix2-1.30/po/zh_CN.po
+@@ -188,12 +188,12 @@ msgstr "对口令数据库的权限限�
+ 
+ #: src/unix_passwd.c:196
+ #, c-format
+-msgid "Less then %d weeks since the last change."
++msgid "Less than %d weeks since the last change."
+ msgstr "距上次修改不到 %d 周。"
+ 
+ #: src/unix_passwd.c:200
+ #, c-format
+-msgid "Less then %d days since the last change."
++msgid "Less than %d days since the last change."
+ msgstr "距上次修改不到 %d 天。"
+ 
+ #: src/unix_passwd.c:256

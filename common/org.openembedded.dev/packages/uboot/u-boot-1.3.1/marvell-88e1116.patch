@@ -1,0 +1,54 @@
+Index: u-boot-1.3.1/drivers/net/tsec.c
+===================================================================
+--- u-boot-1.3.1.orig/drivers/net/tsec.c	2008-01-31 17:23:45.000000000 -0800
++++ u-boot-1.3.1/drivers/net/tsec.c	2008-01-31 17:32:18.000000000 -0800
+@@ -1109,6 +1109,41 @@
+ 			   },
+ };
+ 
++struct phy_info phy_info_M88E1116 = {
++	0x01410e1,
++	"Marvell 88E1116",
++	4,
++	(struct phy_cmd[]){	/* config */
++			   /* Reset and configure the PHY */
++			   {MIIM_CONTROL, MIIM_CONTROL_RESET, NULL},
++			   {22, 2, NULL},
++			   {21, 0x1070, NULL},
++			   {22, 0, NULL},
++			   {16, 0x6060, NULL},
++			   {22, 3, NULL},
++			   {16, 0x101e, NULL},
++			   {MIIM_GBIT_CONTROL, MIIM_GBIT_CONTROL_INIT, NULL},
++			   {MIIM_ANAR, MIIM_ANAR_INIT, NULL},
++			   {MIIM_CONTROL, MIIM_CONTROL_RESET, NULL},
++			   {MIIM_CONTROL, MIIM_CONTROL_INIT, &mii_cr_init},
++			   {miim_end,}
++			   },
++	(struct phy_cmd[]){	/* startup */
++			   /* Status is read once to clear old link state */
++			   {MIIM_STATUS, miim_read, NULL},
++			   /* Auto-negotiate */
++			   {MIIM_STATUS, miim_read, &mii_parse_sr},
++			   /* Read the status */
++			   {22, 0, NULL},
++			   {MIIM_88E1011_PHY_STATUS, miim_read,
++			    &mii_parse_88E1011_psr},
++			   {miim_end,}
++			   },
++	(struct phy_cmd[]){	/* shutdown */
++			   {miim_end,}
++			   },
++};
++
+ struct phy_info phy_info_cis8204 = {
+ 	0x3f11,
+ 	"Cicada Cis8204",
+@@ -1360,6 +1395,7 @@
+ 	&phy_info_M88E1111S,
+ 	&phy_info_M88E1145,
+ 	&phy_info_M88E1149S,
++	&phy_info_M88E1116,
+ 	&phy_info_dm9161,
+ 	&phy_info_lxt971,
+ 	&phy_info_VSC8244,

@@ -1,0 +1,14 @@
+--- u-boot-1.1.2/examples/Makefile	2004-10-10 14:27:33.000000000 -0700
++++ u-boot-1.1.2/examples/Makefile	2007-07-09 10:32:17.000000000 -0700
+@@ -115,9 +120,11 @@
+ 	$(LD) -g $(EX_LDFLAGS) -Ttext $(LOAD_ADDR) \
+ 		-o $@ -e $(<:.o=) $< $(LIB) \
+ 		-L$(gcclibdir) -lgcc
++$(SREC):
+ %.srec:	%
+ 	$(OBJCOPY) -O srec $< $@ 2>/dev/null
+ 
++$(BIN):
+ %.bin:	%
+ 	$(OBJCOPY) -O binary $< $@ 2>/dev/null
+ 

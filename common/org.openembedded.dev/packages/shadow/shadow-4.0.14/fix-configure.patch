@@ -1,0 +1,13 @@
+Index: shadow-4.0.14/configure.in
+===================================================================
+--- shadow-4.0.14.orig/configure.in
++++ shadow-4.0.14/configure.in
+@@ -304,7 +304,7 @@ AC_SUBST(LIBPAM)
+ if test "$with_libpam" = "yes"; then
+ 	AC_CHECK_LIB(pam, pam_start,
+ 		[AC_DEFINE(USE_PAM, 1, [Define to support Pluggable Authentication Modules])
+-		AC_CHECK_LIB(pam_misc, main,
++		AC_CHECK_LIB(pam_misc -lpam, main,
+ 			[LIBPAM="-lpam -lpam_misc"],
+ 			AC_MSG_ERROR(libpam_misc is missing for enable PAM support)
+ 			,[-lpam]

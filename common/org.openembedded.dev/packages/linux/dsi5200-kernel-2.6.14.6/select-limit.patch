@@ -1,0 +1,13 @@
+Index: linux-2.6.14.6/include/linux/posix_types.h
+===================================================================
+--- linux-2.6.14.6.orig/include/linux/posix_types.h
++++ linux-2.6.14.6/include/linux/posix_types.h
+@@ -22,7 +22,7 @@
+ #define __NFDBITS	(8 * sizeof(unsigned long))
+ 
+ #undef __FD_SETSIZE
+-#define __FD_SETSIZE	1024
++#define __FD_SETSIZE	8192
+ 
+ #undef __FDSET_LONGS
+ #define __FDSET_LONGS	(__FD_SETSIZE/__NFDBITS)

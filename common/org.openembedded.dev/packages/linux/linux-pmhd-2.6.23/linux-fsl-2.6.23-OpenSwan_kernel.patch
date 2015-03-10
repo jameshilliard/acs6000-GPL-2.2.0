@@ -1,0 +1,110 @@
+Openswan patch that modifies existing kernel files.
+
+Signed-off-by: Ahsan Kabir <Ahsan.Kabir@freescale.com>
+---
+ arch/powerpc/sysdev/fsl_soc.c |   39 +++++++++++++++++++++++++++++++++++++++
+ crypto/Kconfig                |    2 ++
+ crypto/Makefile               |    1 +
+ net/ipv4/af_inet.c            |   11 +++++++++++
+ 4 files changed, 53 insertions(+), 0 deletions(-)
+
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 1cf29c9..f8cab13 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -648,6 +648,45 @@ err:
+ 
+ arch_initcall(fsl_usb_of_init);
+ 
++static int __init fsl_sec2_of_init(void)
++{
++       struct device_node *np;
++       unsigned int i;
++       struct platform_device *sec2_dev;
++       int ret;
++
++       printk(KERN_DEBUG "fsl_sec2_of_init: start\n");
++       for (np = NULL, i = 0;
++            (np = of_find_compatible_node(np, "crypto", "talitos")) != NULL;
++            i++) {
++               struct resource r[2];
++
++               memset(&r, 0, sizeof(r));
++
++               ret = of_address_to_resource(np, 0, &r[0]);
++               if (ret) {
++                       printk(KERN_DEBUG "fsl_sec2_of_init: address");
++                       goto err;
++               }
++               r[1].start = irq_of_parse_and_map(np, 0);
++               r[1].end = irq_of_parse_and_map(np, 0);
++               r[1].flags = IORESOURCE_IRQ;
++
++               sec2_dev = platform_device_register_simple("fsl-sec2", i, r, 2);
++		if (IS_ERR(sec2_dev)) {
++                       ret = PTR_ERR(sec2_dev);
++                       printk(KERN_DEBUG "fsl_sec2_of_init: register");
++                       goto err;
++               }
++       }
++       return 0;
++err:
++       printk(KERN_DEBUG " error: %d\n", ret);
++       return ret;
++}
++
++arch_initcall(fsl_sec2_of_init);
++
+ #ifdef CONFIG_CPM2
+ 
+ extern void init_scc_ioports(struct fs_uart_platform_info*);
+diff --git a/crypto/Kconfig b/crypto/Kconfig
+index 3d1a1e2..1edbc68 100644
+--- a/crypto/Kconfig
++++ b/crypto/Kconfig
+@@ -468,6 +468,8 @@ config CRYPTO_TEST
+ 	help
+ 	  Quick & dirty crypto test module.
+ 
++source "crypto/ocf/Kconfig"
+ source "drivers/crypto/Kconfig"
+ 
++
+ endif	# if CRYPTO
+diff --git a/crypto/Makefile b/crypto/Makefile
+index 0cf17f1..f285dc2 100644
+--- a/crypto/Makefile
++++ b/crypto/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_CRYPTO_MICHAEL_MIC) += michael_mic.o
+ obj-$(CONFIG_CRYPTO_CRC32C) += crc32c.o
+ 
+ obj-$(CONFIG_CRYPTO_TEST) += tcrypt.o
++obj-$(CONFIG_OCF_OCF) += ocf/
+ 
+ #
+ # generic algorithms and the async_tx api
+diff --git a/net/ipv4/af_inet.c b/net/ipv4/af_inet.c
+index e681034..d07891c 100644
+--- a/net/ipv4/af_inet.c
++++ b/net/ipv4/af_inet.c
+@@ -1424,6 +1424,17 @@ static int __init inet_init(void)
+ #if defined(CONFIG_IP_MROUTE)
+ 	ip_mr_init();
+ #endif
++
++#if defined(CONFIG_KLIPS)
++	{
++		extern int ipsec_klips_init(void);
++		/*
++		* Initialize AF_INET ESP and AH protocol support including
++		* e-routing and SA tables
++		*/
++		ipsec_klips_init();
++	}
++#endif /* CONFIG_KLIPS */
+ 	/*
+ 	 *	Initialise per-cpu ipv4 mibs
+ 	 */
+-- 
+1.5.2
+

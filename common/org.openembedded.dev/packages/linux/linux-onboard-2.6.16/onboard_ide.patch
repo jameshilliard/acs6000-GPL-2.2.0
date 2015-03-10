@@ -1,0 +1,19 @@
+Index: linux-2.6.16/drivers/ide/ide-probe.c
+===================================================================
+--- linux-2.6.16.orig/drivers/ide/ide-probe.c	2007-05-24 17:58:22.000000000 -0400
++++ linux-2.6.16/drivers/ide/ide-probe.c	2007-05-24 18:20:56.000000000 -0400
+@@ -148,6 +148,14 @@
+ 	local_irq_enable();
+ 	//ide_fix_driveid(id);
+ 
++#ifdef CONFIG_BLK_DEV_CYC_IDE
++        if (! drive->bswap) {
++             ide_fix_driveid(id);
++        }
++#else
++	     ide_fix_driveid(id);
++#endif
++
+ #if defined (CONFIG_SCSI_EATA_DMA) || defined (CONFIG_SCSI_EATA_PIO) || defined (CONFIG_SCSI_EATA)
+ 	/*
+ 	 * EATA SCSI controllers do a hardware ATA emulation:

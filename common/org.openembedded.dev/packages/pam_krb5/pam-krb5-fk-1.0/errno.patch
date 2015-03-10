@@ -1,0 +1,24 @@
+Index: pam_krb5_fk-1.0/pam_krb5_auth.c
+===================================================================
+--- pam_krb5_fk-1.0.orig/pam_krb5_auth.c
++++ pam_krb5_fk-1.0/pam_krb5_auth.c
+@@ -7,6 +7,7 @@
+ 
+ static const char rcsid[] = "$Id: pam_krb5_auth.c,v 1.18 2000/01/04 08:44:08 fcusack Exp $";
+ 
++#include <errno.h>
+ #include <limits.h>	/* PATH_MAX */
+ #include <pwd.h>	/* getpwnam */
+ #include <stdio.h>	/* tmpnam */
+Index: pam_krb5_fk-1.0/support.c
+===================================================================
+--- pam_krb5_fk-1.0.orig/support.c
++++ pam_krb5_fk-1.0/support.c
+@@ -6,6 +6,7 @@
+ 
+ static const char rcsid[] = "$Id: support.c,v 1.8 2000/01/04 09:50:03 fcusack Exp $";
+ 
++#include <errno.h>
+ #include <stdio.h>	/* BUFSIZ */
+ #include <syslog.h>	/* syslog */
+ #include <security/pam_appl.h>

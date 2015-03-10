@@ -1,0 +1,14 @@
+Index: syslog-ng-2.0.4/src/afsocket.c
+===================================================================
+--- syslog-ng-2.0.4.orig/src/afsocket.c	2007-05-04 11:22:17.000000000 -0700
++++ syslog-ng-2.0.4/src/afsocket.c	2007-10-17 11:03:21.000000000 -0700
+@@ -691,6 +691,9 @@
+       driver_name = !!(self->flags & AFSOCKET_STREAM) ? "unix-stream" : "unix-dgram";
+       break;
+     case AF_INET:
++#if ENABLE_IPV6
++    case AF_INET6:
++#endif
+       driver_name = !!(self->flags & AFSOCKET_STREAM) ? "tcp" : "udp";
+       break;
+     }

@@ -1,0 +1,220 @@
+#!/bin/bash
+
+VERBOSE="0"
+_CACHE_RC='${HOME}/.gsprc'
+CACHE_RC="$(eval echo ${_CACHE_RC})"
+
+function note () {
+    if [ ${VERBOSE} != "0" ]
+    then
+        echo -e "note: $*"
+    fi
+}
+
+function _realpath () {
+#    perl -e "use Cwd; print Cwd::realpath(\"$@\");"
+    python -c "import os;print os.path.realpath(\"$@\");"
+}
+
+function REALPATH () {
+    for pn in "$@"
+    do
+        _realpath $pn
+    done
+}
+
+export UTILSDIR=$(REALPATH $(dirname ${0}))
+
+GSPSH=$(basename $0)
+usage="Usage: Generic Software Platform Shell\n\
+  ${GSPSH} -s SITE -o COMMONDIR -p PROJDIR -b BUILD [-d DL_DIR] [-t TMPDIR] [-v] [-- CMD [ARG ...]]\n\
+    -s SITE         read site script in $(dirname ${0})/sites/SITE.rc\n\
+    -o COMMONDIR    common meta data directory\n\
+    -p PROJDIR      project directory\n\
+    -b BUILD        build name\n\
+    -d DL_DIR       where source code located\n\
+    -t TMPDIR       temp directory for build output\n\
+    -v              verbose\n\
+    -- CMD [ARG ...] run CMD with arguments in GSP Environment instead of enter interactive GSP Shell\n\
+    \n\
+  ${GSPSH} [-v] [-- CMD [ARG ...]]\n\
+                    use parameters cached in '${_CACHE_RC}' lasttime\n\
+    \n\
+  ${GSPSH} -s rcfile [-v] [-- CMD [ARG ...]]\n\
+                    invoke script 'rcfile' instead of '${_CACHE_RC}'\n\
+    \n"
+
+OPTS=$#
+
+while getopts p:b:o:d:s:t:vh option
+do
+    case "$option"
+    in
+        p) PROJDIR=$OPTARG ;;
+        b) BUILD=$OPTARG ;;
+        o) OEDIR=$OPTARG ;;
+        s) SITE=$OPTARG ;;
+        d) DL_DIR=$OPTARG ;;
+        t) TMPDIR=$OPTARG ;;
+        v) ((VERBOSE ++));((OPTS --)) ;;
+        h|?|*) echo -e "${usage}"; exit 1 ;;
+    esac
+done
+
+if [ "${UID}" == "0" ]
+then
+    echo "Run gspsh as superuser is forbidden"
+    exit 1
+fi
+
+if [ "${GSPENV:+set}" == "set" ]
+then
+    echo "already in GSP environment, Ctrl+D to exit"
+    exit 1
+fi
+
+((OPTIND --))
+OPTS=$(expr ${OPTS} - $# + $OPTIND)
+
+if [ ${OPTS} -lt 2 ]
+then
+    if [ -e ${CACHE_RC} ] 
+    then
+        echo "Use cached parameters in ${CACHE_RC}"
+        source ${CACHE_RC}
+        CACHED_PARAM="1"
+    else
+        echo -e $usage
+        exit 1
+    fi
+fi
+
+: ${SITE:?"$(echo -e "\n"${usage})"}
+if [ -f "${SITE}" ]
+then
+    SITE_RC=$(REALPATH ${SITE})
+    SITE=${SITE_RC}
+else
+    SITE_RC=${UTILSDIR}/sites/${SITE}.rc
+fi
+
+if [ -e ${SITE_RC} ]
+then
+    note "Invoke ${SITE_RC}"
+    source ${SITE_RC} 
+else
+    echo "error: site ${SITE_RC} not exists"
+    exit 1
+fi
+
+: ${PROJDIR:?"$(echo -e "\n"${usage})"}
+: ${OEDIR:?"$(echo -e "\n"${usage})"}
+: ${BUILD:?"$(echo -e "\n"${usage})"}
+
+export BUILD
+
+PGM=$(basename ${0})
+
+if [ "${PGM}" = "gplsh" ] ; then
+  export GPL_ENV="yes"
+else
+  export GPL_ENV="no"
+fi
+
+BUILDDIR=${PROJDIR}/${BUILD}
+
+DIRS="OEDIR PROJDIR BUILDDIR"
+
+[ ${TMPDIR} ] && DIRS="TMPDIR ${DIRS}"
+[ ${DL_DIR} ] && DIRS="DL_DIR ${DIRS}"
+if [ ${TMPDIR} ]
+then 
+    [ -e ${TMPDIR} ] || mkdir ${TMPDIR}
+fi
+
+if [ ${DL_DIR} ] 
+then
+    [ -e ${DL_DIR} ] || mkdir ${DL_DIR}
+fi
+
+for DIRNAME in ${DIRS}
+do
+    DIR=$(eval echo \${$DIRNAME})
+#    note DIR $(eval note $DIR), DIRNAME $DIRNAME
+    if [ -d ${DIR} ]
+    then
+#        DIR=$(realpath ${DIR})
+        DIR=$(REALPATH ${DIR})
+        eval ${DIRNAME}=${DIR}
+        export ${DIRNAME}
+        note export ${DIRNAME}=${DIR}
+    else
+        echo "error: Directory ${DIR} not exists"
+        exit 1
+    fi
+done
+
+if [ "X${CACHED_PARAM}" == "X"  ]
+then
+    note "update parameters in ${CACHE_RC}"
+    rm -f ${CACHE_RC}
+
+    for VAR in SITE BUILD ${DIRS}
+    do
+        echo export ${VAR}=$(eval echo \${$VAR}) >> ${CACHE_RC}
+    done
+fi
+
+export BBPATH="${OEDIR}/com.avocent.dev:${OEDIR}/org.openembedded.dev"
+
+if [ -f ${PROJDIR}/project.rc ]
+then
+    note "Invoke ${PROJDIR}/project.rc"
+    source ${PROJDIR}/project.rc
+fi
+
+export BBPATH="${BUILDDIR}:${BBPATH}"
+
+function bitbake () {
+    [ -z "${BITBAKE}" ] && export BITBAKE=$(which bitbake 2> /dev/null )
+    if [ -z "${BITBAKE}" ]
+    then
+        echo "Error: bitbake not found in PATH"
+    else
+        ${UTILSDIR}/BITBAKE $*
+    fi
+}
+export -f bitbake
+
+if [ -n "${UTILSDIR}" ]
+then
+    export PATH=${PATH}:${UTILSDIR}
+fi
+note "PATH=${PATH}"
+note "BBPATH=${BBPATH}"
+
+if [ ${BUILD} = "buildx86ipk" ]; then
+	export X86_LINUX="1"
+elif [ ${BUILD} = "buildipk" ]; then
+	export POWERPC_LINUX="1"
+fi
+
+export GSPENV="1"
+export SITE=${SITE}
+bitbake --version
+
+shift $OPTIND
+if [ -z "$*" ]
+then
+    exec ${SHELL} --rcfile ${UTILSDIR}/gsp.rc
+else
+    VERBOSE=1
+    echo
+    note "------------------------------------------------------------------------"
+    note "Execute sub command in GSP Shell Environment"
+    note "\"$*\""
+    note "------------------------------------------------------------------------"
+    echo
+
+    eval $@
+fi

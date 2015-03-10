@@ -1,0 +1,227 @@
+Index: linux-2.6.19/arch/ppc/kernel/time.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/kernel/time.c	2007-08-15 14:07:15.000000000 -0700
++++ linux-2.6.19/arch/ppc/kernel/time.c	2007-08-15 14:11:50.000000000 -0700
+@@ -66,6 +66,11 @@
+ 
+ #include <asm/time.h>
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#include <asm/ppcboot.h>
++extern bd_t __res;
++#endif
++
+ unsigned long disarm_decr[NR_CPUS];
+ 
+ extern struct timezone sys_tz;
+@@ -84,6 +89,16 @@
+ /* used for timezone offset */
+ static long timezone_offset;
+ 
++#ifdef CONFIG_AVOCENT_GSP
++int watchdog_config;
++
++void avocent_gsp_watchdog_reset(void)
++{
++	if (watchdog_config) {
++	}
++}
++#endif
++
+ DEFINE_SPINLOCK(rtc_lock);
+ 
+ EXPORT_SYMBOL(rtc_lock);
+@@ -190,6 +205,10 @@
+ 	if (ppc_md.heartbeat && !ppc_md.heartbeat_count--)
+ 		ppc_md.heartbeat();
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	avocent_gsp_watchdog_reset();
++#endif
++
+ 	irq_exit();
+ 	set_irq_regs(old_regs);
+ }
+@@ -339,6 +358,9 @@
+         }
+         set_normalized_timespec(&wall_to_monotonic,
+                                 -xtime.tv_sec, -xtime.tv_nsec);
++#ifdef CONFIG_AVOCENT_GSP
++	watchdog_config = __res.wdt;
++#endif
+ }
+ 
+ #define FEBRUARY		2
+Index: linux-2.6.19/include/asm-ppc/ppcboot.h
+===================================================================
+--- linux-2.6.19.orig/include/asm-ppc/ppcboot.h	2007-08-15 14:07:15.000000000 -0700
++++ linux-2.6.19/include/asm-ppc/ppcboot.h	2007-08-15 14:08:06.000000000 -0700
+@@ -86,6 +86,12 @@
+ 	/* fourth onboard ethernet ports */
+ 	unsigned char	bi_enet3addr[6];
+ #endif
++#ifdef CONFIG_AVOCENT_GSP
++	unsigned char   wdt;
++	unsigned char   mii_operation[2];
++	unsigned short	family;
++	unsigned char	serialnb[6];
++#endif
+ #if defined(CONFIG_4xx)
+ 	unsigned int	bi_opbfreq;		/* OB clock in Hz */
+ 	int		bi_iic_fast[2];		/* Use fast i2c mode */
+Index: linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/gsp-sysctl.c	2007-08-15 14:07:58.000000000 -0700
++++ linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c	2007-08-15 14:12:16.000000000 -0700
+@@ -9,12 +9,15 @@
+ enum {
+ 	CTL_BDINFO = 1,
+ 	CTL_BOARD,
++	CTL_WDT,
+ };
+ 
+ enum {
+ 	CTL_BDINFO_DUMMY = 0,
+ 	CTL_BDINFO_MAC1,
+ 	CTL_BDINFO_MAC2,
++	CTL_BDINFO_SERIAL,
++	CTL_BDINFO_FAMILY,
+ };
+ 
+ extern bd_t __res;
+@@ -47,6 +50,51 @@
+ 	return 0;
+ }
+ 
++static int proc_handle_serial(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[11] ;
++	unsigned char *serial = __res.serialnb;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, 11);
++		sprintf(string, "%02X%02X%02X%02X%02X",
++			serial[0], serial[1], serial[2],
++			serial[3], serial[4]);
++		if (copy_to_user(buffer, string, 11)) {
++			return -EFAULT;
++		}
++		*lenp = 11;
++		*ppos += 11;
++	}
++	return 0;
++}
++
++static int proc_handle_family(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int)] ;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, sizeof(int));
++		snprintf(string, sizeof(int), "%d", __res.family);
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
+ static struct ctl_table bdinfo_dir_table[] =
+ {
+ 	{
+@@ -65,6 +113,70 @@
+ 		.mode = 0644,
+ 		.proc_handler = &proc_handle_mac,
+ 	},
++	{
++		.ctl_name = CTL_BDINFO_SERIAL,
++		.procname = "serial#",
++		.maxlen = 11,
++		.mode = 0644,
++		.proc_handler = &proc_handle_serial,
++	},
++	{
++		.ctl_name = CTL_BDINFO_FAMILY,
++		.procname = "family",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_family,
++	},
++	{0}
++};
++
++extern int watchdog_config;
++
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++	} else {
++		memset(string, 0, sizeof(int));
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++enum {
++	CTL_WDT_DUMMY = 0,
++	CTL_WDT_CONTROL,
++	CTL_WDT_STATUS,
++};
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_WDT_CONTROL,
++		.procname = "control",
++		.data = &watchdog_config,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_dointvec,
++	},
++	{
++		.ctl_name = CTL_WDT_STATUS,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_wdt,
++	},
+ 	{0}
+ };
+ 
+@@ -82,6 +194,12 @@
+                 .mode = 0555,
+                 .child = board_dir_table,
+         },
++	{
++		.ctl_name = CTL_WDT,
++                .procname = "wdt",
++                .mode = 0555,
++                .child = wdt_dir_table,
++        },
+         {0}
+ };
+ 

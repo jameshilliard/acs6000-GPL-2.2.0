@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# This program is for make dev shell environment for developers.
+# In this environment, all useful variables will be export,
+# so user can run make in command line.
+#
+# Author: Ice Liu
+# History: Drafted in Apr 12, 2007
+#          Updated to support both powerpc and x86
+#
+# Copyright: Avocent
+
+# Note: this program only can be run under bitbake environment.
+if [ "" = "${BUILDDIR}" ]; then
+	echo "You're not working in bibake environment."
+	exit 1
+fi
+
+DEVSHELLPATH=${BUILDDIR}/tmp/deploy/addons
+DEVSHELLNAME=$(ls ${DEVSHELLPATH})
+
+# Firstly, to check whether the tool is there or not.
+if [ "" = "${DEVSHELLNAME}" ]; then
+	echo "Dev shell not exitst, build it now ..."
+	bitbake devshell
+fi
+
+# If alread built, run it.
+alias vi=vim
+DEVSHELLNAME=$(ls ${DEVSHELLPATH})
+${DEVSHELLPATH}/${DEVSHELLNAME}

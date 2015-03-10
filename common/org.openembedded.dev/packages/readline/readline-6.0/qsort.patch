@@ -1,0 +1,241 @@
+Index: readline-6.0/rltypedefs.h
+===================================================================
+--- readline-6.0.orig/rltypedefs.h
++++ readline-6.0/rltypedefs.h
+@@ -57,6 +57,8 @@ typedef int rl_compignore_func_t PARAMS(
+ 
+ typedef void rl_compdisp_func_t PARAMS((char **, int, int));
+ 
++typedef int rl_qsort_func_t PARAMS((char **, char **));
++
+ /* Type for input and pre-read hook functions like rl_event_hook */
+ typedef int rl_hook_func_t PARAMS((void));
+ 
+Index: readline-6.0/readline.h
+===================================================================
+--- readline-6.0.orig/readline.h
++++ readline-6.0/readline.h
+@@ -632,6 +632,8 @@ extern rl_completion_func_t *rl_attempte
+    breaks words in the shell, i.e. "n\"\\'`@$>". */
+ extern const char *rl_basic_word_break_characters;
+ 
++extern rl_qsort_func_t *rl_user_qsort_string_compare;
++
+ /* The list of characters that signal a break between words for
+    rl_complete_internal.  The default list is the contents of
+    rl_basic_word_break_characters.  */
+Index: readline-6.0/util.c
+===================================================================
+--- readline-6.0.orig/util.c
++++ readline-6.0/util.c
+@@ -398,6 +398,8 @@ _rl_stricmp (string1, string2)
+ }
+ #endif /* !HAVE_STRCASECMP */
+ 
++rl_qsort_func_t *rl_user_qsort_string_compare = _rl_qsort_string_compare;
++
+ /* Stupid comparison routine for qsort () ing strings. */
+ int
+ _rl_qsort_string_compare (s1, s2)
+Index: readline-6.0/complete.c
+===================================================================
+--- readline-6.0.orig/complete.c
++++ readline-6.0/complete.c
+@@ -1054,7 +1054,7 @@ remove_duplicate_matches (matches)
+   /* Sort the array without matches[0], since we need it to
+      stay in place no matter what. */
+   if (i && rl_sort_completion_matches)
+-    qsort (matches+1, i-1, sizeof (char *), (QSFUNC *)_rl_qsort_string_compare);
++    qsort (matches+1, i-1, sizeof (char *), (QSFUNC *)rl_user_qsort_string_compare);
+ 
+   /* Remember the lowest common denominator for it may be unique. */
+   lowest_common = savestring (matches[0]);
+@@ -1221,7 +1221,7 @@ compute_lcd_of_matches (match_list, matc
+ 	    }
+ 
+ 	  /* sort the list to get consistent answers. */
+-	  qsort (match_list+1, matches, sizeof(char *), (QSFUNC *)_rl_qsort_string_compare);
++	  qsort (match_list+1, matches, sizeof(char *), (QSFUNC *)rl_user_qsort_string_compare);
+ 
+ 	  si = strlen (text);
+ 	  if (si <= low)
+@@ -1356,7 +1356,7 @@ rl_display_match_list (matches, len, max
+ 
+   /* Sort the items if they are not already sorted. */
+   if (rl_ignore_completion_duplicates == 0 && rl_sort_completion_matches)
+-    qsort (matches + 1, len, sizeof (char *), (QSFUNC *)_rl_qsort_string_compare);
++    qsort (matches + 1, len, sizeof (char *), (QSFUNC *)rl_user_qsort_string_compare);
+ 
+   rl_crlf ();
+ 
+Index: readline-6.0/examples/Makefile.in
+===================================================================
+--- readline-6.0.orig/examples/Makefile.in
++++ readline-6.0/examples/Makefile.in
+@@ -68,11 +68,12 @@ TERMCAP_LIB = @TERMCAP_LIB@
+ 	$(CC) $(CCFLAGS) -c $<
+ 
+ SOURCES = excallback.c fileman.c histexamp.c manexamp.c rl-fgets.c rl.c \
+-		rlcat.c rlevent.c rlptytest.c rltest.c rlversion.c
++		rlcat.c rlevent.c rlptytest.c rltest.c rlversion.c avct-rltest.c
+ 
+ EXECUTABLES = fileman$(EXE) rltest$(EXE) rl$(EXE) rlcat$(EXE) rlevent$(EXE) \
+-		rlversion$(EXE) histexamp$(EXE)
+-OBJECTS = fileman.o rltest.o rl.o rlevent.o rlcat.o rlversion.o histexamp.o
++		rlversion$(EXE) histexamp$(EXE) avct-rltest$(EXE)
++
++OBJECTS = fileman.o rltest.o rl.o rlevent.o rlcat.o rlversion.o histexamp.o avct-rltest.o
+ 
+ all: $(EXECUTABLES)
+ everything: all
+@@ -119,6 +120,9 @@ rlversion$(EXE): rlversion.o $(READLINE_
+ histexamp$(EXE): histexamp.o $(HISTORY_LIB)
+ 	$(PURIFY) $(CC) $(LDFLAGS) -o $@ histexamp.o -lhistory $(TERMCAP_LIB)
+ 
++avct-rltest$(EXE): avct-rltest.o $(HISTORY_LIB)
++	$(PURIFY) $(CC) $(LDFLAGS) -o $@ avct-rltest.o $(READLINE_LIB) $(TERMCAP_LIB)
++
+ clean mostlyclean:
+ 	$(RM) $(OBJECTS)
+ 	$(RM) $(EXECUTABLES) *.exe
+Index: readline-6.0/examples/avct-rltest.c
+===================================================================
+--- /dev/null
++++ readline-6.0/examples/avct-rltest.c
+@@ -0,0 +1,136 @@
++
++#if defined (HAVE_CONFIG_H)
++#include <config.h>
++#endif
++
++#include <stdio.h>
++#include <string.h>
++#include <sys/types.h>
++
++#ifdef HAVE_UNISTD_H
++#include <unistd.h>
++#endif
++
++#include <termios.h>  /* xxx - should make this more general */
++
++#ifdef READLINE_LIBRARY
++#  include "readline.h"
++#else
++#  include <readline/readline.h>
++#endif
++
++static char *parms[] = {
++   "zzzzzzzzzzzzzzzzzzz",
++   "10 - test number 10",
++   "bbbbbbbbbbbbbbbbbbb",
++   "4  - test number 4",
++   "2  - test number 2",
++   "20 - test number 2",
++   "aaaaaaaaaaaaaaaaaa",
++   "1  - test number 1",
++   " 5 - test number 1",
++   "9  - test number 9",
++   "Kalley - will be the last",
++   "Seabra - will be the first"
++};
++
++static int sz_parms = sizeof(parms)/sizeof(char *);
++
++static char *complete_generator( const char *text, int state )
++{
++  if (state >= sz_parms) {
++    return NULL;
++  }
++
++  return strdup(parms[state]);
++}
++
++static int
++comp_routine (char **s1, char **s2)
++{
++  int result;
++  char *p1, *p2;
++  char *t1, *t2;
++  int l1, l2;
++  int t1_is_num = 1;
++  int t2_is_num = 1;
++  int i;
++
++  p1 = strdup(*s1);
++  p2 = strdup(*s2);
++
++  t1 = strtok(p1, " ");
++  t2 = strtok(p2, " ");
++
++  if (!strcmp(t1, "Seabra")) {
++    result = -1;
++    goto got_out;
++  }
++
++  if (!strcmp(t1, "Kalley")) {
++    result = 1;
++    goto got_out;
++  }
++
++  if (!strcmp(t2, "Seabra")) {
++    result = 1;
++    goto got_out;
++  }
++
++  if (!strcmp(t2, "Kalley")) {
++    result = -1;
++    goto got_out;
++  }
++
++  l1 = strlen(t1);
++  l2 = strlen(t2);
++
++  for(i=0; i < l1; i++) {
++    if (!isdigit(t1[i])) {
++      t1_is_num = 0;
++      break;
++    }
++  }
++  
++  for(i=0; i < l2; i++) {
++    if (!isdigit(t2[i])) {
++      t2_is_num = 0;
++      break;
++    }
++  }
++  
++  if (l1 != l2 && t2_is_num && t1_is_num) {
++    result = l1 < l2 ? 0 : 1;
++    goto got_out;
++  }
++
++  result = strcmp (t1, t2);
++
++got_out:
++  free(p1);
++  free(p2);
++  return result;
++}
++
++int 
++main(int argc, char *argv[])
++{
++  char *line;
++
++  if (argc > 1) {
++    rl_user_qsort_string_compare = comp_routine;
++  }
++
++  rl_initialize();
++  rl_completion_entry_function = complete_generator;
++
++  line = readline("avct-rltest> ");
++
++  if (line) {
++    printf("read [%s]\n\r", line);
++    free(line);
++  }
++
++  return 0;
++}
++

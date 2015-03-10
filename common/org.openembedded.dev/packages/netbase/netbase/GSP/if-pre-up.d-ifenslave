@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# ifenslave will be called twice on ifup, here and in
+# the if-up.d/ script.
+# This is needed for dhcp - the interface has to have its
+# slaves before dhclient starts.
+
+if [ -n "$IF_SLAVES" ] ; then
+	if [ "$IF_MODE" = "" ] ; then
+		IF_MODE=1
+	fi
+	if [ "$IF_MIIMON" = "" ] ; then
+		IF_MIIMON=100
+	fi
+	if [ "$IF_UPDELAY" = "" ] ; then
+		IF_UPDELAY=200
+	fi
+	modprobe bonding mode=$IF_MODE miimon=$IF_MIIMON updelay=$IF_UPDELAY
+	for S in $IF_SLAVES ; do
+		ifconfig $S down
+		ifconfig $S 0.0.0.0
+		# suppress warnings, works anway...
+	done
+
+	ifconfig $IFACE up
+	/sbin/ifenslave $IFACE $IF_SLAVES > /dev/null 2>&1
+
+	LLADDR=$(ip -6 addr show dev eth0 | grep "scope link" | awk '{ print $2; }')
+	for S in $IF_SLAVES ; do
+		ip -6 addr flush dev $S
+	done
+	ip -6 addr add $LLADDR dev $IFACE
+fi
+
+exit 0
+

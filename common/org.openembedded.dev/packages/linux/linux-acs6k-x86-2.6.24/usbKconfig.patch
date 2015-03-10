@@ -1,0 +1,13 @@
+Index: linux-2.6-denx/drivers/usb/host/Kconfig
+===================================================================
+--- linux-2.6-denx.orig/drivers/usb/host/Kconfig	2008-06-20 14:45:52.000000000 -0700
++++ linux-2.6-denx/drivers/usb/host/Kconfig	2008-06-20 15:04:44.000000000 -0700
+@@ -151,7 +151,7 @@
+ 
+ config USB_OHCI_HCD_PCI
+ 	bool "OHCI support for PCI-bus USB controllers"
+-	depends on USB_OHCI_HCD && PCI && (STB03xxx || PPC_MPC52xx || USB_OHCI_HCD_PPC_OF)
++	depends on USB_OHCI_HCD && PCI && (STB03xxx || PPC_MPC52xx || USB_OHCI_HCD_PPC_OF || 440EP || 440EPX)
+ 	default y
+ 	select USB_OHCI_LITTLE_ENDIAN
+ 	---help---

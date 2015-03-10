@@ -1,0 +1,70 @@
+This patch fixes ds1339 RTC support in linux-2.6.20.
+Signed-off-by: Tanya Jiang <tanya.jiang@freescale.com>
+
+diff -uNrp linux-2.6.20-org/arch/powerpc/platforms/83xx/mpc8313_rdb.c linux-2.6.20-new/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+--- linux-2.6.20-org/arch/powerpc/platforms/83xx/mpc8313_rdb.c	2007-06-28 17:23:43.000000000 +0800
++++ linux-2.6.20-new/arch/powerpc/platforms/83xx/mpc8313_rdb.c	2007-06-29 12:19:29.789907608 +0800
+@@ -25,6 +25,7 @@
+ #include <linux/seq_file.h>
+ #include <linux/root_dev.h>
+ #include <linux/fsl_devices.h>
++#include <linux/rtc.h>
+ 
+ #include <asm/system.h>
+ #include <asm/atomic.h>
+@@ -217,10 +218,51 @@ static int __init mpc831x_declare_of_pla
+ }
+ device_initcall(mpc831x_declare_of_platform_devices);
+ 
+-#if 0
+-#ifdef CONFIG_RTC_CLASS
+-late_initcall(rtc_class_hookup);
+-#endif
++#if defined(CONFIG_I2C_MPC) && defined(CONFIG_SENSORS_DS1337)
++extern int ds1337_do_command(int bus, int cmd, void *arg);
++extern spinlock_t rtc_lock;
++#define DS1337_GET_DATE 0
++#define DS1337_SET_DATE 1
++static void ds1337_get_rtc_time(struct rtc_time *tm)
++{
++	int result;
++	unsigned long flags;
++
++	spin_lock_irqsave(&rtc_lock, flags);
++	result = ds1337_do_command(0, DS1337_GET_DATE, tm);
++	spin_unlock_irqrestore(&rtc_lock, flags);
++	return;
++}
++
++static int ds1337_set_rtc_time(struct rtc_time *tm)
++{
++	int result;
++	unsigned long flags;
++
++	spin_lock_irqsave(&rtc_lock, flags);
++	result = ds1337_do_command(0, DS1337_SET_DATE, tm);
++	spin_unlock_irqrestore(&rtc_lock, flags);
++
++	return result;
++}
++static int __init mpc8313_rtc_hookup(void)
++{
++	struct rtc_time tm;
++	struct timespec tv;
++
++	if (!machine_is(mpc8313_rdb))
++		return 0;
++	ppc_md.get_rtc_time = ds1337_get_rtc_time;
++	ppc_md.set_rtc_time = ds1337_set_rtc_time;
++
++	ppc_md.get_rtc_time(&tm);
++	tv.tv_nsec = 0;
++	tv.tv_sec = mktime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
++			tm.tm_hour, tm.tm_min, tm.tm_sec);
++	do_settimeofday(&tv);
++	return 0;
++}
++late_initcall(mpc8313_rtc_hookup);
+ #endif
+ 
+ define_machine(mpc8313_rdb) {

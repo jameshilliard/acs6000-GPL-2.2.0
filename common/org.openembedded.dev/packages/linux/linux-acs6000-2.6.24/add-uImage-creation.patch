@@ -1,0 +1,38 @@
+Index: linux-2.6.19/arch/ppc/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/Makefile
++++ linux-2.6.19/arch/ppc/Makefile
+@@ -95,6 +95,9 @@ $(BOOT_TARGETS): vmlinux
+ uImage: vmlinux
+ 	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
+ 
++uImage.initrd:
++	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
++
+ define archhelp
+   @echo '* zImage          - Compressed kernel image (arch/$(ARCH)/boot/images/zImage.*)'
+   @echo '  uImage          - Create a bootable image for U-Boot / PPCBoot'
+Index: linux-2.6.19/arch/ppc/boot/images/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/boot/images/Makefile
++++ linux-2.6.19/arch/ppc/boot/images/Makefile
+@@ -30,5 +30,18 @@ $(obj)/uImage: $(obj)/vmlinux.gz
+ 	@echo -n '  Image: $@ '
+ 	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
+ 
++quiet_cmd_uimage.initrd = UIMAGE.INITRD  $@
++	cmd_uimage.initrd = $(CONFIG_SHELL) $(MKIMAGE) -A ppc -O linux \
++		-T multi -C gzip -a 00000000 -e 00000000 \
++		-n 'Linux-$(KERNELRELEASE)' \
++		-d $<:$(obj)/ramdisk.image.gz $@
++
++targets += uImage.initrd
++$(obj)/uImage.initrd: $(obj)/vmlinux.gz $(obj)/ramdisk.image.gz
++	$(Q)rm -f $@
++	$(call if_changed,uimage.initrd)
++	@echo -n '  Image: $@ '
++	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
++
+ # Files generated that shall be removed upon make clean
+-clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage
++clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage*

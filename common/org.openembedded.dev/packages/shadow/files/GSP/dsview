@@ -1,0 +1,9 @@
+#
+# The PAM configuration file for the 'dsview' service
+#
+auth       requisite  pam_securetty.so
+auth       sufficient pam_otk.so
+auth       optional   pam_shm.so
+auth       required   pam_adsap2.so 
+account    required   pam_adsap2.so 
+session    required   pam_adsap2.so 

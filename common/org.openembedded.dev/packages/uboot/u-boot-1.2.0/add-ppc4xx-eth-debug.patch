@@ -1,0 +1,138 @@
+Index: u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/4xx_enet.c
++++ u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c
+@@ -182,6 +182,7 @@ extern int emac4xx_miiphy_read (char *de
+ 		unsigned char reg, unsigned short *value);
+ extern int emac4xx_miiphy_write (char *devname, unsigned char addr,
+ 		unsigned char reg, unsigned short value);
++extern void miiphy_dump (char *devname, unsigned char addr);
+ 
+ /*-----------------------------------------------------------------------------+
+ | ppc_4xx_eth_halt
+@@ -566,6 +567,11 @@ static int ppc_4xx_eth_init (struct eth_
+ #endif
+ 		miiphy_reset (dev->name, reg);
+ 
++#ifdef DEBUG_MII_PHY
++		printf ("Dumping PHY regs....., devName= %s, reg=%c\n", dev->name, reg);
++		miiphy_dump (dev->name, reg);
++#endif
++
+ #if defined(CONFIG_440GX) || \
+     defined(CONFIG_440EPX) || defined(CONFIG_440GRX) || \
+     defined(CONFIG_440SP) || defined(CONFIG_440SPE)
+Index: u-boot-1.2.0/cpu/ppc4xx/miiphy.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/miiphy.c
++++ u-boot-1.2.0/cpu/ppc4xx/miiphy.c
+@@ -54,13 +54,74 @@
+ /***********************************************************/
+ /* Dump out to the screen PHY regs			   */
+ /***********************************************************/
++void phy_reg_dump (char *devname, unsigned char addr, int page_no, int a_reg) {
++
++	unsigned short data;
++
++	if (miiphy_read (devname, addr, a_reg, &data)) {
++ 		printf ("read error for reg, page@%d  %lx\n", page_no, a_reg);
++	} else {
++		printf ("Phy reg, page@%d %lx ==> %4x\n", page_no, a_reg, data);
++    }
++}
+ 
+ void miiphy_dump (char *devname, unsigned char addr)
+ {
+ 	unsigned long i;
+ 	unsigned short data;
+ 
++#if defined(CONFIG_M88E1121_PHY)
++	int page_no = -1;
++
++	/* Dump all the register in Page Any first */
++	for (i = 0; i < 16; i++) {
++		if (miiphy_read (devname, addr, i, &data)) {
++			printf ("read error for reg %lx\n", i);
++			return;
++		}
++		printf ("Phy reg, page@%d %lx ==> %4x\n", page_no, i, data);
++
++		if ( i==10)
++			i=15;
++	}
++	/* Dump all the register in Page 0 */
++	miiphy_write (devname, addr, 22, 0);
++	for (i=16; i < 22; i++) {
++		phy_reg_dump (devname, addr, 0, i);
++	}
++	phy_reg_dump (devname, addr, 0, 23);
++	phy_reg_dump (devname, addr, 0, 26);
++
++	/* Dump all the register in Page 2 */
++	miiphy_write (devname, addr, 22, 2);
++	phy_reg_dump (devname, addr, 2, 16);
++	phy_reg_dump (devname, addr, 2, 18);
++	phy_reg_dump (devname, addr, 2, 19);
++	phy_reg_dump (devname, addr, 2, 21);
++	phy_reg_dump (devname, addr, 2, 23);
++	phy_reg_dump (devname, addr, 2, 24);
++	phy_reg_dump (devname, addr, 2, 25);
++
++	/* Dump all the register in Page 3 */
++	miiphy_write (devname, addr, 22, 3);
++	phy_reg_dump (devname, addr, 3, 16);
++	phy_reg_dump (devname, addr, 3, 17);
++	phy_reg_dump (devname, addr, 3, 18);
++
++	/* Dump all the register in Page 5 */
++	miiphy_write (devname, addr, 22, 5);
+ 
++	for (i=16; i < 22; i++) {
++		phy_reg_dump (devname, addr, 5, i);
++	}
++	phy_reg_dump (devname, addr, 5, 26);
++
++	/* Dump all the register in Page 6 */
++	miiphy_write (devname, addr, 22, 6);
++	phy_reg_dump (devname, addr, 6, 16);
++	phy_reg_dump (devname, addr, 6, 17);
++	phy_reg_dump (devname, addr, 6, 26);
++#else
+ 	for (i = 0; i < 0x1A; i++) {
+ 		if (miiphy_read (devname, addr, i, &data)) {
+ 			printf ("read error for reg %lx\n", i);
+@@ -72,8 +133,10 @@ void miiphy_dump (char *devname, unsigne
+ 		if (i == 0x07)
+ 			i = 0x0f;
+ 
+-	}			/* end for loop */
+-}				/* end dump */
++	}                       /* end for loop */
++#endif
++
++}/* end dump */
+ 
+ 
+ /***********************************************************/
+@@ -291,3 +354,21 @@ int emac4xx_miiphy_write (char *devname,
+ 	return 0;
+ 
+ }				/* phy_write */
++
++/***********************************************************/
++/* Dump out to screen EMAC regs                            */
++/***********************************************************/
++void mac_reg_dump (void){
++	unsigned long reg;
++	unsigned long emac_reg;
++	int i = 0;
++
++	emac_reg = miiphy_getemac_offset ();
++	printf ("emac_reg=%ld\n", emac_reg);
++	for (i=0; i<104;){
++		reg = in32 (emac_reg + EMAC_BASE + i);
++		printf (" read:reg#%d, 0x%0x\n", i, reg);
++		i += 4;
++	}
++}
++

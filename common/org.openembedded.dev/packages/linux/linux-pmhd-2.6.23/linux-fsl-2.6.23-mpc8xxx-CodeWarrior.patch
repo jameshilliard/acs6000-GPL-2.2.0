@@ -1,0 +1,44 @@
+Add the CodeWarrior Kernel debug support
+
+Signed-off-by: Xie Xiaobo <X.Xie@freescale.com>
+---
+ arch/powerpc/Makefile |    5 +++++
+ lib/Kconfig.debug     |    6 ++++++
+ 2 files changed, 11 insertions(+), 0 deletions(-)
+
+diff --git a/arch/powerpc/Makefile b/arch/powerpc/Makefile
+index 6c1e36c..724a0de 100644
+--- a/arch/powerpc/Makefile
++++ b/arch/powerpc/Makefile
+@@ -111,6 +111,11 @@ ifeq ($(CONFIG_6xx),y)
+ CFLAGS		+= -mcpu=powerpc
+ endif
+ 
++ifeq ($(CONFIG_DEBUG_CW),y)
++CFLAGS += -g2 -gdwarf-2
++AFLAGS_KERNEL += -Wa,-gdwarf2
++endif
++
+ cpu-as-$(CONFIG_4xx)		+= -Wa,-m405
+ cpu-as-$(CONFIG_6xx)		+= -Wa,-maltivec
+ cpu-as-$(CONFIG_POWER4)		+= -Wa,-maltivec
+diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
+index cdc9b09..cf447df 100644
+--- a/lib/Kconfig.debug
++++ b/lib/Kconfig.debug
+@@ -193,6 +193,12 @@ config RT_MUTEX_TESTER
+ 	help
+ 	  This option enables a rt-mutex tester.
+ 
++config DEBUG_CW
++	bool "Include CodeWarrior kernel debugging"
++	depends on DEBUG_KERNEL && PPC32
++	help
++	  Say Y here to enable CodeWarrior kernel debugging.
++
+ config DEBUG_SPINLOCK
+ 	bool "Spinlock and rw-lock debugging: basic checks"
+ 	depends on DEBUG_KERNEL
+-- 
+1.5.0
+

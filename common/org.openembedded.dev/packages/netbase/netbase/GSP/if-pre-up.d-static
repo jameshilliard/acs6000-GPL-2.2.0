@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# the busybox ifupdown will call 'ip addr add'
+# if an address id already set, this will not deconfigure the old address.
+# This will make sure there is no static address set:
+if [ "$METHOD" == "static" ] ; then
+	if [ "$ADDRFAM" == "inet" ]; then
+		ip -4 addr flush dev $IFACE
+	fi
+	if [ "$ADDRFAM" == "inet6" ]; then
+		ip -6 addr flush dev $IFACE
+	fi
+fi
+if [ "$METHOD" == "manual" ]; then
+	ip link set $IFACE up
+fi
+

@@ -1,0 +1,12 @@
+Index: project_caesar/builds/thirdparty/telnetd/netkit-telnet-0.17/Makefile
+===================================================================
+--- project_caesar.orig/builds/thirdparty/telnetd/netkit-telnet-0.17/Makefile	2006-04-24 06:32:53.000000000 -0400
++++ project_caesar/builds/thirdparty/telnetd/netkit-telnet-0.17/Makefile	2006-11-13 04:38:51.000000000 -0500
+@@ -1,6 +1,6 @@
+ # You can do "make SUB=blah" to make only a few, or edit here, or both
+ # You can also run make directly in the subdirs you want.
+-
++MAKE=make
+ SUB =   telnet telnetd
+ # not yet: telnetlogin
+ 

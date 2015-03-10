@@ -1,0 +1,14 @@
+--- httpd-2.2.8/configure_httpd_orig	2008-05-07 10:23:13.000000000 -0700
++++ httpd-2.2.8/configure	2008-05-07 10:32:05.000000000 -0700
+@@ -7753,9 +7753,8 @@ _ACEOF
+ fi
+ done
+ 
+-
+-
+-
++ac_cv_sizeof_long_p=${ac_cv_sizeof_long_p=4}
++ac_cv_sizeof_void_p=${ac_cv_sizeof_void_p=4}
+ { echo "$as_me:$LINENO: checking for void pointer length" >&5
+ echo $ECHO_N "checking for void pointer length... $ECHO_C" >&6; }
+ if test "${ap_void_ptr_lt_long+set}" = set; then

@@ -1,0 +1,61 @@
+Index: busybox-1.5.0/loginutils/login.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/login.c	2008-06-26 22:47:56.000000000 -0700
++++ busybox-1.5.0/loginutils/login.c	2008-06-26 22:47:56.000000000 -0700
+@@ -481,7 +481,10 @@
+ 		opt &= ~LOGIN_OPT_f;
+ 		bb_do_delay(FAIL_DELAY);
+ 		puts("Login incorrect");
+-		if (++count == 3) {
++
++// Do not retry if login to console.
++		if (++count == 3 ||
++			!strcmp(short_tty, "console") || !strcmp(short_tty, "ttyS0")) {
+ 			syslog(LOG_WARNING, "invalid password for '%s'%s",
+ 						username, fromhost);
+ 			return EXIT_FAILURE;
+@@ -583,7 +586,15 @@
+ 	gsp_auth_session_add_attr_flag(&sdata, flags);
+ 
+ 	change_identity(pw);
+-	tmp = pw->pw_shell;
++
++	// Check if authenticated by pam-pmcli
++	if (pamh && (tmp = pam_getenv(pamh, "PMCLI"))) {
++		char *tmp1 = strdup(tmp);
++		tmp = tmp1;
++	} else {
++		tmp = pw->pw_shell;
++	}
++ 
+ 	if (!tmp || !*tmp)
+ 		tmp = DEFAULT_SHELL;
+ 	setup_environment(tmp, 1, !(opt & LOGIN_OPT_p), pw);
+Index: busybox-1.5.0/loginutils/getty.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/getty.c	2008-06-26 22:47:56.000000000 -0700
++++ busybox-1.5.0/loginutils/getty.c	2008-06-27 18:14:38.000000000 -0700
+@@ -494,10 +494,22 @@
+ /* do_prompt - show login prompt, optionally preceded by /etc/issue contents */
+ static void do_prompt(struct options *op, struct termios *tp)
+ {
++	char *prompt = "login: ";
+ #ifdef ISSUE
+ 	print_login_issue(op->issue, op->tty);
++	if (op->issue) {
++		FILE *fp = fopen(op->issue, "r");
++		char issue[64];
++		if (fp) {
++			if (fscanf(fp, "Cyclades PM %64s", &issue) == 1) {
++				prompt = "Username: ";
++			}
++			fclose(fp);
++		}
++	}
+ #endif
+-	print_login_prompt();
++	fputs(prompt, stdout);
++	fflush(stdout);
+ }
+ 
+ #ifdef HANDLE_ALLCAPS

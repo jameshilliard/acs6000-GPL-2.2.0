@@ -1,0 +1,18 @@
+diff -Naupr ipsec-tools-0.5rc2/configure.ac ipsec-tools-0.5rc2.new/configure.ac
+--- ipsec-tools-0.5rc2/configure.ac	2007-06-20 13:46:19.000000000 -0400
++++ ipsec-tools-0.5rc2.new/configure.ac	2007-06-20 13:46:57.000000000 -0400
+@@ -343,10 +343,10 @@ if test "$ipv6" = "yes"; then
+ 		[AC_MSG_RESULT(no)])
+ fi
+ 
+-RACOON_CHECK_BUGGY_GETADDRINFO
+-if test "$racoon_cv_bug_getaddrinfo" = "yes"; then
+-	AC_MSG_ERROR([Broken getaddrinfo() is no longer supported. Aborting.])
+-fi
++#RACOON_CHECK_BUGGY_GETADDRINFO
++#if test "$racoon_cv_bug_getaddrinfo" = "yes"; then
++#	AC_MSG_ERROR([Broken getaddrinfo() is no longer supported. Aborting.])
++#fi
+ 
+ # Check if kernel support is available for NAT-T, defaults to no. 
+ kernel_natt="no"

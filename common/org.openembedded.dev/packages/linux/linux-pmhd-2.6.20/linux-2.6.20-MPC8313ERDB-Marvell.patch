@@ -1,0 +1,32 @@
+This patch removes the obselete marvell phy bugfix.
+Signed-off-by: Tony Li <tony.li@freescale.com>
+
+--- linux-2.6.20/drivers/net/phy/marvell.c	2007-08-01 09:52:37.000000000 +0800
++++ linux-2.6.20.mod/drivers/net/phy/marvell.c	2007-08-01 16:42:44.000000000 +0800
+@@ -103,26 +103,6 @@ static int marvell_config_aneg(struct ph
+ 	if (err < 0)
+ 		return err;
+ 
+-	err = phy_write(phydev, 0x1d, 0x1f);
+-	if (err < 0)
+-		return err;
+-
+-	err = phy_write(phydev, 0x1e, 0x200c);
+-	if (err < 0)
+-		return err;
+-
+-	err = phy_write(phydev, 0x1d, 0x5);
+-	if (err < 0)
+-		return err;
+-
+-	err = phy_write(phydev, 0x1e, 0);
+-	if (err < 0)
+-		return err;
+-
+-	err = phy_write(phydev, 0x1e, 0x100);
+-	if (err < 0)
+-		return err;
+-
+ 	err = phy_write(phydev, MII_M1011_PHY_SCR,
+ 			MII_M1011_PHY_SCR_AUTO_CROSS);
+ 	if (err < 0)

@@ -1,0 +1,66 @@
+#! /bin/sh
+
+# /etc/init.d/ypbind : start and stop the ypbind daemon
+
+NAME=ypbind
+PARMS=""
+PROGRAM=$(which ${NAME})
+PIDF=/var/run/${NAME}.pid 
+
+test -n "${PROGRAM}" || exit 0
+
+test -x ${PROGRAM} || exit 0
+
+( ${PROGRAM} -\? 2>&1 | grep -q ${NAME} ) 2>/dev/null || exit 0
+
+case "$1" in
+    start)
+	echo -n "Starting NIS server: ${NAME}... "
+	domainname $(cat /etc/domainname.conf)
+	## check if domainname is set, othewise abort with error
+	XDOMAIN=$(/bin/ypdomainname 2>/dev/null)
+	if [ $? -ne 0 -o -z "${XDOMAIN}" -o "y${XDOMAIN}" == "y(none)" ]; then
+          echo -e "\n*** ERROR *** No domainname set: Aborting."
+          exit 1
+        fi
+        ## Check if portmap is running, otherwise abort with error
+        ## if [ $(ps ax | grep portmap 2>/dev/null | wc -l) -lt 2 ] ; then
+        ##    echo -e "\n*** ERROR *** No portmap running, Aborting."
+        ##    exit 1
+        ## fi
+        start-stop-daemon -S -x ${PROGRAM} -- ${PARMS}
+        echo "done."
+        ;;
+    stop)
+        echo "Stopping NIS server: ${NAME}"
+        if [ -f ${PIDF} ] ; then
+          PID=$(cat ${PIDF})
+          kill -TERM ${PID}
+          echo "stopped ${PROGRAM} (pid ${PID})"
+        else
+          echo "File '${PIDF}' does not exist."
+        fi
+        ;;
+restart)
+        echo "Restarting NIS server: ${NAME}"
+        $0 stop
+        $0 start
+        ;;
+reload)
+        echo "Reloading NIS server: ${NAME}"
+        if [ -f ${PIDF} ] ; then
+          PID=$(cat ${PIDF})
+          kill -HUP ${PID}
+          echo "Signal HUP sent to ${PROGRAM} (pid ${PID})"
+        else
+          $0 start
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|reload|restart}}"
+        exit 1
+        ;;
+esac
+
+exit 0
+

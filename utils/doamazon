@@ -1,0 +1,89 @@
+#!/bin/sh
+#
+# This program is for checking out and build amazon image.
+
+PROJECT=amazon
+PUBDL_DIR=/opt/sources
+USRDL_DIR=${HOME}/sources
+TAGOPT=trunk
+
+# To parse the command line options.
+while getopts "hb:r:" opt; do
+    case $opt in
+        h)
+	    echo "Usage:"
+	    echo "    $0 <-r TAG> <-b branch> <-h>"
+	    echo "    -r to do ${PROJECT} based on TAG, default is trunk"
+	    echo "    -b to do ${PROJECT} based on branch, default is trunk"
+	    echo "    -h to print this information"
+	    exit 0
+	    ;;
+	r)
+	    TAGOPT=tags/${OPTARG}
+	    ;;
+	b)
+	    TAGOPT=branches/${OPTARG}
+	    ;;
+        \?)
+	    echo "Usage:"
+	    echo "    $0 <-r TAG> <-b branch> <-h>"
+	    echo "    -r to do ${PROJECT} based on TAG, default is trunk"
+	    echo "    -b to do ${PROJECT} based on branch, default is trunk"
+	    echo "    -h to print this information"
+	    exit 0
+	    ;;
+    esac
+done
+
+if [ ! -d ${USRDL_DIR} ]; then
+	mkdir ${USRDL_DIR}
+fi
+
+pushd ${USRDL_DIR} > /dev/null
+for f in `ls ${PUBDL_DIR}`
+do
+	if [ ! -L $f ]; then
+		ln -s ${PUBDL_DIR}/$f $f
+	fi
+done
+popd > /dev/null
+
+# to check out the sources
+if [ ! -d common ]; then
+    mkdir common
+fi
+
+SVNCMD="svn co"
+SVNURL="https://hsv-svn2.corp.avocent.com/svn/avocent-gsp"
+# Final SVN command to be appended with the repository infor.
+SVNFN="$SVNCMD $SVNURL"
+
+function checkDir () {
+        project="$1"
+        workdir="$2"
+
+        if [ -d "$workdir" ]; then
+                echo "$workdir already exists."
+                echo -n "Do you want to remove it?[y/n]: "
+                read r
+                if [ "$r" = "y" ]; then
+                        echo "remove $workdir "
+                        rm -rf $workdir
+                        ${SVNFN}/$project $workdir
+                else
+                        echo "keep $workdir"
+                fi
+        else
+                ${SVNFN}/$project $workdir
+        fi
+}
+
+pushd common > /dev/null
+checkDir "common/org.openembedded.dev/${TAGOPT}"\
+         "org.openembedded.dev"
+checkDir "common/com.avocent.dev/${TAGOPT}"\
+         "com.avocent.dev"
+popd > /dev/null
+
+checkDir "projects/${PROJECT}/${TAGOPT}" "${PROJECT}"
+checkDir "bitbake/${TAGOPT}/bitbake-1.6.2" "bitbake"

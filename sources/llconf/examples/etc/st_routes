@@ -1,0 +1,9 @@
+# comment stating that this is a st_routes file
+
+route add -net 192.56.76.0 netmask 255.255.255.0 dev eth0
+route add default gw mango-gw
+route add -net 192.57.66.0 netmask 255.255.255.0 gw ipx4
+# pointless comment
+route add -net 224.0.0.0 netmask 240.0.0.0 dev eth0
+route add -host 192.168.1.1 dev eth1
+

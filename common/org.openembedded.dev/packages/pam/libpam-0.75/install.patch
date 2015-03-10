@@ -1,0 +1,37 @@
+Index: Linux-PAM-0.75/configure.in
+===================================================================
+--- Linux-PAM-0.75.orig/configure.in
++++ Linux-PAM-0.75/configure.in
+@@ -292,7 +292,7 @@ GCC_WARNINGS="-Wall -Wwrite-strings \
+ #	CC_STATIC=
+ #fi
+ 
+-INSTALL="install -s -c"
++#INSTALL="install -s -c"
+ LD_D="$LD -shared -x"
+ LD_L="$LD -x -shared"
+ 
+Index: Linux-PAM-0.75/modules/pam_pwdb/Makefile
+===================================================================
+--- Linux-PAM-0.75.orig/modules/pam_pwdb/Makefile
++++ Linux-PAM-0.75/modules/pam_pwdb/Makefile
+@@ -53,7 +53,7 @@ info:
+ 
+ $(CHKPWD): pwdb_chkpwd.o md5_good.o md5_broken.o \
+            md5_crypt_good.o md5_crypt_broken.o
+-	$(CC) -o $(CHKPWD) $^ -lpwdb
++	$(CC) $(LDFLAGS) -o $(CHKPWD) $^ -lpwdb
+ 
+ pwdb_chkpwd.o: pwdb_chkpwd.c pam_unix_md.-c bigcrypt.-c
+ 
+Index: Linux-PAM-0.75/modules/modules.txt
+===================================================================
+--- Linux-PAM-0.75.orig/modules/modules.txt
++++ Linux-PAM-0.75/modules/modules.txt
+@@ -17,3 +17,6 @@ pam_warn
+ pam_wheel
+ pam_tally
+ pam_cracklib
++pam_pwdb
++pam_radius
++pam_unix

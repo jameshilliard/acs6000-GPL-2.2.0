@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<interface name="calc">
+    <types>
+        <struct type="complex">
+            <field name="real" type="float"/>
+            <field name="imaginary" type="float"/>
+        </struct>
+    </types>
+    <functions>
+        <func name="add">
+            <in name="operand1" type="double"/>
+            <in name="operand2" type="double"/>
+            <out name="result" type="double"/>
+        </func>
+        <func name="sub">
+            <in name="operand1" type="double"/>
+            <in name="operand2" type="double"/>
+            <out name="result" type="double"/>
+        </func>
+        <func name="mul">
+            <in name="operand1" type="double"/>
+            <in name="operand2" type="double"/>
+            <out name="result" type="double"/>
+        </func>
+        <func name="div">
+            <in name="operand1" type="double"/>
+            <in name="operand2" type="double"/>
+            <out name="result" type="double"/>
+        </func>
+        <func name="add_complex">
+            <in name="operand1" type="complex"/>
+            <in name="operand2" type="complex"/>
+            <out name="result" type="complex"/>
+        </func>
+        <func name="sub_complex">
+            <in name="operand1" type="complex"/>
+            <in name="operand2" type="complex"/>
+            <out name="result" type="complex"/>
+        </func>
+        <func name="mul_complex">
+            <in name="operand1" type="complex"/>
+            <in name="operand2" type="complex"/>
+            <out name="result" type="complex"/>
+        </func>
+        <func name="div_complex">
+            <in name="operand1" type="complex"/>
+            <in name="operand2" type="complex"/>
+            <out name="result" type="complex"/>
+        </func>
+    </functions>
+</interface>
+

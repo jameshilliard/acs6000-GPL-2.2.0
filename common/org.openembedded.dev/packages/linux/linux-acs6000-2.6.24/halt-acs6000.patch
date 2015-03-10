@@ -1,0 +1,66 @@
+Index: linux-2.6-denx/arch/ppc/syslib/ibm44x_common.c
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/syslib/ibm44x_common.c
++++ linux-2.6-denx/arch/ppc/syslib/ibm44x_common.c
+@@ -109,8 +109,17 @@ static void ibm44x_power_off(void)
+ 
+ static void ibm44x_halt(void)
+ {
++	printk("System Halted, OK to turn off power\n");
+ 	local_irq_disable();
++#ifdef CONFIG_AVOCENT_GSP
++	for(;;)
++	{
++		// reset watchdog timer
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++	}
++#else
+ 	for(;;);
++#endif
+ }
+ 
+ /*
+Index: linux-2.6-denx/kernel/sys.c
+===================================================================
+--- linux-2.6-denx.orig/kernel/sys.c
++++ linux-2.6-denx/kernel/sys.c
+@@ -331,7 +331,7 @@ void kernel_halt(void)
+ {
+ 	kernel_shutdown_prepare(SYSTEM_HALT);
+ 	sysdev_shutdown();
+-	printk(KERN_EMERG "System halted.\n");
++	printk(KERN_EMERG "System halted. OK to turn off power\n");
+ 	machine_halt();
+ }
+ 
+Index: linux-2.6-denx/arch/ppc/platforms/4xx/goldengate.c
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/platforms/4xx/goldengate.c
++++ linux-2.6-denx/arch/ppc/platforms/4xx/goldengate.c
+@@ -132,6 +132,7 @@ static void __init goldengate_set_emacda
+ {
+ 	struct ocp_def *def;
+ 	struct ocp_func_emac_data *emacdata;
++	int i,count;
+ 
+ 	/* Set mac_addr, phy mode and unsupported phy features for each EMAC */
+ 
+@@ -143,7 +144,17 @@ static void __init goldengate_set_emacda
+ 
+ 	def = ocp_get_one_device(OCP_VENDOR_IBM, OCP_FUNC_EMAC, 1);
+ 	emacdata = def->additions;
+-	memcpy(emacdata->mac_addr, __res.bi_enet1addr, 6);
++	for (i=0,count=0;i<6;i++) count+=__res.bi_enet1addr[i];
++	if (count) {
++		memcpy(emacdata->mac_addr, __res.bi_enet1addr, 6);
++	} else {
++		emacdata->mac_addr[0] = 0x00;	
++		emacdata->mac_addr[1] = 0xe0;	
++		emacdata->mac_addr[2] = 0x86;	
++		emacdata->mac_addr[3] = 0x00;	
++		emacdata->mac_addr[4] = 0x00;	
++		emacdata->mac_addr[5] = 0x02;	
++	}
+ 	emacdata->phy_mode = PHY_MODE_RGMII;
+ 	emacdata->phy_map = ~(1<<0);
+ }

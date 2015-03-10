@@ -1,0 +1,24 @@
+--- pam_ldap-180/ldap.conf.orig	2007-10-10 18:32:09.000000000 -0700
++++ pam_ldap-180/ldap.conf	2007-10-10 18:31:51.000000000 -0700
+@@ -12,10 +12,10 @@
+ # space. How long nss_ldap takes to failover depends on
+ # whether your LDAP client library supports configurable
+ # network or connect timeouts (see bind_timelimit).
+-host 127.0.0.1
++#host 127.0.0.1
+ 
+ # The distinguished name of the search base.
+-base dc=padl,dc=com
++#base dc=padl,dc=com
+ 
+ # Another way to specify your LDAP server is to provide an
+ # uri with the server name. This allows to use
+@@ -261,7 +261,7 @@
+ # Default is to use libldap's default behavior, which can be configured in
+ # /etc/openldap/ldap.conf using the TLS_REQCERT setting.  The default for
+ # OpenLDAP 2.0 and earlier is "no", for 2.1 and later is "yes".
+-#tls_checkpeer yes
++tls_checkpeer no
+ 
+ # CA certificates for server certificate verification
+ # At least one of these are required if tls_checkpeer is "yes"

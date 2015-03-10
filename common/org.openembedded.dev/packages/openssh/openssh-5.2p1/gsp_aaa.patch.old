@@ -1,0 +1,1936 @@
+Index: openssh-5.2p1/auth1.c
+===================================================================
+--- openssh-5.2p1.orig/auth1.c
++++ openssh-5.2p1/auth1.c
+@@ -253,6 +253,7 @@ do_authloop(Authctxt *authctxt)
+ 		if (options.use_pam && (PRIVSEP(do_pam_account())))
+ #endif
+ 		{
++			if (use_privsep) mm_inform_authmethod("none");
+ 			auth_log(authctxt, 1, "without authentication", "");
+ 			return;
+ 		}
+@@ -367,8 +368,13 @@ do_authloop(Authctxt *authctxt)
+ 			client_user = NULL;
+ 		}
+ 
+-		if (authenticated)
++		if (authenticated) {
++			/* GSP AAA [EL] */
++			if (use_privsep) mm_inform_authmethod(meth->name);
++			/* End GSP AAA [EL] */
++
+ 			return;
++		}
+ 
+ 		if (++authctxt->failures >= options.max_authtries) {
+ #ifdef SSH_AUDIT_EVENTS
+@@ -400,8 +406,14 @@ do_authentication(Authctxt *authctxt)
+ 	user = packet_get_string(&ulen);
+ 	packet_check_eom();
+ 
+-	if ((style = strchr(user, ':')) != NULL)
++	if ((style = strchr(user, ':')) != NULL) {
+ 		*style++ = '\0';
++		style = PRIVSEP(validate_portalias(style));
++		debug("auth1-validate_portalias: style[%s]",style);
++		if (!style)
++			packet_disconnect("Can not run sshd for this terminal.");
++	} else
++		style = PRIVSEP(get_ttyname_from_local_ip(get_local_ipaddr(packet_get_connection_in())));
+ 
+ 	authctxt->user = user;
+ 	authctxt->style = style;
+@@ -417,6 +429,8 @@ do_authentication(Authctxt *authctxt)
+ 	setproctitle("%s%s", authctxt->valid ? user : "unknown",
+ 	    use_privsep ? " [net]" : "");
+ 
++	if (use_privsep)
++		mm_inform_authserv("", style);
+ #ifdef USE_PAM
+ 	if (options.use_pam)
+ 		PRIVSEP(start_pam(authctxt));
+Index: openssh-5.2p1/auth2.c
+===================================================================
+--- openssh-5.2p1.orig/auth2.c
++++ openssh-5.2p1/auth2.c
+@@ -215,7 +215,7 @@ input_userauth_request(int type, u_int32
+ {
+ 	Authctxt *authctxt = ctxt;
+ 	Authmethod *m = NULL;
+-	char *user, *service, *method, *style = NULL;
++	char *user, *service, *method, *style = NULL, *user1, *user2;
+ 	int authenticated = 0;
+ 
+ 	if (authctxt == NULL)
+@@ -227,13 +227,25 @@ input_userauth_request(int type, u_int32
+ 	debug("userauth-request for user %s service %s method %s", user, service, method);
+ 	debug("attempt %d failures %d", authctxt->attempt, authctxt->failures);
+ 
+-	if ((style = strchr(user, ':')) != NULL)
++	user1 = xstrdup(user);
++
++	if ((style = strchr(user, ':')) != NULL) {
+ 		*style++ = 0;
++		style = PRIVSEP(validate_portalias(style));
++		debug("auth2-validate_portalias: style[%s]",style);
++		if (!style) 
++			packet_disconnect("Can not run sshd for this terminal.");
++	} else
++		style = PRIVSEP(get_ttyname_from_local_ip(get_local_ipaddr(packet_get_connection_in())));
++
++	user2 = xstrdup(user);
+ 
+ 	if (authctxt->attempt++ == 0) {
+ 		/* setup auth context */
+ 		authctxt->pw = PRIVSEP(getpwnamallow(user));
+-		authctxt->user = xstrdup(user);
++		authctxt->user = user2;
++		authctxt->service = xstrdup(service);
++		authctxt->style = style ? xstrdup(style) : NULL;
+ 		if (authctxt->pw && strcmp(service, "ssh-connection")==0) {
+ 			authctxt->valid = 1;
+ 			debug2("input_userauth_request: setting up authctxt for %s", user);
+@@ -244,18 +256,17 @@ input_userauth_request(int type, u_int32
+ 			PRIVSEP(audit_event(SSH_INVALID_USER));
+ #endif
+ 		}
++		if (use_privsep)
++			mm_inform_authserv(service, style);
+ #ifdef USE_PAM
+ 		if (options.use_pam)
+ 			PRIVSEP(start_pam(authctxt));
+ #endif
+ 		setproctitle("%s%s", authctxt->valid ? user : "unknown",
+ 		    use_privsep ? " [net]" : "");
+-		authctxt->service = xstrdup(service);
+-		authctxt->style = style ? xstrdup(style) : NULL;
+-		if (use_privsep)
+-			mm_inform_authserv(service, style);
+-		userauth_banner();
+-	} else if (strcmp(user, authctxt->user) != 0 ||
++		authctxt->user = user1;
++		//userauth_banner();
++	} else if (strcmp(user1, authctxt->user) != 0 ||
+ 	    strcmp(service, authctxt->service) != 0) {
+ 		packet_disconnect("Change of username or service not allowed: "
+ 		    "(%s,%s) -> (%s,%s)",
+@@ -279,10 +290,19 @@ input_userauth_request(int type, u_int32
+ 	m = authmethod_lookup(method);
+ 	if (m != NULL && authctxt->failures < options.max_authtries) {
+ 		debug2("input_userauth_request: try method %s", method);
++		if (!strcmp(m->name,"keyboard-interactive") ||
++			!strcmp(m->name,"password")) {
++			authctxt->user = user2;
++		}
+ 		authenticated =	m->userauth(authctxt);
++		if (!strcmp(m->name,"keyboard-interactive") ||
++			!strcmp(m->name,"password")) {
++			authctxt->user = user1;
++		}
+ 	}
+ 	userauth_finish(authctxt, authenticated, method);
+ 
++	xfree(user2);
+ 	xfree(service);
+ 	xfree(user);
+ 	xfree(method);
+@@ -343,6 +363,10 @@ userauth_finish(Authctxt *authctxt, int 
+ 		packet_write_wait();
+ 		/* now we can break out */
+ 		authctxt->success = 1;
++
++		/* GSP AAA [EL] */
++		if (use_privsep) mm_inform_authmethod(method);
++		/* End GSP AAA [EL] */
+ 	} else {
+ 
+ 		/* Allow initial try of "none" auth without failure penalty */
+Index: openssh-5.2p1/auth2-pubkey.c
+===================================================================
+--- openssh-5.2p1.orig/auth2-pubkey.c
++++ openssh-5.2p1/auth2-pubkey.c
+@@ -57,10 +57,13 @@
+ #include "ssh-x509.h"
+ #include "misc.h"
+ 
++#include <adsap2.h>
++
+ /* import */
+ extern ServerOptions options;
+ extern u_char *session_id2;
+ extern u_int session_id2_len;
++extern int avocent_key_type;
+ 
+ static int pubkey_algorithm_allowed(int pktype);
+ 
+@@ -144,7 +147,16 @@ userauth_pubkey(Authctxt *authctxt)
+ #endif
+ 		/* test for correct signature */
+ 		authenticated = 0;
+-		if (PRIVSEP(user_key_allowed(authctxt->pw, key)) &&
++		if (pktype == avocent_key_type &&
++			PRIVSEP(adsap2_preauth(authctxt->pw->pw_name, authctxt->style, pkblob, blen, 0)) &&
++			PRIVSEP(key_verify(key, sig, slen, buffer_ptr(&b),
++			buffer_len(&b))) == 1) {
++			authenticated = 1;
++			//cyc_set_pconf(authctxt->pw->pw_name);
++		}
++
++		if (!authenticated &&
++			PRIVSEP(user_key_allowed(authctxt->pw, key)) &&
+ 		    PRIVSEP(key_verify(key, sig, slen, buffer_ptr(&b),
+ 		    buffer_len(&b))) == 1)
+ 			authenticated = 1;
+@@ -162,7 +174,9 @@ userauth_pubkey(Authctxt *authctxt)
+ 		 * if a user is not allowed to login. is this an
+ 		 * issue? -markus
+ 		 */
+-		if (PRIVSEP(user_key_allowed(authctxt->pw, key))) {
++		if ((pktype == avocent_key_type &&
++			PRIVSEP(adsap2_preauth(authctxt->pw->pw_name,authctxt->style,pkblob,blen,1))) ||
++			PRIVSEP(user_key_allowed(authctxt->pw, key))) {
+ 			packet_start(SSH2_MSG_USERAUTH_PK_OK);
+ 			packet_put_string(pkalg, alen);
+ 			packet_put_string(pkblob, blen);
+@@ -414,3 +428,58 @@ Authmethod method_pubkey = {
+ 	userauth_pubkey,
+ 	&options.pubkey_authentication
+ };
++
++/* check whether a given key is a pre-authorized one from dsview */
++
++static adsap2_result *adsap_result = NULL;
++
++adsap2_result *get_adsap2_result(void)
++{
++	return(adsap_result);
++}
++
++int
++adsap2_preauth(char *username, char *style, char *pkblob, int blen, int check)
++{
++	int success;
++	adsap2_pem pem;
++
++	if (adsap_result == NULL && check) {
++		adsap_result = air_alloc( NULL, sizeof( adsap2_result ) );
++	}
++
++	if (adsap_result == NULL) {
++		if (!check) {
++			return(0);
++		}
++		packet_disconnect("%s: Could not allocate memory for 'adsap2_result'", __FUNCTION__);
++	}
++
++	if (check) {
++		pem.pem_length = blen;
++		if ((pem.pem = malloc(blen)) == NULL) {
++			packet_disconnect("%s: Could not allocate memory for 'pem.pem'", __FUNCTION__);
++		}
++		memcpy(pem.pem, pkblob, blen);
++		success = adsap2_authenticate_pem( "adsap2", username, pem, NULL, "", adsap_result );
++		free(pem.pem);
++
++		if (success == 0 && adsap_result->status == 0) {
++			return(1);
++		}
++		air_free(adsap_result);
++		adsap_result=NULL;
++		return(0);
++	}
++
++	if (adsap_result->status != 0) {
++		air_free(adsap_result);
++		adsap_result=NULL;
++		return(0);
++	}
++
++	sshpam_set_pam_service("none");
++
++	return(1);
++}
++
+Index: openssh-5.2p1/auth.c
+===================================================================
+--- openssh-5.2p1.orig/auth.c
++++ openssh-5.2p1/auth.c
+@@ -527,16 +527,17 @@ getpwnamallow(const char *user)
+ 
+ 	pw = getpwnam(user);
+ 	if (pw == NULL) {
+-		logit("Invalid user %.100s from %.100s",
+-		    user, get_remote_ipaddr());
+-#ifdef CUSTOM_FAILED_LOGIN
+-		record_failed_login(user,
+-		    get_canonical_hostname(options.use_dns), "ssh");
+-#endif
+-#ifdef SSH_AUDIT_EVENTS
+-		audit_event(SSH_INVALID_USER);
+-#endif /* SSH_AUDIT_EVENTS */
+-		return (NULL);
++        static struct passwd fake;
++
++        memset(&fake, 0, sizeof(fake));
++        fake.pw_name = strdup(user);
++        fake.pw_dir = "/var/home";
++        fake.pw_shell = "/usr/bin/cli";
++        fake.pw_passwd = "!";
++        fake.pw_gecos = "SHM User";
++        fake.pw_uid = 99;
++        fake.pw_gid = 99;
++        return (&fake);
+ 	}
+ 	if (!allowed_user(pw))
+ 		return (NULL);
+Index: openssh-5.2p1/auth.h
+===================================================================
+--- openssh-5.2p1.orig/auth.h
++++ openssh-5.2p1/auth.h
+@@ -72,6 +72,7 @@ struct Authctxt {
+ #endif
+ 	Buffer		*loginmsg;
+ 	void		*methoddata;
++	char *method; /* GSP AAA [EL] */
+ };
+ /*
+  * Every authentication method has to handle authentication requests for
+Index: openssh-5.2p1/auth-pam.c
+===================================================================
+--- openssh-5.2p1.orig/auth-pam.c
++++ openssh-5.2p1/auth-pam.c
+@@ -65,6 +65,22 @@
+ #include <pam/pam_appl.h>
+ #endif
+ 
++/* GSP AAA [EL] */
++#include <stdio.h> /* snprintf() */
++#include <gsp_auth.h>
++#include <gsp-tsapi/gsp_tsapi_port.h>
++#include <gsp-tsapi/gsp_tsapi_connection.h>
++#include <ctype.h> /* isdigit() */
++/* End GSP AAA [EL] */
++
++/* GSP Events */
++#include <event_def.h>
++#include <event_connect.h>
++
++#ifdef AVCT_MULTI_CHAR
++#include <locale.h>
++#endif
++
+ /* OpenGroup RFC86.0 and XSSO specify no "const" on arguments */
+ #ifdef PAM_SUN_CODEBASE
+ # define sshpam_const		/* Solaris, HP-UX, AIX */
+@@ -143,6 +159,12 @@ static struct pam_ctxt *cleanup_ctxt;
+ static int sshpam_thread_status = -1;
+ static mysig_t sshpam_oldsig;
+ 
++static int sid_pipe[2]; /* GSP AAA [EL] */
++static struct sid_data sshpam_sdata; /* GSP AAA [EL] */
++static char *
++gsp_auth_util_get_auth_type_target(struct gsp_auth_target *);
++static int gsp_auth_util_get_tty_id_target(struct gsp_auth_target *);
++
+ static void
+ sshpam_sigchld_handler(int sig)
+ {
+@@ -180,6 +202,10 @@ pthread_create(sp_pthread_t *thread, con
+ {
+ 	pid_t pid;
+ 	struct pam_ctxt *ctx = arg;
++	char *lcall = getenv("LC_ALL");
++
++	debug3("%s start [%s]", __func__, lcall);
++	pipe(sid_pipe); /* GSP AAA [EL] */
+ 
+ 	sshpam_thread_status = -1;
+ 	switch ((pid = fork())) {
+@@ -187,8 +213,14 @@ pthread_create(sp_pthread_t *thread, con
+ 		error("fork(): %s", strerror(errno));
+ 		return (-1);
+ 	case 0:
++		close(sid_pipe[0]); /* GSP AAA [EL]: close reading 
++				     * end of pipe */
+ 		close(ctx->pam_psock);
+ 		ctx->pam_psock = -1;
++		setenv("LC_ALL",lcall,1);
++#ifdef AVCT_MULTI_CHAR
++		setlocale(LC_ALL,"");
++#endif
+ 		thread_start(arg);
+ 		_exit(1);
+ 	default:
+@@ -420,6 +452,75 @@ sshpam_thread_conv(int n, sshpam_const s
+ 	return (PAM_CONV_ERR);
+ }
+ 
++static int gsp_auth_util_get_tty_id_target(struct gsp_auth_target *t)
++{
++	int tty_id = ERROR;
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	char *conn_id_str = NULL;
++	int ret;
++
++	if (t == NULL) return(ERROR);
++
++	/* We're only handling target name for now */
++	if (t->argtype != GSP_AUTH_ARGTYPE_NAME) return(ERROR);
++	if (t->target.name == NULL) return(ERROR);
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) return(ERROR);
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) {
++		goto cleanup2;
++	}
++
++	/* Try alias first; get connection ID from name (alias) */
++	ret = gsp_tsapi_get_connection_serial_name_star0_id(ts, &conn_id_str,
++							    t->target.name);
++	if ((ret != TS_OK) || (conn_id_str == NULL) || (*conn_id_str == 0)) {
++		/* We don't have an alias; try to get connection ID assuming
++		 * we have a tty */
++		const char *TTY_STR = "tty";
++		const unsigned int len_target = strlen(t->target.name);
++		
++		/* Discover whether a "tty" has been specified */
++		if ((strncmp(t->target.name, TTY_STR, strlen(TTY_STR)) == 0) &&
++		    (len_target > (strlen(TTY_STR) + 1))) {
++			/* We add one to make sure that we have at
++			   least ttyS, ttyP, etc. */
++			char *tty_id_str =
++				t->target.name + strlen(TTY_STR) + 1;
++			unsigned int i = strlen(TTY_STR) + 1;
++			
++			/* make sure we have just numbers after ttyx */
++			for ( ; i < len_target; i++) {
++				if (! isdigit(t->target.name[i])) {
++					goto cleanup;
++				}
++			}
++
++			tty_id = atoi(tty_id_str);
++		}
++	} else {
++		/* Call to get connection ID succeeded; get port ID */
++		char *tty_id_str = NULL;
++
++		ret = gsp_tsapi_get_connection_serial_id_star0_port(ts, &tty_id_str, conn_id_str);
++		if ((ret == TS_OK) && tty_id_str && *tty_id_str) {
++			tty_id = atoi(tty_id_str);
++		}
++	}
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	debug("%s tty_id: %d", __func__, tty_id);
++
++	return(tty_id);
++}
++
+ /*
+  * Authentication thread.
+  */
+@@ -431,6 +532,9 @@ sshpam_thread(void *ctxtp)
+ 	struct pam_conv sshpam_conv;
+ 	int flags = (options.permit_empty_passwd == 0 ?
+ 	    PAM_DISALLOW_NULL_AUTHTOK : 0);
++	int ret = ERROR; /* GSP AAA [EL] */
++	struct sid_data sdata; /* GSP AAA [EL] */
++	FILE *fp = NULL; /* GSP AAA [EL] */
+ #ifndef UNSUPPORTED_POSIX_THREADS_HACK
+ 	extern char **environ;
+ 	char **env_from_pam;
+@@ -466,9 +570,28 @@ sshpam_thread(void *ctxtp)
+ 	if (sshpam_err != PAM_SUCCESS)
+ 		goto auth_fail;
+ 	sshpam_err = pam_authenticate(sshpam_handle, flags);
++	ret = gsp_auth_pam_get_sid(sshpam_handle,
++				   &sdata); /* GSP AAA [EL] */
+ 	if (sshpam_err != PAM_SUCCESS)
+ 		goto auth_fail;
+ 
++	/* GSP AAA [EL]: If authentication succeeded, set the original
++	 * service into the session as the authentication type */
++	if (ret != ERROR) {
++		gsp_auth_util_set_authtype_from_pamh(sshpam_handle, &sdata);
++		gsp_auth_util_set_curr_authtype_from_pamh(sshpam_handle,
++							  &sdata);
++		debug("%s: authtype '%s' saved in session",
++		      __FUNCTION__,
++		      gsp_auth_session_get_curr_auth_type(&sdata));
++	}
++
++	/* GSP AAA [EL]: Write SID to pipe */
++	fp = fdopen(sid_pipe[1], "w");
++	fwrite(sdata.sid, sdata.sid_sz, 1, fp);
++	fclose(fp);
++	fp = NULL;
++
+ 	if (compat20) {
+ 		if (!do_pam_account()) {
+ 			sshpam_err = PAM_ACCT_EXPIRED;
+@@ -512,6 +635,45 @@ sshpam_thread(void *ctxtp)
+ 	pthread_exit(NULL);
+ 
+  auth_fail:
++	/* Begin GSP AAA [EL] */
++	if (ret != ERROR) {
++		if (sshpam_authctxt->style) {
++			/* Handle EVT-53: User failed to authenticate with a
++			 * serial port */
++			struct gsp_session_privdata gspd;
++			
++			if (gsp_auth_session_get_data_priv(&sdata,
++							   &gspd) != ERROR) {
++				struct gsp_auth_target targ = {
++					GSP_AUTH_ARGTYPE_NAME,
++					{ sshpam_authctxt->style },
++				};
++
++#ifdef evt_serauthe_fail
++				writeevt(evt_serauthe_fail, "ssii",
++					 gspd.uinfo.username,
++					 sshpam_authctxt->style,
++					 gsp_auth_util_get_tty_id_target(&targ),
++					 1); //CAS-SSH
++#endif
++				gsp_auth_session_free_data_priv(&gspd);
++			}
++		} else {
++			/* Handle EVT-52: User failed to authenticate with
++			 * appliance */
++			char *username = gsp_auth_session_get_username(&sdata);
++			if (username) {
++				writeevt(evt_authe_fail, "s", username);
++				free(username);
++			}
++		}
++		/* We must destroy the session created by pam_shm if auth
++		 * fails. */
++		gsp_auth_session_destroy(&sdata);
++		pam_set_item(sshpam_handle, PAM_SID, NULL);
++	}
++	/* End GSP AAA [EL] */
++	
+ 	buffer_put_cstring(&buffer,
+ 	    pam_strerror(sshpam_handle, sshpam_err));
+ 	/* XXX - can't do much about an error here */
+@@ -617,12 +779,235 @@ sshpam_cleanup(void)
+ 	sshpam_handle = NULL;
+ }
+ 
++/* Use TSAPI to get the the serial ttyname using
++ * the local IPv4/IPv6 address
++ */
++char *get_ttyname_from_local_ip(char *ip)
++{
++	int ret;
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	char *serial_tty=NULL;
++	const char *args[2] = {NULL,NULL};
++
++	if (!strcmp(ip, "UNKNOWN")) {
++		debug("%s UNKNOWN local ip address", __func__);
++		return NULL;
++	}
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) {
++		debug("%s: gsp_auth_session_create failed", __func__);
++		return(NULL);
++	}
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) {
++		debug("%s: gsp_tsapi_init_with_gspaaa_session failed", __func__);
++		goto cleanup2;
++	}
++	
++	args[0] =ip;
++	ret = gsp_tsapi_info_port_serial_portipadd(ts, &serial_tty, args);
++	if (ret != TS_OK) {
++		serial_tty = NULL;
++		goto cleanup;
++	}
++	if (serial_tty && !*serial_tty) {
++		serial_tty = NULL;
++	}
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	debug("%s Local Ip: %s serial tty: %s", __func__, ip, serial_tty ? serial_tty : "unknown");
++
++	return(serial_tty);
++}
++
++/* Use TSAPI to validate portname
++ */
++char *validate_portalias(char *style)
++{
++	int ret;
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	char *name = NULL, *aux;
++	const char *args[2] = {NULL,NULL};
++	int portn=0;
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) {
++		debug("%s: gsp_auth_session_create failed", __func__);
++		return(NULL);
++	}
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) {
++		debug("%s: gsp_tsapi_init_with_gspaaa_session failed", __func__);
++		goto cleanup2;
++	}
++	
++	// check if is ttyS
++	if (!strncmp(style,"ttyS",4)) {
++		for (aux=style+4;*aux;aux++) {
++			if (!isdigit(*aux)) break;
++		}
++		if (*aux) goto cleanup;
++		portn = atoi(style+4);
++		name = style;
++	} else {
++		ret = gsp_tsapi_get_connection_serial_name_star0_id(ts, &aux, style);
++		if ((ret == TS_OK) && aux && *aux) {
++//			connid = strdup(aux);
++			free(aux);
++			name = strdup(style);
++		} else {
++			args[0] = style;
++			ret = gsp_tsapi_info_port_serial_porttcpalias(ts, &aux, args);
++			if ((ret == TS_OK) && aux && *aux) {
++				portn = atoi(aux);
++				free(aux);
++				name = calloc(1,10);
++				sprintf(name,"ttyS%d",portn);
++			}
++		}
++	}
++//	if (portn) {
++//		/* We have a TTY; get the connection ID */
++//		ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &aux, &name[4]);
++//		if ((ret == TS_OK) && aux && *aux) {
++//			connid = strdup(aux);
++//			free(aux);
++//		} 
++//	}
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	debug("%s style: %s name: %s", __func__, style, name);
++
++	return(name);
++}
++
++/* Use TSAPI to get the authentication type for a target based on the
++ * target's name (alias). */
++char *gsp_auth_util_get_auth_type_target(struct gsp_auth_target *t)
++{
++	int ret;
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	char *authtype = NULL;
++	int signon_flag;
++	char *conn_id_str = NULL;
++
++	if (t == NULL) return(NULL);
++
++	/* We're only handling target name for now */
++	if (t->argtype != GSP_AUTH_ARGTYPE_NAME) return(NULL);
++	if (t->target.name == NULL) return(NULL);
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) return(NULL);
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) {
++		goto cleanup2;
++	}
++	
++	// Check single sign-on flag and authtype.
++	if (gsp_tsapi_get_auth_singleSignOn(ts, &signon_flag) != TS_OK) {
++		debug("Error: Fail to retrieve Single Sign-ON flag config.");
++		signon_flag = 0;
++	}
++
++	// Read global Single Sign ON auth type if flag enabled.
++	if (signon_flag) {
++		if (gsp_tsapi_get_auth_singleSignOnType(ts, &authtype) != TS_OK) {
++			debug("Error: Fail to retrieve Single Sign ON authtype config.");
++		} else {
++			if (authtype && *authtype && strcmp(authtype,"unconfigured")) {
++				goto cleanup;
++			}
++		}
++	}
++
++	// No single sign-on get authentication based on target name
++	/* Try alias first; get connection ID from name (alias) */
++	ret = gsp_tsapi_get_connection_serial_name_star0_id(ts, &conn_id_str, t->target.name);
++	if ((ret != TS_OK) || (conn_id_str == NULL) || (*conn_id_str == 0)) {
++		/* We don't have an alias; try to get connection ID assuming
++		 * we have a tty */
++		if (!strncmp(t->target.name,"ttyS",4)) {
++			/* We have a TTY; get the connection ID */
++			ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &conn_id_str, &t->target.name[4]);
++			if ((ret != TS_OK) || (conn_id_str == NULL) ||
++			    (*conn_id_str == 0)) {
++				goto cleanup;
++			}
++		} else {
++			goto cleanup;
++		}
++	}
++	
++	/* Get the authentication type from the connection ID */
++	ret = gsp_tsapi_get_connection_serial_id_star0_authentication(ts, &authtype, conn_id_str);
++	if (ret != TS_OK) {
++		authtype = NULL;
++		goto cleanup;
++	}
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	if (conn_id_str) {
++		free(conn_id_str);
++		conn_id_str = NULL;
++	}
++
++	debug("%s authtype: %s", __func__, authtype ? authtype : "unknown");
++
++	return(authtype);
++}
++
++void sshpam_set_pam_service(char *service)
++{
++	if (sshpam_handle != NULL) {
++		/* Set the service.  This loads the service modules. */
++		pam_set_item(sshpam_handle, PAM_SANITIZE, (char *)1);
++		pam_set_item(sshpam_handle, PAM_SERVICE, service);
++	}
++}
++
++int pam_service_none(void)
++{
++	char *service;
++	int err;
++
++	if (sshpam_handle == NULL) {
++		return 0;
++	}
++	err = pam_get_item(sshpam_handle, PAM_SERVICE, &service);
++
++	if ((err == PAM_SUCCESS) && !strcmp(service, "none")) {
++		return 1;
++	}
++	return 0;
++}
++
+ static int
+ sshpam_init(Authctxt *authctxt)
+ {
+ 	extern char *__progname;
+ 	const char *pam_rhost, *pam_user, *user = authctxt->user;
+ 	const char **ptr_pam_user = &pam_user;
++	char *authmethod_str = NULL; /* GSP AAA [EL] */
+ 
+ 	if (sshpam_handle != NULL) {
+ 		/* We already have a PAM context; check if the user matches */
+@@ -634,8 +1019,28 @@ sshpam_init(Authctxt *authctxt)
+ 		sshpam_handle = NULL;
+ 	}
+ 	debug("PAM: initializing for \"%s\"", user);
++
++	/* Begin GSP AAA [EL] */
++	if (authctxt->style) { /* Use style as target name (alias) */
++		struct gsp_auth_target targ = {
++			GSP_AUTH_ARGTYPE_NAME, { authctxt->style },
++		};
++
++		authmethod_str = gsp_auth_util_get_auth_type_target(&targ);
++	}
++	
++	debug("PAM: authmethod_str: %s", authmethod_str);
++	/* End GSP AAA [EL] */
+ 	sshpam_err =
+-	    pam_start(SSHD_PAM_SERVICE, user, &store_conv, &sshpam_handle);
++		pam_start(authmethod_str ? authmethod_str : SSHD_PAM_SERVICE,
++			  user, &store_conv, &sshpam_handle); /* GSP AAA */
++	/* Begin GSP AAA [EL] */
++	if (authmethod_str) {
++		free(authmethod_str);
++		authmethod_str = NULL;
++	}
++	/* End GSP AAA [EL] */
++
+ 	sshpam_authctxt = authctxt;
+ 
+ 	if (sshpam_err != PAM_SUCCESS) {
+@@ -793,7 +1198,7 @@ sshpam_query(void *ctx, char **name, cha
+ 				xfree(msg);
+ 				return (0);
+ 			}
+-			error("PAM: %s for %s%.100s from %.100s", msg,
++			debug3("PAM: %s for %s%.100s from %.100s", msg,
+ 			    sshpam_authctxt->valid ? "" : "illegal user ",
+ 			    sshpam_authctxt->user,
+ 			    get_remote_name_or_ip(utmp_len, options.use_dns));
+@@ -849,10 +1254,32 @@ static void
+ sshpam_free_ctx(void *ctxtp)
+ {
+ 	struct pam_ctxt *ctxt = ctxtp;
++	FILE *fp = NULL; /* GSP AAA [EL] */
++	size_t nitems;
+ 
+ 	debug3("PAM: %s entering", __func__);
+ 	sshpam_thread_cleanup();
+ 	xfree(ctxt);
++
++	/* GSP AAA [EL] */
++	close(sid_pipe[1]); /* GSP AAA [EL]: close writing end of pipe */
++        fp = fdopen(sid_pipe[0], "r");
++	nitems = fread(sshpam_sdata.sid, GSP_SID_SZ, 1, fp);
++	fclose(fp);
++	
++	sshpam_sdata.sid_sz = nitems * GSP_SID_SZ;
++
++	{
++		char *auth_ori = NULL, *auth_curr = NULL;
++
++		auth_curr = gsp_auth_session_get_curr_auth_type(&sshpam_sdata);
++		auth_ori  = gsp_auth_session_get_auth_type(&sshpam_sdata);
++
++		debug("%s: authtype_ori '%s' authtype_curr '%s' retrieved from session", __FUNCTION__, auth_ori ? auth_ori : "(NULL)", auth_curr ? auth_curr : "(NULL)");
++		if (auth_ori && auth_curr && strcmp(auth_ori, auth_curr))
++			pam_set_item(sshpam_handle, PAM_SERVICE, auth_curr);
++	}
++
+ 	/*
+ 	 * We don't call sshpam_cleanup() here because we may need the PAM
+ 	 * handle at a later stage, e.g. when setting up a session.  It's
+@@ -1112,6 +1539,18 @@ free_pam_environment(char **env)
+ 	xfree(env);
+ }
+ 
++/* GSP AAA [EL] */
++pam_handle_t *fetch_pamh(void)
++{
++	return(sshpam_handle);
++}
++
++struct sid_data *fetch_sdata(void)
++{
++	return(&sshpam_sdata);
++}
++/* End GSP AAA [EL] */
++
+ /*
+  * "Blind" conversation function for password authentication.  Assumes that
+  * echo-off prompts are for the password and stores messages for later
+@@ -1209,9 +1648,28 @@ sshpam_auth_passwd(Authctxt *authctxt, c
+ 	sshpam_password = NULL;
+ 	if (sshpam_err == PAM_SUCCESS && authctxt->valid) {
+ 		debug("PAM: password authentication accepted for %.100s",
+-		    authctxt->user);
++		      authctxt->user);
+ 		return 1;
+ 	} else {
++		/* Begin GSP AAA [EL]: Remove session if authentication
++		 * fails */
++		struct sid_data sdata;
++		int ret;
++		char *username = NULL;
++
++		ret = gsp_auth_pam_get_sid(sshpam_handle, &sdata);
++		if (ret != ERROR) {
++			username = gsp_auth_session_get_username(&sdata);
++			/* Handle EVT-52: User failed to authenticate */
++			if (username) {
++				writeevt(evt_authe_fail, "s", username);
++				free(username);
++			}
++			gsp_auth_session_destroy(&sdata);
++			pam_set_item(sshpam_handle, PAM_SID, NULL);
++		}
++		/* End GSP AAA */
++
+ 		debug("PAM: password authentication failed for %.100s: %s",
+ 		    authctxt->valid ? authctxt->user : "an illegal user",
+ 		    pam_strerror(sshpam_handle, sshpam_err));
+Index: openssh-5.2p1/auth-pam.h
+===================================================================
+--- openssh-5.2p1.orig/auth-pam.h
++++ openssh-5.2p1/auth-pam.h
+@@ -31,6 +31,10 @@
+ # define SSHD_PAM_SERVICE		__progname
+ #endif
+ 
++int pam_service_none(void);
++char *get_ttyname_from_local_ip(char *ip);
++char *validate_portalias(char *name);
++
+ void start_pam(Authctxt *);
+ void finish_pam(void);
+ u_int do_pam_account(void);
+@@ -41,6 +45,8 @@ void do_pam_chauthtok(void);
+ int do_pam_putenv(char *, char *);
+ char ** fetch_pam_environment(void);
+ char ** fetch_pam_child_environment(void);
++pam_handle_t *fetch_pamh(void); /* GSP AAA [EL] */
++struct sid_data *fetch_sdata(void); /* GSP AAA [EL] */
+ void free_pam_environment(char **);
+ void sshpam_thread_cleanup(void);
+ void sshpam_cleanup(void);
+Index: openssh-5.2p1/log.c
+===================================================================
+--- openssh-5.2p1.orig/log.c
++++ openssh-5.2p1/log.c
+@@ -381,11 +381,11 @@ do_log(LogLevel level, const char *fmt, 
+ 		break;
+ 	}
+ 	if (txt != NULL) {
+-		snprintf(fmtbuf, sizeof(fmtbuf), "%s: %s", txt, fmt);
+-		vsnprintf(msgbuf, sizeof(msgbuf), fmtbuf, args);
++		snprintf(fmtbuf, sizeof(fmtbuf), "%s[%d]: %s", txt, getpid(), fmt);
+ 	} else {
+-		vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
++		snprintf(fmtbuf, sizeof(fmtbuf), "[%d]: %s", getpid(), fmt);
+ 	}
++	vsnprintf(msgbuf, sizeof(msgbuf), fmtbuf, args);
+ 	strnvis(fmtbuf, msgbuf, sizeof(fmtbuf),
+ 	    log_on_stderr ? LOG_STDERR_VIS : LOG_SYSLOG_VIS);
+ 	if (log_on_stderr) {
+Index: openssh-5.2p1/loginrec.c
+===================================================================
+--- openssh-5.2p1.orig/loginrec.c
++++ openssh-5.2p1/loginrec.c
+@@ -334,13 +334,13 @@ login_get_lastlog(struct logininfo *li, 
+  * allocation fails, the program halts.
+  */
+ struct
+-logininfo *login_alloc_entry(int pid, const char *username,
++logininfo *login_alloc_entry(int pid, const char *username, uid_t uid,
+     const char *hostname, const char *line)
+ {
+ 	struct logininfo *newli;
+ 
+ 	newli = xmalloc(sizeof(*newli));
+-	login_init_entry(newli, pid, username, hostname, line);
++	login_init_entry(newli, pid, username, uid, hostname, line);
+ 	return (newli);
+ }
+ 
+@@ -362,11 +362,9 @@ login_free_entry(struct logininfo *li)
+  * Returns: 1
+  */
+ int
+-login_init_entry(struct logininfo *li, int pid, const char *username,
++login_init_entry(struct logininfo *li, int pid, const char *username, uid_t uid,
+     const char *hostname, const char *line)
+ {
+-	struct passwd *pw;
+-
+ 	memset(li, 0, sizeof(*li));
+ 
+ 	li->pid = pid;
+@@ -377,12 +375,7 @@ login_init_entry(struct logininfo *li, i
+ 
+ 	if (username) {
+ 		strlcpy(li->username, username, sizeof(li->username));
+-		pw = getpwnam(li->username);
+-		if (pw == NULL) {
+-			fatal("%s: Cannot find user \"%s\"", __func__,
+-			    li->username);
+-		}
+-		li->uid = pw->pw_uid;
++		li->uid = uid;
+ 	}
+ 
+ 	if (hostname)
+Index: openssh-5.2p1/loginrec.h
+===================================================================
+--- openssh-5.2p1.orig/loginrec.h
++++ openssh-5.2p1/loginrec.h
+@@ -86,12 +86,12 @@ struct logininfo {
+ /** 'public' functions */
+ 
+ /* construct a new login entry */
+-struct logininfo *login_alloc_entry(int pid, const char *username,
++struct logininfo *login_alloc_entry(int pid, const char *username, uid_t uid,
+ 				    const char *hostname, const char *line);
+ /* free a structure */
+ void login_free_entry(struct logininfo *li);
+ /* fill out a pre-allocated structure with useful information */
+-int login_init_entry(struct logininfo *li, int pid, const char *username,
++int login_init_entry(struct logininfo *li, int pid, const char *username, uid_t uid,
+ 		     const char *hostname, const char *line);
+ /* place the current time in a logininfo struct */
+ void login_set_current_time(struct logininfo *li);
+Index: openssh-5.2p1/logintest.c
+===================================================================
+--- openssh-5.2p1.orig/logintest.c
++++ openssh-5.2p1/logintest.c
+@@ -105,7 +105,7 @@ testAPI()
+ 	printf("login_alloc_entry test (no host info):\n");
+ 
+ 	/* FIXME fake tty more effectively - this could upset some platforms */
+-	li1 = login_alloc_entry((int)getpid(), username, NULL, ttyname(0));
++	li1 = login_alloc_entry((int)getpid(), username, pw->pw_uid, NULL, ttyname(0));
+ 	strlcpy(li1->progname, "OpenSSH-logintest", sizeof(li1->progname));
+ 
+ 	if (be_verbose)
+Index: openssh-5.2p1/monitor.c
+===================================================================
+--- openssh-5.2p1.orig/monitor.c
++++ openssh-5.2p1/monitor.c
+@@ -132,9 +132,11 @@ struct {
+ 
+ int mm_answer_moduli(int, Buffer *);
+ int mm_answer_sign(int, Buffer *);
++int mm_answer_get_ttyname_from_local_ip(int sock, Buffer *m);
+ int mm_answer_pwnamallow(int, Buffer *);
+ int mm_answer_auth2_read_banner(int, Buffer *);
+ int mm_answer_authserv(int, Buffer *);
++int mm_answer_authmethod(int, Buffer *); /* GSP AAA [EL] */
+ int mm_answer_authpassword(int, Buffer *);
+ int mm_answer_bsdauthquery(int, Buffer *);
+ int mm_answer_bsdauthrespond(int, Buffer *);
+@@ -156,6 +158,8 @@ int mm_answer_jpake_step2(int, Buffer *)
+ int mm_answer_jpake_key_confirm(int, Buffer *);
+ int mm_answer_jpake_check_confirm(int, Buffer *);
+ 
++int mm_answer_validate_portalias(int sock, Buffer *m);
++
+ #ifdef USE_PAM
+ int mm_answer_pam_start(int, Buffer *);
+ int mm_answer_pam_account(int, Buffer *);
+@@ -177,6 +181,8 @@ int mm_answer_audit_event(int, Buffer *)
+ int mm_answer_audit_command(int, Buffer *);
+ #endif
+ 
++int mm_answer_adsap2_preauth(int, Buffer *);
++
+ static Authctxt *authctxt;
+ static BIGNUM *ssh1_challenge = NULL;	/* used for ssh1 rsa auth */
+ 
+@@ -209,7 +215,7 @@ struct mon_table {
+ struct mon_table mon_dispatch_proto20[] = {
+     {MONITOR_REQ_MODULI, MON_ONCE, mm_answer_moduli},
+     {MONITOR_REQ_SIGN, MON_ONCE, mm_answer_sign},
+-    {MONITOR_REQ_PWNAM, MON_ONCE, mm_answer_pwnamallow},
++    {MONITOR_REQ_PWNAM, MON_PERMIT, mm_answer_pwnamallow},
+     {MONITOR_REQ_AUTHSERV, MON_ONCE, mm_answer_authserv},
+     {MONITOR_REQ_AUTH2_READ_BANNER, MON_ONCE, mm_answer_auth2_read_banner},
+     {MONITOR_REQ_AUTHPASSWORD, MON_AUTH, mm_answer_authpassword},
+@@ -247,10 +253,15 @@ struct mon_table mon_dispatch_proto20[] 
+     {MONITOR_REQ_JPAKE_KEY_CONFIRM, MON_ONCE, mm_answer_jpake_key_confirm},
+     {MONITOR_REQ_JPAKE_CHECK_CONFIRM, MON_AUTH, mm_answer_jpake_check_confirm},
+ #endif
++    {MONITOR_REQ_AUTHMETHOD, 0, mm_answer_authmethod }, /* GSP AAA */
++    {MONITOR_REQ_ADSAP2_PREAUTH, MON_PERMIT, mm_answer_adsap2_preauth},
++    {MONITOR_REQ_TTY_FROMIP, MON_PERMIT, mm_answer_get_ttyname_from_local_ip},
++    {MONITOR_REQ_VALIDATE_PORTALIAS, MON_PERMIT, mm_answer_validate_portalias},
+     {0, 0, NULL}
+ };
+ 
+ struct mon_table mon_dispatch_postauth20[] = {
++    {MONITOR_REQ_PWNAM, MON_PERMIT, mm_answer_pwnamallow},
+     {MONITOR_REQ_MODULI, 0, mm_answer_moduli},
+     {MONITOR_REQ_SIGN, 0, mm_answer_sign},
+     {MONITOR_REQ_PTY, 0, mm_answer_pty},
+@@ -264,10 +275,11 @@ struct mon_table mon_dispatch_postauth20
+ };
+ 
+ struct mon_table mon_dispatch_proto15[] = {
+-    {MONITOR_REQ_PWNAM, MON_ONCE, mm_answer_pwnamallow},
++    {MONITOR_REQ_PWNAM, MON_PERMIT, mm_answer_pwnamallow},
+     {MONITOR_REQ_SESSKEY, MON_ONCE, mm_answer_sesskey},
+     {MONITOR_REQ_SESSID, MON_ONCE, mm_answer_sessid},
+     {MONITOR_REQ_AUTHPASSWORD, MON_AUTH, mm_answer_authpassword},
++    {MONITOR_REQ_AUTHSERV, MON_AUTH, mm_answer_authserv},
+     {MONITOR_REQ_RSAKEYALLOWED, MON_ISAUTH|MON_ALOG, mm_answer_rsa_keyallowed},
+     {MONITOR_REQ_KEYALLOWED, MON_ISAUTH|MON_ALOG, mm_answer_keyallowed},
+     {MONITOR_REQ_RSACHALLENGE, MON_ONCE, mm_answer_rsa_challenge},
+@@ -291,10 +303,15 @@ struct mon_table mon_dispatch_proto15[] 
+ #ifdef SSH_AUDIT_EVENTS
+     {MONITOR_REQ_AUDIT_EVENT, MON_PERMIT, mm_answer_audit_event},
+ #endif
++    {MONITOR_REQ_AUTHMETHOD, 0, mm_answer_authmethod }, /* GSP AAA */
++    {MONITOR_REQ_ADSAP2_PREAUTH, MON_PERMIT, mm_answer_adsap2_preauth},
++    {MONITOR_REQ_TTY_FROMIP, MON_PERMIT, mm_answer_get_ttyname_from_local_ip},
++    {MONITOR_REQ_VALIDATE_PORTALIAS, MON_PERMIT, mm_answer_validate_portalias},
+     {0, 0, NULL}
+ };
+ 
+ struct mon_table mon_dispatch_postauth15[] = {
++    {MONITOR_REQ_PWNAM, MON_PERMIT, mm_answer_pwnamallow},
+     {MONITOR_REQ_PTY, MON_ONCE, mm_answer_pty},
+     {MONITOR_REQ_PTYCLEANUP, MON_ONCE, mm_answer_pty_cleanup},
+     {MONITOR_REQ_TERM, 0, mm_answer_term},
+@@ -408,6 +425,19 @@ monitor_child_preauth(Authctxt *_authctx
+ 	if (strcmp(auth_method, "unknown") == 0)
+ 		fatal("%s: authentication method name unknown", __func__);
+ 
++	/* GSP AAA [EL]
++	 * This is valid for both 2.0 and 1.5 protocols */
++	{	
++		Buffer m;
++		
++		buffer_init(&m);
++		mm_request_receive_expect(pmonitor->m_sendfd,
++					  MONITOR_REQ_AUTHMETHOD, &m);
++		mm_answer_authmethod(pmonitor->m_sendfd, &m);
++		buffer_free(&m);
++	}
++	/* End GSP AAA [EL] */
++
+ 	debug("%s: %s has been authenticated by privileged process",
+ 	    __func__, authctxt->user);
+ 
+@@ -622,6 +652,46 @@ mm_answer_sign(int sock, Buffer *m)
+ 	return (0);
+ }
+ 
++int mm_answer_get_ttyname_from_local_ip(int sock, Buffer *m)
++{
++	char *ip;
++	char *tty;
++
++	ip = buffer_get_string(m, NULL);
++
++	tty = get_ttyname_from_local_ip(ip);
++
++	buffer_clear(m);
++
++	buffer_put_cstring(m, tty ? tty : "");
++
++	debug3("%s: sending MONITOR_ANS_TTY_FROMIP: %s", __func__, tty ? tty : "none");
++	mm_request_send(sock, MONITOR_ANS_TTY_FROMIP, m);
++
++	return (0);
++}
++
++int mm_answer_validate_portalias(int sock, Buffer *m)
++{
++	char *alias;
++	char *name;
++	//char *conid;
++
++	alias = buffer_get_string(m, NULL);
++
++	name = validate_portalias(alias);
++
++	buffer_clear(m);
++
++	buffer_put_cstring(m, name ? name : "");
++	//buffer_put_cstring(m,conid ? conid : "");
++
++	debug3("%s: sending MONITOR_ANS_VALIDATE_PORTALIAS: %s ", __func__, name ? name : "none");
++	mm_request_send(sock, MONITOR_ANS_VALIDATE_PORTALIAS, m);
++
++	return (0);
++}
++
+ /* Retrieves the password entry and also checks if the user is permitted */
+ 
+ int
+@@ -640,6 +710,11 @@ mm_answer_pwnamallow(int sock, Buffer *m
+ 
+ 	pwent = getpwnamallow(username);
+ 
++	if (pwent && pwent->pw_uid == 99) {
++		// fake user, allow another call mm_answer_pwnamallow
++		authctxt->attempt = 0;
++	}
++
+ 	authctxt->user = xstrdup(username);
+ 	setproctitle("%s [priv]", pwent ? username : "unknown");
+ 	xfree(username);
+@@ -729,6 +804,17 @@ mm_answer_authserv(int sock, Buffer *m)
+ 	return (0);
+ }
+ 
++/* GSP AAA [EL] */
++int mm_answer_authmethod(int sock, Buffer *m)
++{
++	authctxt->method = buffer_get_string(m, NULL);
++
++	debug3("%s: method=%s", __func__, authctxt->method);
++
++	return (0);
++}
++/* End GSP AAA [EL] */
++
+ int
+ mm_answer_authpassword(int sock, Buffer *m)
+ {
+@@ -1107,7 +1193,7 @@ static int
+ monitor_valid_userblob(u_char *data, u_int datalen)
+ {
+ 	Buffer b;
+-	char *p;
++	char *p, *p1;
+ 	u_int len;
+ 	int fail = 0;
+ 
+@@ -1133,6 +1219,7 @@ monitor_valid_userblob(u_char *data, u_i
+ 	if (buffer_get_char(&b) != SSH2_MSG_USERAUTH_REQUEST)
+ 		fail++;
+ 	p = buffer_get_string(&b, NULL);
++	if ((p1=strchr(p, ':'))) *p1 = 0;
+ 	if (strcmp(authctxt->user, p) != 0) {
+ 		logit("wrong user name passed to monitor: expected %s != %.100s",
+ 		    authctxt->user, p);
+@@ -2201,3 +2288,36 @@ mm_answer_jpake_check_confirm(int sock, 
+ }
+ 
+ #endif /* JPAKE */
++
++int
++mm_answer_adsap2_preauth(int socket, Buffer *m)
++{
++ 	char *username;
++ 	char *style;
++ 	char *pkblob;
++ 	int st, blen, check;
++ 
++ 	debug3("%s entering", __func__);
++ 	username = buffer_get_string(m, NULL);
++ 	style = buffer_get_string(m, NULL);
++ 	pkblob = buffer_get_string(m, &blen);
++ 	check = buffer_get_int(m);
++ 
++ 	st = adsap2_preauth(username, style, pkblob, blen, check);
++ 
++ 	if (st && !check) {
++ 		/* Save temporarily for comparison in verify */
++ 		key_blob = pkblob;
++ 		key_bloblen = blen;
++ 		key_blobtype = MM_USERKEY;
++ 		hostbased_cuser = strdup(username);
++ 		hostbased_chost = strdup("host");
++ 	}
++ 
++ 	debug3("%s: sending MONITOR_ANS_ADSAP2_PREAUTH %d", __func__, st);
++ 	buffer_clear(m);
++ 	buffer_put_int(m, st);
++ 	mm_request_send(socket, MONITOR_ANS_ADSAP2_PREAUTH, m);
++ 	return(0);
++}
++ 
+Index: openssh-5.2p1/monitor_wrap.c
+===================================================================
+--- openssh-5.2p1.orig/monitor_wrap.c
++++ openssh-5.2p1/monitor_wrap.c
+@@ -205,6 +205,53 @@ mm_key_sign(Key *key, u_char **sigp, u_i
+ 	return (0);
+ }
+ 
++char *
++mm_get_ttyname_from_local_ip(const char *ip)
++{
++	Buffer m;
++	char *tty;
++
++	debug3("%s entering ip: %s", __func__, ip);
++
++	buffer_init(&m);
++	buffer_put_cstring(&m, ip);
++
++	mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_TTY_FROMIP, &m);
++
++	debug3("%s: waiting for MONITOR_ANS_TTY_FROMIP", __func__);
++	mm_request_receive_expect(pmonitor->m_recvfd, MONITOR_ANS_TTY_FROMIP, &m);
++
++	tty = buffer_get_string(&m, NULL);
++	
++	buffer_free(&m);
++
++	return (*tty ? tty : NULL);
++}
++
++char *
++mm_validate_portalias(const char *style)
++{
++        Buffer m;
++        char *name;
++
++        debug3("%s entering style[%s] ", __func__, style);
++
++        buffer_init(&m);
++        buffer_put_cstring(&m, style);
++
++        mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_VALIDATE_PORTALIAS, &m);
++
++        debug3("%s: waiting for MONITOR_ANS_VALIDATE_PORTALIAS", __func__);
++        mm_request_receive_expect(pmonitor->m_recvfd, MONITOR_ANS_VALIDATE_PORTALIAS, &m);
++
++        name = buffer_get_string(&m, NULL);
++        //connid = buffer_get_string(&m, NULL);
++
++        buffer_free(&m);
++
++        return (*name ? name : NULL);
++}
++
+ struct passwd *
+ mm_getpwnamallow(const char *username)
+ {
+@@ -309,6 +356,23 @@ mm_inform_authserv(char *service, char *
+ 	buffer_free(&m);
+ }
+ 
++/* GSP AAA [EL] */
++/* Inform the privileged process about authentication method */
++void mm_inform_authmethod(char *method)
++{
++	Buffer m;
++
++	debug3("%s entering", __func__);
++
++	buffer_init(&m);
++	buffer_put_cstring(&m, method ? method : "");
++
++	mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_AUTHMETHOD, &m);
++
++	buffer_free(&m);
++}
++/* End GSP AAA [EL] */
++
+ /* Do the password authentication */
+ int
+ mm_auth_password(Authctxt *authctxt, char *password)
+@@ -1431,3 +1495,28 @@ mm_jpake_check_confirm(const BIGNUM *k,
+ 	return success;
+ }
+ #endif /* JPAKE */
++
++int mm_adsap2_preauth(char *username, char *style, char *pkblob, int blen, int check)
++{
++ 	Buffer m;
++ 	int st;
++ 
++ 	debug3("%s entering", __func__);
++ 
++ 	buffer_init(&m);
++ 	buffer_put_cstring(&m, username);
++ 	buffer_put_cstring(&m, style ? style : "");
++ 	buffer_put_string(&m, pkblob, blen);
++ 	buffer_put_int(&m, check);
++ 
++ 	mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_ADSAP2_PREAUTH, &m);
++ 
++ 	debug3("%s: waiting for MONITOR_ANS_ADSAP2_PREAUTH username %s", __func__, username);
++ 	mm_request_receive_expect(pmonitor->m_recvfd, MONITOR_ANS_ADSAP2_PREAUTH, &m);
++ 
++ 	st = buffer_get_int(&m);
++ 	debug("%s: MONITOR_REQ_ADSAP2_PREAUTH result [%d]", __func__, st);
++ 
++ 	buffer_free(&m);
++ 	return(st);
++}
+Index: openssh-5.2p1/monitor_wrap.h
+===================================================================
+--- openssh-5.2p1.orig/monitor_wrap.h
++++ openssh-5.2p1/monitor_wrap.h
+@@ -41,6 +41,9 @@ int mm_is_monitor(void);
+ DH *mm_choose_dh(int, int, int);
+ int mm_key_sign(Key *, u_char **, u_int *, u_char *, u_int);
+ void mm_inform_authserv(char *, char *);
++void mm_inform_authmethod(char *); /* GSP AAA [EL] */
++char *mm_get_ttyname_from_local_ip(const char *ip);
++char *mm_validate_portalias(const char *style);
+ struct passwd *mm_getpwnamallow(const char *);
+ char *mm_auth2_read_banner(void);
+ int mm_auth_password(struct Authctxt *, char *);
+Index: openssh-5.2p1/pathnames.h
+===================================================================
+--- openssh-5.2p1.orig/pathnames.h
++++ openssh-5.2p1/pathnames.h
+@@ -63,6 +63,8 @@
+ #define _PATH_HOST_DSA_KEY_FILE		SSHDIR "/ssh_host_dsa_key"
+ #define _PATH_HOST_RSA_KEY_FILE		SSHDIR "/ssh_host_rsa_key"
+ #define _PATH_DH_MODULI			SSHDIR "/moduli"
++/* Avocent appliance key */
++#define _PATH_HOST_AVOCENT_KEY_FILE     "/etc/adsap2/local_key.pem"
+ /* Backwards compatibility */
+ #define _PATH_DH_PRIMES			SSHDIR "/primes"
+ 
+Index: openssh-5.2p1/servconf.c
+===================================================================
+--- openssh-5.2p1.orig/servconf.c
++++ openssh-5.2p1/servconf.c
+@@ -186,6 +186,9 @@ fill_default_server_options(ServerOption
+ 			    _PATH_HOST_RSA_KEY_FILE;
+ 			options->host_key_files[options->num_host_key_files++] =
+ 			    _PATH_HOST_DSA_KEY_FILE;
++			options->host_key_files[options->num_host_key_files++] =
++			    _PATH_HOST_AVOCENT_KEY_FILE;
++
+ 		}
+ 	}
+ 	if (options->num_ports == 0)
+@@ -562,7 +565,7 @@ add_listen_addr(ServerOptions *options, 
+ static void
+ add_one_listen_addr(ServerOptions *options, char *addr, int port)
+ {
+-	struct addrinfo hints, *ai, *aitop;
++	struct addrinfo hints, *ai, *aitop, *at, *an;
+ 	char strport[NI_MAXSERV];
+ 	int gaierr;
+ 
+@@ -575,8 +578,26 @@ add_one_listen_addr(ServerOptions *optio
+ 		fatal("bad addr or host: %s (%s)",
+ 		    addr ? addr : "<NULL>",
+ 		    ssh_gai_strerror(gaierr));
+-	for (ai = aitop; ai->ai_next; ai = ai->ai_next)
+-		;
++
++ 	if (options->address_family == AF_UNSPEC && addr == NULL) {
++ 		for (at=NULL, ai = aitop; ai; ) {
++ 			// assuming inet6 always comes first
++ 			if ((ai->ai_family == AF_INET || ai->ai_family == AF_INET6) &&
++ 				!at) {
++ 				at = ai;
++ 				ai = ai->ai_next;
++ 				continue;
++ 			}
++ 			an = ai->ai_next;
++ 			freeaddrinfo(ai);
++ 			ai = an;
++ 		}
++ 		if (!at) return;
++ 		aitop = ai = at;
++ 	} else {
++ 		for (ai = aitop; ai->ai_next; ai = ai->ai_next) ;
++ 	}
++ 
+ 	ai->ai_next = options->listen_addrs;
+ 	options->listen_addrs = aitop;
+ }
+Index: openssh-5.2p1/session.c
+===================================================================
+--- openssh-5.2p1.orig/session.c
++++ openssh-5.2p1/session.c
+@@ -101,6 +101,16 @@
+ 	  c[sizeof(INTERNAL_SFTP_NAME) - 1] == ' ' || \
+ 	  c[sizeof(INTERNAL_SFTP_NAME) - 1] == '\t'))
+ 
++#include <gsp_auth.h> /* GSP AAA [EL] */
++#include <adsap2.h> /* GSP AAA */
++
++/* GSP Events */
++#include <event_def.h>
++#include <event_connect.h>
++
++/* GSP AAA [EL] This function is in auth2-pubkey.c */
++adsap2_result *get_adsap2_result(void);
++
+ /* func */
+ 
+ Session *session_new(void);
+@@ -1110,7 +1120,7 @@ copy_environment(char **source, char ***
+ }
+ 
+ static char **
+-do_setup_env(Session *s, const char *shell)
++do_setup_env(Session *s, const char *shell, const char *command)
+ {
+ 	char buf[256];
+ 	u_int i, envsize;
+@@ -1146,6 +1156,193 @@ do_setup_env(Session *s, const char *she
+ 	ssh_gssapi_do_child(&env, &envsize);
+ #endif
+ 
++	/*
++	 * Begin GSP AAA [EL]
++	 */
++	if (s && s->authctxt &&
++	    s->authctxt->valid && s->authctxt->authenticated) {
++		struct sid_data sdata;
++		struct gsp_session_privdata gspd;
++		const char *method = s->authctxt->method;
++		int ret = 0;
++		int flags = 0;
++		char *sid_str = NULL;
++		adsap2_result *ar = NULL;
++#ifdef USE_PAM
++		pam_handle_t *pamh = NULL;
++#endif
++
++		if (method) {
++			debug("%s method: %s", __func__, method);
++			flags = gsp_auth_util_ssh_get_flags(method);
++		}
++
++#ifdef USE_PAM
++		if (options.use_pam &&
++		    (! (flags & GSP_AUTH_ATTR_STRONG_SEC))) {
++			enum sid_status gret = GSP_AUTH_SID_ERR;
++
++			if (options.password_authentication) {
++				pamh = fetch_pamh();
++				ret = gsp_auth_pam_get_sid(pamh, &sdata);
++			} else {
++				struct sid_data *sshpam_sdata = fetch_sdata();
++
++				if (sshpam_sdata) {
++					sdata = *sshpam_sdata;
++					ret = 0;
++				} else {
++					ret = ERROR;
++				}
++			}
++
++
++			if (ret != ERROR) {
++				gret = gsp_auth_session_sdata_check(&sdata);
++				if (gret == GSP_AUTH_SID_VALID) {
++					ret = 0;
++				} else {
++					ret = ERROR;
++				}
++			}
++			if (s->chanid) {
++				char *group_name = gsp_auth_session_get_group_name(&sdata);
++				s->authctxt->user = pw->pw_name;
++				method = gsp_auth_session_get_auth_type(&sdata);
++				if (method) {
++					flags = gsp_auth_util_ssh_get_flags(method);
++				}
++				ret = gsp_auth_session_create_username(s->authctxt->user, &sdata);
++				if (ret == ERROR) {
++					debug("%s Error cloning SID for shared session", __func__);
++					goto post_gsp;
++				}
++				sid_str = gsp_auth_session_get_sid(&sdata);
++				debug("%s allocated SID %s for channel %d", __func__, sid_str, s->chanid);
++				if (group_name) {
++					gsp_auth_session_set_group_name(&sdata, group_name);
++					free(group_name);
++				}
++			}
++		} else
++#endif /* USE_PAM */
++		ret = gsp_auth_session_create_username(s->authctxt->user, &sdata);
++		if (ret == ERROR) {
++			goto post_gsp;
++		} else {
++			sid_str = gsp_auth_session_get_sid(&sdata);
++			gsp_auth_session_set_mpid(&sdata, getpid());
++			debug("%s using SID %s", __func__, sid_str);
++		}
++		
++		/* Set environment variables */
++		child_set_env(&env, &envsize, "CI_USER",
++			      s->authctxt->user);
++
++		child_set_env(&env, &envsize, "CI_SID",
++			      sid_str ? sid_str : "");
++		child_set_env(&env, &envsize, "CI_TGT",
++			      s->authctxt->style ?
++			      s->authctxt->style : "");
++		child_set_env(&env, &envsize, "CI_CMD",
++			      command ? command : "");
++
++		if ((ar = get_adsap2_result())) {
++			if (ar->connectionid) {
++				if (strchr(ar->connectionid, GSP_ADSAP2_CONN_DELIM) == NULL) {
++					ret = gsp_auth_session_set_target_id(&sdata, atoi(ar->connectionid));
++					if (ret == ERROR) {
++						debug("%s set target ID failed", __func__);
++					}
++				}
++				logit("%s: ConnectionId: '%s'", __FUNCTION__, ar->connectionid);
++				ret = gsp_auth_session_set_adsap2_conn_id(&sdata, ar->connectionid);
++				if (ret == ERROR) {
++					debug("%s set ADSAP2 connection ID failed", __func__);
++				}
++			} else {
++				logit("%s: No ConnectionId from adsap2d", __FUNCTION__);
++			}
++			if (ar->auth_handle) {
++				ret = gsp_auth_session_set_adsap2_handle(&sdata, ar->auth_handle);
++				if (ret == ERROR) {
++					debug("%s set adsap2 handle failed", __func__);
++				}
++			}
++
++			ret = gsp_auth_session_set_auth_type(&sdata,
++							     ADSAP2_METHOD);
++			if (ret != ERROR) {
++				ret = gsp_auth_session_set_curr_auth_type(&sdata, ADSAP2_METHOD);
++			}
++			
++			air_free(ar);
++			ar = NULL;
++		} else if (flags & GSP_AUTH_ATTR_STRONG_SEC) {
++			ret = gsp_auth_session_set_auth_type(&sdata, method);
++			if (ret != ERROR) {
++				ret = gsp_auth_session_set_curr_auth_type(&sdata, method);
++			}
++		}
++#ifdef USE_PAM
++		else if (options.password_authentication) {
++			ret = gsp_auth_util_set_authtype_from_pamh(pamh,
++								   &sdata);
++			if (ret != ERROR) {
++				ret = gsp_auth_util_set_curr_authtype_from_pamh(pamh, &sdata);
++			}
++		}
++#endif /* USE_PAM */
++		if (ret == ERROR) {
++			debug("%s could not set authentication type", __func__);
++		}
++
++		if (s->authctxt->style) {
++			flags |= GSP_AUTH_ATTR_AUTH_TARGET;
++		} else {
++			ret = gsp_auth_session_set_target_type(&sdata,
++						       GSP_AUTH_TARG_CLI);
++			if (ret == ERROR) {
++				debug("%s set target session type failed", __func__);
++			}
++		}
++
++		ret = gsp_auth_session_add_attr_flag(&sdata, flags);
++		if (ret == ERROR) {
++			debug("%s add flag to session failed", __func__);
++		}
++
++		ret = gsp_auth_session_set_type(&sdata,
++						GSP_AUTH_SESS_SSH);
++		if (ret == ERROR) {
++			debug("%s set session type to SSH failed", __func__);
++		}
++
++		ret = gsp_auth_session_set_ip_addr(&sdata,
++						   get_remote_ipaddr());
++		if (ret == ERROR) {
++			debug("%s set IP address failed\n", __func__);
++		}
++	
++		if (sid_str) {	
++			free(sid_str);
++			sid_str = NULL;
++		}
++
++		ret = gsp_auth_session_get_data_priv(&sdata, &gspd);
++		if (ret != ERROR) {
++			if (!s->authctxt->style) {
++				writeevt(evt_usr_login, "si",
++					 gspd.uinfo.username, gspd.attr.sess_type);
++			}
++			gsp_auth_session_free_data_priv(&gspd);
++		}
++	} else {
++		debug("%s: Not creating session or setting GSP AAA env", __func__);
++	}
++ post_gsp:
++	/* End GSP AAA [EL] */
++
+ 	if (!options.use_login) {
+ 		/* Set basic environment. */
+ 		for (i = 0; i < s->num_env; i++)
+@@ -1547,15 +1744,15 @@ do_setusercontext(struct passwd *pw)
+ 		}
+ #else
+ 		/* Permanently switch to the desired uid. */
+-		permanently_set_uid(pw);
++//		permanently_set_uid(pw);
+ #endif
+ 	}
+ 
+-#ifdef HAVE_CYGWIN
+-	if (is_winnt)
+-#endif
+-	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
+-		fatal("Failed to set uids to %u.", (u_int) pw->pw_uid);
++//#ifdef HAVE_CYGWIN
++//	if (is_winnt)
++//#endif
++//	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
++//		fatal("Failed to set uids to %u.", (u_int) pw->pw_uid);
+ 
+ #ifdef WITH_SELINUX
+ 	ssh_selinux_setup_exec_context(pw->pw_name);
+@@ -1716,7 +1913,18 @@ do_child(Session *s, const char *command
+ 	 * Make sure $SHELL points to the shell from the password file,
+ 	 * even if shell is overridden from login.conf
+ 	 */
+-	env = do_setup_env(s, shell);
++	env = do_setup_env(s, shell, command);
++	/* Permanently switch to the desired uid. */
++	if (pw->pw_uid == 99) {
++		// fake user refresh passwd struct
++		pw = s->pw = s->authctxt->pw = PRIVSEP(getpwnamallow(pw->pw_name));
++	}
++	permanently_set_uid(pw);
++#ifdef HAVE_CYGWIN
++	if (is_winnt)
++#endif
++	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
++		fatal("Failed to set uids to %u.", (u_int) pw->pw_uid);
+ 
+ #ifdef HAVE_LOGIN_CAP
+ 	shell = login_getcapstr(lc, "shell", (char *)shell, (char *)shell);
+@@ -2325,7 +2533,7 @@ session_pty_cleanup2(Session *s)
+ 
+ 	/* Record that the user has logged out. */
+ 	if (s->pid != 0)
+-		record_logout(s->pid, s->tty, s->pw->pw_name);
++		record_logout(s->pid, s->tty, s->pw->pw_name, s->pw->pw_uid);
+ 
+ 	/* Release the pseudo-tty. */
+ 	if (getuid() == 0)
+Index: openssh-5.2p1/sshd.c
+===================================================================
+--- openssh-5.2p1.orig/sshd.c
++++ openssh-5.2p1/sshd.c
+@@ -196,6 +196,10 @@ int num_listen_socks = 0;
+ char *client_version_string = NULL;
+ char *server_version_string = NULL;
+ 
++static int avocent_connection = 0;
++int avocent_key_type = -1;
++static int avocent_key_index = -1;
++
+ /* for rekeying XXX fixme */
+ Kex *xxx_kex;
+ 
+@@ -263,6 +267,28 @@ void demote_sensitive_data(void);
+ static void do_ssh1_kex(void);
+ static void do_ssh2_kex(void);
+ 
++static char *str_ver[] = {
++	"AVWorks",
++	"DSView",
++	NULL
++};
++
++static void set_avocent_connection(char *version_string)
++{
++	char **str = str_ver;
++
++	debug("set_avocent_connection: called %s", version_string);
++	while (*str) {
++		debug("set_avocent_connection: str %x val %s", *str, *str);
++		if (strstr(version_string, *str)) {
++			debug("set_avocent_connection: find %s", *str);
++			avocent_connection = 1;
++			return;
++		}
++		str++;
++	}
++}
++
+ /*
+  * Close all listening sockets
+  */
+@@ -457,6 +483,8 @@ sshd_exchange_identification(int sock_in
+ 	buf[sizeof(buf) - 1] = 0;
+ 	client_version_string = xstrdup(buf);
+ 
++	set_avocent_connection(client_version_string);
++
+ 	/*
+ 	 * Check that the versions match.  In future this might accept
+ 	 * several versions and set appropriate flags to handle them.
+@@ -724,6 +752,14 @@ list_hostkey_types(void)
+ 	int i;
+ 
+ 	buffer_init(&b);
++
++	if (avocent_connection && avocent_key_index != -1) {
++		Key *key = sensitive_data.host_keys[avocent_key_index];
++		p = key_ssh_name(key);
++		buffer_append(&b, p, strlen(p));
++		goto end_rot;
++	}
++
+ 	for (i = 0; i < options.num_host_key_files; i++) {
+ 		Key *key = sensitive_data.host_keys[i];
+ 		if (key == NULL)
+@@ -742,6 +778,8 @@ list_hostkey_types(void)
+ 			break;
+ 		}
+ 	}
++
++end_rot:
+ 	buffer_append(&b, "\0", 1);
+ 	ret = xstrdup(buffer_ptr(&b));
+ 	buffer_free(&b);
+@@ -754,6 +792,14 @@ get_hostkey_by_type(int type)
+ {
+ 	int i;
+ 
++debug("get_hostkey_by_type: av_con %d av_key_index %d av_key_type %d Key_req %d", avocent_connection, avocent_key_index, avocent_key_type, type);
++	if (avocent_connection &&
++		avocent_key_index != -1 &&
++		avocent_key_type == type) {
++		debug("get_hostkey_by_type: return avocent appliance key %d",avocent_key_index);
++		return(sensitive_data.host_keys[avocent_key_index]);
++	}
++
+ 	for (i = 0; i < options.num_host_key_files; i++) {
+ 		Key *key = sensitive_data.host_keys[i];
+ 		if (key != NULL && key->type == type)
+@@ -1525,6 +1571,10 @@ main(int ac, char **av)
+ 			sensitive_data.host_keys[i] = NULL;
+ 			continue;
+ 		}
++		if (!strcmp(options.host_key_files[i], _PATH_HOST_AVOCENT_KEY_FILE)) {
++			avocent_key_type = key->type;
++			avocent_key_index = i;
++		}
+ 		switch (key->type) {
+ 		case KEY_RSA1:
+ 			sensitive_data.ssh1_host_key = key;
+@@ -1537,8 +1587,7 @@ main(int ac, char **av)
+ 			sensitive_data.have_ssh2_key = 1;
+ 			break;
+ 		}
+-		debug("private host key: #%d type %d %s", i, key->type,
+-		    key_type(key));
++		debug("private host key: #%d name %s type %d %s", i, options.host_key_files[i], key->type, key_type(key));
+ 	}
+ 	if ((options.protocol & SSH_PROTO_1) && !sensitive_data.have_ssh1_key) {
+ 		logit("Disabling protocol version 1. Could not load host key");
+Index: openssh-5.2p1/sshlogin.c
+===================================================================
+--- openssh-5.2p1.orig/sshlogin.c
++++ openssh-5.2p1/sshlogin.c
+@@ -123,7 +123,7 @@ record_login(pid_t pid, const char *tty,
+ 	/* save previous login details before writing new */
+ 	store_lastlog_message(user, uid);
+ 
+-	li = login_alloc_entry(pid, user, host, tty);
++	li = login_alloc_entry(pid, user, uid, host, tty);
+ 	login_set_addr(li, addr, addrlen);
+ 	login_login(li);
+ 	login_free_entry(li);
+@@ -131,12 +131,12 @@ record_login(pid_t pid, const char *tty,
+ 
+ #ifdef LOGIN_NEEDS_UTMPX
+ void
+-record_utmp_only(pid_t pid, const char *ttyname, const char *user,
++record_utmp_only(pid_t pid, const char *ttyname, const char *user, uid_t uid,
+ 		 const char *host, struct sockaddr *addr, socklen_t addrlen)
+ {
+ 	struct logininfo *li;
+ 
+-	li = login_alloc_entry(pid, user, host, ttyname);
++	li = login_alloc_entry(pid, user, uid, host, ttyname);
+ 	login_set_addr(li, addr, addrlen);
+ 	login_utmp_only(li);
+ 	login_free_entry(li);
+@@ -145,11 +145,11 @@ record_utmp_only(pid_t pid, const char *
+ 
+ /* Records that the user has logged out. */
+ void
+-record_logout(pid_t pid, const char *tty, const char *user)
++record_logout(pid_t pid, const char *tty, const char *user, uid_t uid)
+ {
+ 	struct logininfo *li;
+ 
+-	li = login_alloc_entry(pid, user, NULL, tty);
++	li = login_alloc_entry(pid, user, uid, NULL, tty);
+ 	login_logout(li);
+ 	login_free_entry(li);
+ }
+Index: openssh-5.2p1/sshlogin.h
+===================================================================
+--- openssh-5.2p1.orig/sshlogin.h
++++ openssh-5.2p1/sshlogin.h
+@@ -14,10 +14,10 @@
+ 
+ void	record_login(pid_t, const char *, const char *, uid_t,
+     const char *, struct sockaddr *, socklen_t);
+-void   record_logout(pid_t, const char *, const char *);
++void   record_logout(pid_t, const char *, const char *, uid_t);
+ time_t	get_last_login_time(uid_t, const char *, char *, u_int);
+ 
+ #ifdef LOGIN_NEEDS_UTMPX
+-void	record_utmp_only(pid_t, const char *, const char *, const char *,
++void	record_utmp_only(pid_t, const char *, const char *, uid_t, const char *,
+ 		struct sockaddr *, socklen_t);
+ #endif
+Index: openssh-5.2p1/auth-passwd.c
+===================================================================
+--- openssh-5.2p1.orig/auth-passwd.c
++++ openssh-5.2p1/auth-passwd.c
+@@ -91,6 +91,9 @@ auth_password(Authctxt *authctxt, const 
+ 		ok = 0;
+ #endif
+ 	if (*password == '\0' && options.permit_empty_passwd == 0)
++#ifdef USE_PAM
++	if (options.use_pam && !pam_service_none())
++#endif
+ 		return 0;
+ 
+ #ifdef KRB5
+Index: openssh-5.2p1/Makefile.in
+===================================================================
+--- openssh-5.2p1.orig/Makefile.in
++++ openssh-5.2p1/Makefile.in
+@@ -43,11 +43,12 @@ PATHS= -DSSHDIR=\"$(sysconfdir)\" \
+ 
+ CC=@CC@
+ LD=@LD@
+-CFLAGS=@CFLAGS@
++CFLAGS=@CFLAGS@ `pkg-config --cflags glib-2.0` -DENABLE_GSPAAA
+ CPPFLAGS=-I. -I$(srcdir) @CPPFLAGS@ @LDAP_CPPFLAGS@ $(PATHS) @DEFS@
+ LIBS=@LIBS@
+ SSHDLIBS=@SSHDLIBS@
+ LIBEDIT=@LIBEDIT@
++LIBPAM1=-lgsp_auth -lcyc -lcyc++ -lstdc++ -ladsap2 -lgsp-air -ldlog -lcyevent -lgsp_tsapi -lglib-2.0 -lcacpdparser -ldaemon
+ LIBLDAP=@LDAP_LDFLAGS@ @LDAP_LIBS@
+ AR=@AR@
+ AWK=@AWK@
+@@ -154,7 +155,7 @@ ssh$(EXEEXT): $(LIBCOMPAT) libssh.a $(SS
+ 	$(LD) -o $@ $(SSHOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(LIBLDAP) $(LIBS)
+ 
+ sshd$(EXEEXT): libssh.a	$(LIBCOMPAT) $(SSHDOBJS)
+-	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(LIBLDAP) $(SSHDLIBS) $(LIBS)
++	$(LD) -o $@ $(SSHDOBJS) $(LDFLAGS) -lssh -lopenbsd-compat $(LIBLDAP) $(LIBPAM1) $(SSHDLIBS) $(LIBS)
+ 
+ scp$(EXEEXT): $(LIBCOMPAT) libssh.a scp.o progressmeter.o
+ 	$(LD) -o $@ scp.o progressmeter.o bufaux.o $(LDFLAGS) -lssh -lopenbsd-compat $(LIBS)
+Index: openssh-5.2p1/monitor.h
+===================================================================
+--- openssh-5.2p1.orig/monitor.h
++++ openssh-5.2p1/monitor.h
+@@ -66,6 +66,10 @@ enum monitor_reqtype {
+ 	MONITOR_REQ_JPAKE_STEP2, MONITOR_ANS_JPAKE_STEP2,
+ 	MONITOR_REQ_JPAKE_KEY_CONFIRM, MONITOR_ANS_JPAKE_KEY_CONFIRM,
+ 	MONITOR_REQ_JPAKE_CHECK_CONFIRM, MONITOR_ANS_JPAKE_CHECK_CONFIRM,
++	MONITOR_REQ_AUTHMETHOD, /* GSP AAA [EL] */
++	MONITOR_REQ_ADSAP2_PREAUTH, MONITOR_ANS_ADSAP2_PREAUTH,
++	MONITOR_REQ_TTY_FROMIP, MONITOR_ANS_TTY_FROMIP,
++	MONITOR_REQ_VALIDATE_PORTALIAS, MONITOR_ANS_VALIDATE_PORTALIAS,
+ };
+ 
+ struct mm_master;

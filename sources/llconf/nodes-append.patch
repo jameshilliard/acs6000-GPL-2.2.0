@@ -1,0 +1,66 @@
+Index: src/nodes.c
+===================================================================
+RCS file: /usr/cvsroot/gartop/llconf/llconf/src/nodes.c,v
+retrieving revision 1.7
+diff -u -r1.7 nodes.c
+--- src/nodes.c	3 Jan 2006 02:19:14 -0000	1.7
++++ src/nodes.c	13 Dec 2006 23:48:16 -0000
+@@ -192,10 +192,11 @@
+  */
+ void append_node(struct cnfnode *cn_parent, struct cnfnode *cn)
+ {
+-	struct cnfnode **cnp;
+-
+-	for(cnp = &(cn_parent->first_child); *cnp; cnp = &((*cnp)->next));
+-	*cnp = cn;
++	if(cn_parent->last_child)
++		cn_parent->last_child->next = cn;
++	cn_parent->last_child = cn;
++	if(cn_parent->first_child == NULL)
++		cn_parent->first_child = cn;
+ 	cn->parent = cn_parent;
+ 	cn->next = NULL;
+ }
+@@ -222,11 +223,23 @@
+  */
+ void unlink_node(struct cnfnode *cn)
+ {
+-	struct cnfnode **pcn;
++	if(cn != cn->parent->last_child){
++		struct cnfnode **pcn;
+ 
+-	for(pcn = &(cn->parent->first_child); *pcn && *pcn != cn; pcn = &((*pcn)->next));
+-	if(*pcn)
+-		*pcn = cn->next;
++		for(pcn = &(cn->parent->first_child); *pcn && *pcn != cn; pcn = &((*pcn)->next));
++		if(*pcn)
++			*pcn = cn->next;
++	}else if(cn == cn->parent->first_child){
++		cn->parent->first_child = cn->parent->last_child = NULL;
++	}else{
++		struct cnfnode *cn_before;
++
++		for(cn_before = cn->parent->first_child;
++		    cn_before && (cn_before->next != cn); cn_before = cn_before->next);
++
++		cn_before->next = NULL;
++		cn->parent->last_child = cn_before;
++	}
+ }
+ 
+ /** search for a node.
+Index: src/nodes.h
+===================================================================
+RCS file: /usr/cvsroot/gartop/llconf/llconf/src/nodes.h,v
+retrieving revision 1.5
+diff -u -r1.5 nodes.h
+--- src/nodes.h	3 Jun 2005 16:52:10 -0000	1.5
++++ src/nodes.h	13 Dec 2006 23:48:16 -0000
+@@ -24,6 +24,7 @@
+ 	char *name;
+ 	char *value;
+ 	struct cnfnode *first_child;
++	struct cnfnode *last_child;
+ 	struct cnfnode *parent;
+ 	struct cnfmodule *module;
+ };

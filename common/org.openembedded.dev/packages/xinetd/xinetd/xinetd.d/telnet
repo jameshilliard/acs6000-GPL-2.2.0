@@ -1,0 +1,11 @@
+service telnet
+{
+	disable                 = no
+	socket_type             = stream        
+	wait                    = no
+	user                    = root
+	server                  = /usr/bin/dispatch_telnet
+	server_args             = -h -L /bin/login
+	log_on_failure += USERID
+	flags			= IPv6
+}

@@ -1,0 +1,273 @@
+Index: linux-2.6.20/arch/powerpc/platforms/Makefile
+===================================================================
+--- linux-2.6.20.orig/arch/powerpc/platforms/Makefile	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/arch/powerpc/platforms/Makefile	2008-12-09 12:36:42.000000000 -0800
+@@ -18,3 +18,4 @@
+ obj-$(CONFIG_PPC_CELL)		+= cell/
+ obj-$(CONFIG_PPC_PS3)		+= ps3/
+ obj-$(CONFIG_EMBEDDED6xx)	+= embedded6xx/
++obj-$(CONFIG_AVOCENT_GSP)	+= gsp-sysctl.o
+Index: linux-2.6.20/arch/powerpc/platforms/gsp-sysctl.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.20/arch/powerpc/platforms/gsp-sysctl.c	2008-12-09 13:40:54.000000000 -0800
+@@ -0,0 +1,259 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/fs.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++#include <asm/ppcboot.h>
++
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
++enum {
++	CTL_BDINFO = 1,
++	CTL_BOARD,
++};
++
++enum {
++	CTL_BDINFO_DUMMY = 0,
++	CTL_BDINFO_FAMILY,
++	CTL_BDINFO_PORTS,
++	CTL_BDINFO_MODEM,
++	CTL_BDINFO_AUX,
++	CTL_BDINFO_OEM,
++#ifdef CONFIG_AVOCENT_PMHD
++	CTL_BDINFO_MODEL,
++	CTL_BDINFO_INPUT_TYPE,
++	CTL_BDINFO_INPUT,
++	CTL_BDINFO_SWITCHED,
++#endif
++};
++
++#ifndef CFG_AVOCENT_FAMILY_CODE
++#define CFG_AVOCENT_FAMILY_CODE	0
++#endif
++#ifndef CFG_AVOCENT_SERIAL
++#define CFG_AVOCENT_SERIAL	0
++#endif
++#ifndef CFG_AVOCENT_MODEM
++#define CFG_AVOCENT_MODEM	0
++#endif
++#ifndef CFG_AVOCENT_AUX
++#define CFG_AVOCENT_AUX		0
++#endif
++#ifndef CFG_AVOCENT_OEM_CODE
++#define CFG_AVOCENT_OEM_CODE	0
++#endif
++
++#define MAX_BDINFO_STR	64
++
++#ifdef CONFIG_AVOCENT_PMHD
++char avocent_pmhd_model[MAX_BDINFO_STR] = {0};
++int avocent_pmhd_input_type = 0;
++char avocent_pmhd_input[MAX_BDINFO_STR] = {0};
++int avocent_pmhd_switched = 0;
++#endif
++
++static int proc_handle_int(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int)] ;
++	int value;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, sizeof(int));
++		switch (table->ctl_name) {
++		case CTL_BDINFO_FAMILY:
++			value = CFG_AVOCENT_FAMILY_CODE;
++			break;
++		case CTL_BDINFO_PORTS:
++			value = CFG_AVOCENT_SERIAL;
++			break;
++		case CTL_BDINFO_MODEM:
++			value = CFG_AVOCENT_MODEM;
++			break;
++		case CTL_BDINFO_AUX:
++			value = CFG_AVOCENT_AUX;
++			break;
++		case CTL_BDINFO_OEM:
++			value = CFG_AVOCENT_OEM_CODE;
++			break;
++#ifdef CONFIG_AVOCENT_PMHD
++		case CTL_BDINFO_INPUT_TYPE:
++			value = avocent_pmhd_input_type;
++			break;
++		case CTL_BDINFO_SWITCHED:
++			value = avocent_pmhd_switched;
++			break;
++#endif
++		}
++		snprintf(string, sizeof(int), "%d", value);
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_string(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[MAX_BDINFO_STR];
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		memset(string, 0, MAX_BDINFO_STR);
++		switch (table->ctl_name) {
++#ifdef CONFIG_AVOCENT_PMHD
++		case CTL_BDINFO_MODEL:
++			strncpy(string, avocent_pmhd_model, MAX_BDINFO_STR);
++			printk("avocent_pmhd_model set with %s\n", avocent_pmhd_model);
++			break;
++		case CTL_BDINFO_INPUT:
++			strncpy(string, avocent_pmhd_input, MAX_BDINFO_STR);
++			printk("avocent_pmhd_input set with %s\n", avocent_pmhd_input);
++			break;
++#endif
++		default:
++			break;
++		}
++
++		if (!*string) {	//string was not set
++			return 0;
++		}
++
++		if (copy_to_user(buffer, string, MAX_BDINFO_STR)) {
++			printk("avocent pmhd string fail to copy %s to buffer", string);
++			return -EFAULT;
++		}
++		*lenp = strlen(string);
++		*ppos += strlen(string);
++	}
++	return 0;
++}
++
++static struct ctl_table bdinfo_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO_FAMILY,
++		.procname = "family",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_PORTS,
++		.procname = "ports",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_MODEM,
++		.procname = "modem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_AUX,
++		.procname = "aux",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_OEM,
++		.procname = "oem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{0}
++};
++
++static struct ctl_table board_dir_table[] =
++{
++#ifdef CONFIG_AVOCENT_PMHD
++	{
++		.ctl_name = CTL_BDINFO_MODEL,
++		.procname = "model",
++		.maxlen = MAX_BDINFO_STR,
++		.mode = 0644,
++		.proc_handler = &proc_handle_string,
++	},
++	{
++		.ctl_name = CTL_BDINFO_INPUT_TYPE,
++		.procname = "input_type",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_INPUT,
++		.procname = "input",
++		.maxlen = MAX_BDINFO_STR,
++		.mode = 0644,
++		.proc_handler = &proc_handle_string,
++	},
++	{
++		.ctl_name = CTL_BDINFO_SWITCHED,
++		.procname = "switched",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++#endif
++	{0}
++};
++
++static struct ctl_table avocent_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO,
++                .procname = "bdinfo",
++                .mode = 0555,
++                .child = bdinfo_dir_table,
++        },
++	{
++		.ctl_name = CTL_BOARD,
++                .procname = "board",
++                .mode = 0555,
++                .child = board_dir_table,
++        },
++        {0}
++};
++
++#define CTL_AVOCENT 1
++
++static struct ctl_table avocent_table[] =
++{
++	{
++		.ctl_name = CTL_AVOCENT,
++                .procname = "avocent",
++                .mode = 0555,
++                .child = avocent_dir_table,
++        },
++        {0}
++};
++
++static int __init gsp_avocent_init(void)
++{
++	printk("Avocent sysctl\n");
++
++	register_sysctl_table(avocent_table, 1);
++	return 0;
++}
++
++__initcall(gsp_avocent_init);
++

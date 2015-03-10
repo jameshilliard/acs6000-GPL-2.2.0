@@ -1,0 +1,12 @@
+diff -Naupr opie-2.4/Makefile.in opie-2.4.new/Makefile.in
+--- opie-2.4/Makefile.in	2007-06-19 18:52:42.000000000 -0400
++++ opie-2.4.new/Makefile.in	2007-06-19 19:45:33.000000000 -0400
+@@ -87,7 +87,7 @@ GROUP=@GROUP@
+ #
+ # Some sites might want to put this elsewhere. If you want to use an old
+ # S/Key database, you should create a link from /etc/skeykeys to /etc/opiekeys.
+-KEY_FILE=/etc/opiekeys
++KEY_FILE=@KEY_FILE@
+ 
+ # Are we debugging?
+ #

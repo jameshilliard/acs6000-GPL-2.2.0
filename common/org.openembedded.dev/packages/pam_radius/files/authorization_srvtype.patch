@@ -1,0 +1,87 @@
+Index: pam_radius-1.3.15/pam_radius_auth.c
+===================================================================
+--- pam_radius-1.3.15.orig/pam_radius_auth.c
++++ pam_radius-1.3.15/pam_radius_auth.c
+@@ -616,6 +616,7 @@ initialize(radius_conf_t *conf, int acco
+   struct sockaddr_in6 * s_in6 = NULL;
+   
+   int timeout, tries;
++  int svctype; //[RK]Mar/18/08 - Bloomberg
+   int line = 0;
+   radius_server_t *tmp;
+ 
+@@ -661,8 +662,10 @@ initialize(radius_conf_t *conf, int acco
+     
+     timeout = 3;
+ 	tries = 0;
+-    if (sscanf(p, "%s %s %s %d %d", srv_type, hostname, secret, &timeout,
+-		&tries) < 5) {
++    //[RK]Mar/18/08 - Bloomberg
++    svctype = 0; 
++    if (sscanf(p, "%s %s %s %d %d %d", srv_type, hostname, secret, &timeout,
++		&tries, &svctype) < 5) {
+       _pam_log(LOG_ERR, "ERROR reading %s, line %d: Could not read hostname or secret\n",
+ 	       conf_file, line);
+       continue; /* invalid line */
+@@ -693,6 +696,13 @@ initialize(radius_conf_t *conf, int acco
+       server->tries = tries;
+ 	server->nas_port = port;	//[RK]Nov/13/02 Bug#31 - add serial port number
+ 
++    //[RK]Mar/18/08 - Bloomberg
++    if (! accounting) {
++	server->svctype = (svctype==1)? 1 : 0;
++    } else {
++	server->svctype = 0;
++    }
++
+       if ((timeout < 1) || (timeout > 60)) {
+ 	server->timeout = 3;
+       } else {
+@@ -1313,7 +1323,8 @@ try_again:
+ 
+   build_radius_packet(request, user, password, &config);
+   /* not all servers understand this service type, but some do */
+-  add_int_attribute(request, PW_USER_SERVICE_TYPE, PW_AUTHENTICATE_ONLY);
++//[RK]Jan2609 - fixed problem with Steel Belt Server
++//  add_int_attribute(request, PW_USER_SERVICE_TYPE, PW_AUTHENTICATE_ONLY);
+ 
+   /*
+    *  Tell the server which host the user is coming from.
+@@ -1379,6 +1390,15 @@ try_again:
+     	if((a_cb = find_attribute(response, PW_USER_SERVICE_TYPE, NULL)) != NULL) {
+ 		memcpy (&val, a_cb->data, sizeof(val));
+ 		val = ntohl(val);
++		if (config.server->svctype==1) {
++			struct sid_data sdata;
++			enum sid_status ret;
++			gsp_auth_pam_get_sid(pamh, &sdata);
++			ret = gsp_auth_session_sdata_check(&sdata);
++			if (ret == GSP_AUTH_SID_VALID) {
++				gsp_auth_session_set_radius_service_type(&sdata, val);
++			}
++		}
+ 	}
+ 	//Group Authorization Support
+ 	a_cb = NULL;
+@@ -1642,7 +1662,8 @@ pam_sm_chauthtok(pam_handle_t *pamh, int
+     request->id = request->vector[0]; /* this should be evenly distributed */
+     
+     build_radius_packet(request, user, password, &config);
+-    add_int_attribute(request, PW_USER_SERVICE_TYPE, PW_AUTHENTICATE_ONLY);
++//[RK]Jan2609 - fixed problem with Steel Belt Server
++//    add_int_attribute(request, PW_USER_SERVICE_TYPE, PW_AUTHENTICATE_ONLY);
+     
+     retval = talk_radius(&config, request, response, password, NULL, 1);
+     PAM_FAIL_CHECK;
+Index: pam_radius-1.3.15/pam_radius_auth.h
+===================================================================
+--- pam_radius-1.3.15.orig/pam_radius_auth.h
++++ pam_radius-1.3.15/pam_radius_auth.h
+@@ -44,6 +44,7 @@ typedef struct radius_server_t {
+   int accounting;
+   int tries;
+   int nas_port;	//[RK]Nov/13/02 - Bug#31 - add serial port number
++  int svctype;  //[RK]Mar/18/08 - Bloomberg
+ } radius_server_t;
+ 
+ typedef struct radius_conf_t {

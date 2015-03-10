@@ -1,0 +1,396 @@
+#!/bin/sh
+#
+# This program is for build MergePoint5200 in one command.
+# Author: Ice Liu
+# History:
+#         Ported from bldshangrila on Dec 10, 2007
+#         
+
+
+TAGOPT="HEAD"
+TESTFLAG=0
+VERBOSE=0
+OSTAG="branch_gsp_mergepoint_1_0_2"
+DOTAG="-b branch_gsp_mergepoint_1_0_2"
+QUIET=0
+QUIETOPT=""
+NIGHTLY=0
+NIGHTLYGO=/opt/utils/nightlygo.py
+DEPLOYSEP=""
+BUILDOS=1
+BLDDIR=buildx86ipk
+CROSSBIN=/opt/build-x86-ipk/cross/i686-linux/bin
+FTPPATH=/opt/ftp/pub
+HTTPPATH=
+while getopts ":hnvr:b:o:qa" OPTION
+do
+    case $OPTION in
+    h)
+	echo "Usage:"
+	echo "    $0 -h -n -v -r TAG -b osbranch -o OSTAG -q -a"
+	echo "    -h print help info"
+	echo "    -n dry run"
+	echo "    -v verbose"
+	echo "    -r TAG for applications"
+	echo "    -b branch for OS"
+	echo "    -o TAG for OS"
+	echo "    -q quiet, will delete source and tmp dirs, without interactive"
+	echo "    -a automatically, for nightly build, will checkout apps from trunk, os from branch"
+	exit 0
+	;;
+    n)
+	TESTFLAG=1
+	;;
+    v)
+	VERBOSE=1
+	;;
+    r)
+	TAGOPT=$OPTARG
+	;;
+    b)
+        OSTAG=$OPTARG
+	DOTAG=" -b ${OSTAG}"
+	;;
+    o)
+	OSTAG=$OPTARG
+	DOTAG=" -r ${OSTAG}"
+	BUILDOS=1
+	;;
+    q)
+	QUIET=1
+	QUIETOPT="-q"
+	;;
+    a)
+	NIGHTLY=1
+	DEPLOYSEP="nightly/"
+	;;
+    esac                                                                                     
+done
+
+# Then the $1 will be the real argument.
+shift $(($OPTIND - 1))
+
+echo "*************************************************************************"
+if [ 1 = $TESTFLAG ]; then
+    echo "    Dry run: on"
+else
+    echo "    Dry run: off"
+fi
+if [ 1 = $VERBOSE ]; then
+    echo "    Verbose mode: on"
+else
+    echo "    Verbose mode: off"
+fi
+if [ 1 = $QUIET ]; then
+    echo "    quiet mode, remove previous source and binary files"
+fi
+echo "    Applications TAG/branch option: $TAGOPT"
+echo "    OS tag option: $OSTAG"
+echo "*************************************************************************"
+
+if [ "trunk" = "$OSTAG" -a 1 = $BUILDOS ]; then
+    echo "Please provide OS tag."
+    $0 -h
+    exit 1
+fi
+
+if [ "" = "$JAVA_HOME" ]; then
+    echo "JAVA_HOME not set, please set JAVA_HOME."
+    exit 1
+fi
+
+if [ "" = "$ANT_HOME" ]; then
+    echo "ANT_HOME not set, please set ANT_HOME"
+    exit 1
+fi
+
+if [ 0 = $QUIET ]; then
+    echo -n "continue?(yes/no)"
+    read reply
+else
+    reply="yes"
+fi
+if [ "y" = "$reply" -o "yes" = "$reply" ]; then
+    echo ""
+else
+    exit 0
+fi
+
+
+function coproject
+{
+    if [ 1 = $TESTFLAG ]; then
+	echo "cvs co -r $TAGOPT project_caesar"
+	echo "pushd ./project_caesar/modules"
+	echo "$(pwd)/caesarco.py -f -r $TAGOPT all"
+	echo "Checking out caesar source codes ..."
+	echo "popd"
+	return
+    fi
+
+    # If nightly build, check from HEAD
+    if [ 1 = ${NIGHTLY} ]; then
+	cvs co -r HEAD project_caesar
+    else
+	cvs co -r $TAGOPT project_caesar
+    fi
+    if [ 0 -ne $? ]; then                                                                        
+	echo "Invalid tag. Exit Now!"                                                                      
+	exit 1                                                                                   
+    fi
+    pushd $(pwd)/project_caesar/modules
+    echo "$(pwd)/caesarco.py -f -r $TAGOPT all"
+    echo "Checking out caesar source codes ...i"
+    # If nightly build check out *_list.xml from HEAD, cause it includes the right modules
+    if [ 1 = ${NIGHTLY} ]; then
+	cvs up -A *_list.xml
+    fi
+    $(pwd)/caesarco.py -f -r $TAGOPT all
+    popd
+}
+
+# To clean befor checkout. 
+MPWKDIR=${MPWKDIR:=$PWD}
+export MPWKDIR=${MPWKDIR}
+OSDIR=$PWD
+echo "MergePoint work directory: $MPWKDIR"
+pushd ${MPWKDIR}
+if [ -d project_caesar ]; then
+    if [ 0 = $QUIET ]; then
+	echo -n "remove project_caesar directory?(yes/no)"
+	read reply
+    else
+	reply="yes"
+    fi
+    if [ "y" = "$reply" -o "yes" = "$reply" ]; then
+	echo "removing project_caesar ..."
+	if [ 1 = $TESTFLAG ]; then
+	    echo "rm -rf project_caesar"
+	else
+	    rm -rf project_caesar
+	    echo "removed"
+	    coproject
+	fi
+    else
+	echo "leave project_caesar along"
+    fi
+else
+    coproject
+fi                                                               
+popd        
+
+# Update the thirdparty to replace those libs pre built from SVN.
+# For ASPEN2, the thirdparty will be checked out from HEAD.
+#pushd ${MPWKDIR}/project_caesar/builds/thirdparty
+#for d in `ls`;do cd $d; pwd;cvs up -A -d;cd ..;done
+#popd
+#pushd ${MPWKDIR}/project_caesar/builds
+#replace.sh thirdparty
+#popd
+
+#build
+# To save the oringin PATH
+PATHBAK=$PATH
+export PATH=$CROSSBIN:$PATH 
+gcc -v
+if [ 1 = ${NIGHTLY} ]; then
+    if [ 1 = $TESTFLAG ]; then
+	echo "cp -f ${NIGHTLYGO} ${MPWKDIR}/project_caesar/builds/go.py"
+    else
+        # Copy the nightly build version go.py
+	cp -f ${NIGHTLYGO} ${MPWKDIR}/project_caesar/builds/go.py
+    fi
+fi
+pushd ${MPWKDIR}
+if [ 1 = $TESTFLAG ]; then
+    echo "run -->"
+    echo "$(pwd)/go.py"
+else
+    pushd $(pwd)/project_caesar/builds
+    if [ 0 = $QUIET ]; then
+	echo -n "run go.py?(yes/no)"
+	read reply
+    else
+	reply="yes"
+    fi
+    if [ "yes" = "$reply" -o "y" = "$reply" ]; then
+	$(pwd)/go.py
+    fi
+    popd
+fi
+popd
+export PATH=$PATHBAK
+
+# To check the build result.
+echo "To check whether there is fatal error or not ..."
+if [ 0 = $TESTFLAG ]; then
+    cat ${HOME}/build_result_caesar.txt | grep "fatal "
+    retval=$? 
+    if [ $retval -eq 0 ]
+	then
+	echo "There're fatal errors while building, refer to ${HOME}/build_result_caesar.txt"
+	exit $retval
+    fi  
+else
+    echo "cat ${HOME}/build_result_caesar.txt | grep 'fatal '"
+fi
+echo "No fatal errors."
+
+# Run build.sh, to generate sql.tar and html.tar files.
+pushd ${MPWKDIR}/project_caesar/builds/Installation_embed
+$(pwd)/build.sh
+popd
+
+if [ 0 = $QUIET ]; then
+    echo -n "MergePoint applications build finished, continue to build OS?(yes/no)"
+    read reply
+else
+    reply="yes"
+fi
+if [ "yes" = "$reply" -o "y" = "$reply" ]; then
+    if [ 1 = $TESTFLAG ]; then
+	echo "/opt/utils/domp $DOTAG $QUIETOPT"
+	echo "$(pwd)/utils/gspsh -p mergepoint -o common -s shanghai -b ${BLDDIR} -- bitbake aspen-dsi5200-image"
+	echo "$(pwd)/utils/gsphebeish -p hebei/ -s shanghai -o common/ -b ${UPBLDDIR} -- bitbake aspen-dsi5200-instcd"
+    else
+	#
+	if [ 1 = $BUILDOS ]; then
+	    /opt/utils/domp $DOTAG $QUIETOPT
+	fi
+	rm -rf mergepoint/${BLDDIR}/tmp
+	rm -rf hebei/${UPBLDDIR}/tmp
+        for d in "bitbake common/com.avocent.dev common/org.openembedded.dev hebei mergepoint utils"
+	  do svn up $d
+        done
+	# Use gspsh in trunk to replace the one in branch before, cause this program is ipk prebuilt based.
+	/opt/utils/gspsh -p mergepoint -o common -s shanghai -b ${BLDDIR} -- bitbake aspen-dsi5200-image
+	/opt/utils/gspsh -p mergepoint -o common -s shanghai -b ${BLDDIR} -- bitbake aspen-dsi5200-instcd
+    fi
+else
+    exit 0
+fi
+
+if [ 0 = $QUIET ]; then
+    echo -n "MergePoint applications build finished, continue to build Upgrade?(yes/no)"
+    read reply
+else
+    reply="yes"
+fi
+if [ "yes" = "$reply" -o "y" = "$reply" ]; then
+    if [ 1 = $TESTFLAG ]; then
+	echo "$(pwd)/utils/gsphebeish -p hebei/ -s shanghai -o common/ -b ${UPBLDDIR} -- bitbake aspen-upg-image"
+    else
+	echo
+	#$(pwd)/utils/gsphebeiupgsh -p hebei/ -s shanghai -o common/ -b ${UPBLDDIR} -- bitbake aspen-upg-image
+    fi
+else
+    exit 0
+fi
+
+
+# Cut the TAG option into splits.
+if [ 1 = ${NIGHTLY} ]; then
+    TAG="BLD_MP_R_4_1_0_` date +%Y%m%d`"
+else
+    TAG=$TAGOPT
+fi
+VMAJOR=`echo $TAG | cut -d"_" -f4`
+VMINOR=`echo $TAG | cut -d"_" -f5`
+VRELEASE=`echo $TAG | cut -d"_" -f6`
+VBUILD=`echo $TAG | cut -d"_" -f7`
+FULLV=${VMAJOR}.${VMINOR}.${VRELEASE}.${VBUILD}
+SHORTV=${VMAJOR}${VMINOR}${VRELEASE}${VBUILD}
+if [ "" = "$VBUILD" ]; then
+    echo "Invalid tag or no tag given!(tag:${TAG})"
+    exit 3
+else
+    echo "Deploy version: $FULLV"
+fi
+
+# To deploy the build result
+# 1. iso file
+# 2. upgrade image
+# Destination: FTP and HTPP in the build server.
+# 
+# $OSDIR/mergepoint/${BLDDIR}/tmp/deploy/images/installcd-aspen-dsi5200-yyyymmddhhmmss.iso
+# iso image to install MergePoint5200 from CDROM
+#
+# $DIR/mergepoint/${BLDDIR}/tmp/deploy/images/*.img
+# Upgrade imgae for WEB interface and DSView plug-in.
+function deploy
+{
+    SRCF=$1
+    DESTF=$2
+    echo "SRCF:${SRCF} DESTF:${DESTF}"
+    if [ -f ${DESTF} ]; then
+	echo "${DESTF} exists, back it up to ${DESTF}.bak.`date +%Y%m%d%H%M`"
+	if [ 1 = $TESTFLAG ]; then
+	    echo "mv ${DESTF} ${DESTF}.bak.`date +%Y%m%d%H%M`"
+        else
+	    mv ${DESTF} "${DESTF}.bak.`date +%Y%m%d%H%M`"
+	fi
+    fi
+    if [ "" = "${SRCF}" ]; then
+	echo "${SRCF} not found."
+	exit 4
+    else
+	if [ 1 = $TESTFLAG ]; then
+	    echo "mv ${SRCF} ${DESTF}"
+        else
+	    mv ${SRCF} ${DESTF}
+	fi
+    fi
+}
+
+function deploycopy
+{
+   SRCF=$1
+   DESTF=$2
+   echo "SRCF:${SRCF} DESTF:${DESTF}"
+   if [ -f ${DESTF} ]; then
+	echo "${DESTF} exits,back it up to ${DESTF}.bak.`date +%Y%m%d%H%M`"
+	if [ 1 = $TESTFLAG ]; then
+		echo "cp ${DESTF} ${DESTF}.bak.`date +%Y%m%d%H%M`"
+	else
+		cp ${DESTF} "${DESTF}.bak.`date +%Y%m%d%H%M`"
+	fi
+   fi
+   if [ "" = "${SRCF}" ];then
+	echo "${SRCF} not found."
+	exit 4
+   else
+	if [ 1 = $TESTFLAG ]; then
+		echo "cp ${SRCF} ${DESTF}"
+	else
+		cp ${SRCF} ${DESTF}
+	fi
+   fi
+}
+SISOFILE=`ls ${OSDIR}/mergepoint/${BLDDIR}/tmp/deploy/images/installcd-aspen-dsi5200-*.iso -1 | sed -n -e 1p`
+DFTPISO=${FTPPATH}/installcd-aspen-dsi5200-${FULLV}.iso
+DHTTPISO=${HTTPPATH}/installcd-aspen-dsi5200-${FULLV}.iso
+STUPGIMG=
+DFTPUPIMG=
+DHTTPUPIMG=
+
+if [ "" = "${SISOFILE}" ]; then
+     echo "No src for ${DFTPISO}"
+else
+     deploy ${SISOFILE} ${DFTPISO}
+fi
+
+# SROOTFS=`ls ${OSDIR}/mergepoint/${BLDDIR}/tmp/deploy/images/rootfs-unstable-*-alterpath.rootfs.ext2.gz -1 | sed -n -e 1p`
+# DROOTFS=/var/www/MergePoint/${DEPLOYSEP}rootfs.${FULLV}.ext2.gz
+# if [ "" = "${SROOTFS}" ]; then
+#     echo "No src for ${DROOTFS}"
+# else
+#     deploy ${SROOTFS} ${DROOTFS}
+# fi
+
+# SKERNEL=${OSDIR}/mergepoint/${BLDDIR}/tmp/staging/alterpath-linux/kernel/uImage
+# DKERNEL=/var/www/MergePoint/${DEPLOYSEP}uImage.${FULLV}.ext2.gz
+# if [ ! -f ${SKERNEL} ]; then
+#     echo "No ${SKERNEL}"
+# else
+#     deploy ${SKERNEL} ${DKERNEL}
+# fi

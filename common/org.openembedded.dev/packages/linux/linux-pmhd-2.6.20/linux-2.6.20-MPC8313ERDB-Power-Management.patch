@@ -1,0 +1,2033 @@
+From 7bdbafd6a3d1463a21af3c0ec3ec65c44bf99e6c Mon Sep 17 00:00:00 2001
+From: lil <tony.li@freescale.com>
+Date: Fri, 13 Apr 2007 15:13:06 +0800
+Subject: [PATCH] MPC8313ERDB Power Management support
+
+---
+ arch/powerpc/Kconfig                      |    5 +
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |   37 ++-
+ arch/powerpc/kernel/Makefile              |    3 +-
+ arch/powerpc/kernel/swsusp_32.S           |   52 +++--
+ arch/powerpc/platforms/83xx/Makefile      |    1 +
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |   15 ++
+ arch/powerpc/platforms/83xx/pm.c          |  367 +++++++++++++++++++++++++++++
+ arch/powerpc/platforms/83xx/sleep.S       |  306 ++++++++++++++++++++++++
+ arch/powerpc/platforms/83xx/timer.c       |  309 ++++++++++++++++++++++++
+ arch/powerpc/sysdev/fsl_soc.c             |   85 +++++++
+ arch/powerpc/sysdev/ipic.c                |   65 +++++
+ drivers/net/gianfar.c                     |  136 +++++++++++-
+ drivers/net/gianfar.h                     |   15 +-
+ drivers/net/gianfar_ethtool.c             |   40 +++-
+ drivers/usb/host/ehci-fsl.c               |   84 +++++++-
+ include/asm-powerpc/reg.h                 |    4 +
+ include/linux/fsl_devices.h               |   22 ++
+ 17 files changed, 1502 insertions(+), 44 deletions(-)
+ create mode 100644 arch/powerpc/platforms/83xx/pm.c
+ create mode 100644 arch/powerpc/platforms/83xx/sleep.S
+ create mode 100644 arch/powerpc/platforms/83xx/timer.c
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index 02c360f..74bd263 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -118,6 +118,11 @@ config DEFAULT_UIMAGE
+ 	  Used to allow a board to specify it wants a uImage built by default
+ 	default n
+ 
++config PPC_SUSPEND
++	bool
++	depends on SOFTWARE_SUSPEND || (PPC_83xx && PM)
++	default y
++
+ menu "Processor support"
+ choice
+ 	prompt "Processor Type"
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+index 2476252..bd71fe9 100644
+--- a/arch/powerpc/boot/dts/mpc8313erdb.dts
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -70,6 +70,26 @@
+ 			interrupt-parent = <700>;
+ 			dfsrr;
+ 		};
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
++		};
++                                                                                                                     
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "mpc83xx";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++			allow-direct-device-sleep;
++			deep-sleep;
++		};
+ 
+ 		i2c@3100 {
+ 			device_type = "i2c";
+@@ -128,7 +148,7 @@
+ 
+ 		ethernet@24000 {
+ 			device_type = "network";
+-			model = "TSEC";
++			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <24000 1000>;
+ 			address = [ 00 00 00 00 00 00 ];
+@@ -137,13 +157,14 @@
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452001>;
+ 			sleep = <b00 1 8 20000000 0>;
++			has-magic-packet;
+ 		};
+ 
+ 		ethernet@25000 {
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+ 			device_type = "network";
+-			model = "TSEC";
++			model = "eTSEC";
+ 			compatible = "gianfar";
+ 			reg = <25000 1000>;
+ 			address = [ 00 00 00 00 00 00 ];
+@@ -152,6 +173,7 @@
+ 			interrupt-parent = <700>;
+ 			phy-handle = <2452004>;
+ 			sleep = <b00 1 8 10000000 0>;
++			has-magic-packet;
+ 		};
+ 
+ 		serial@4500 {
+@@ -245,17 +267,6 @@
+ 			interrupt-parent = <700>;
+ 			allow-direct-device-sleep;
+ 		};
+-
+-		power@b00 {
+-			linux,phandle = <b00>;
+-			device_type = "power";
+-			compatible = "mpc831x\0mpc83xx";
+-			reg = <b00 100
+-			       a00 100>;
+-			interrupts = <50 8>;
+-			interrupt-parent = <700>;
+-			allow-direct-device-sleep;
+-		};
+ 	};
+ };
+ 
+diff --git a/arch/powerpc/kernel/Makefile b/arch/powerpc/kernel/Makefile
+index d2ded19..59845af 100644
+--- a/arch/powerpc/kernel/Makefile
++++ b/arch/powerpc/kernel/Makefile
+@@ -35,7 +35,8 @@ obj-$(CONFIG_GENERIC_TBSYNC)	+= smp-tbsync.o
+ obj-$(CONFIG_CRASH_DUMP)	+= crash_dump.o
+ obj-$(CONFIG_6xx)		+= idle_6xx.o l2cr_6xx.o cpu_setup_6xx.o
+ obj-$(CONFIG_TAU)		+= tau_6xx.o
+-obj32-$(CONFIG_SOFTWARE_SUSPEND) += swsusp_32.o
++obj32-$(CONFIG_PPC_SUSPEND)	+= swsusp_32.o
++#obj32-$(CONFIG_SOFTWARE_SUSPEND) += swsusp_32.o
+ obj32-$(CONFIG_MODULES)		+= module_32.o
+ 
+ ifeq ($(CONFIG_PPC_MERGE),y)
+diff --git a/arch/powerpc/kernel/swsusp_32.S b/arch/powerpc/kernel/swsusp_32.S
+index 69e8f86..bb27068 100644
+--- a/arch/powerpc/kernel/swsusp_32.S
++++ b/arch/powerpc/kernel/swsusp_32.S
+@@ -40,8 +40,14 @@ _GLOBAL(swsusp_save_area)
+ 	.section .text
+ 	.align	5
+ 
++#ifdef CONFIG_SOFTWARE_SUSPEND
+ _GLOBAL(swsusp_arch_suspend)
++	lis	r3,swsusp_save@h
++	ori	r3,r3,swsusp_save@l
++#endif
+ 
++	/* r3 is the function to call after state has been saved. */
++_GLOBAL(do_suspend)
+ 	lis	r11,swsusp_save_area@h
+ 	ori	r11,r11,swsusp_save_area@l
+ 
+@@ -64,8 +70,8 @@ _GLOBAL(swsusp_arch_suspend)
+ 	stw	r4,SL_TB(r11)
+ 	mftb	r5
+ 	stw	r5,SL_TB+4(r11)
+-	mftbu	r3
+-	cmpw	r3,r4
++	mftbu	r6
++	cmpw	r6,r4
+ 	bne	1b
+ 
+ 	/* Save SPRGs */
+@@ -119,7 +125,8 @@ _GLOBAL(swsusp_arch_suspend)
+ 	/* Call the low level suspend stuff (we should probably have made
+ 	 * a stackframe...
+ 	 */
+-	bl	swsusp_save
++	mtctr	r3
++	bctrl
+ 
+ 	/* Restore LR from the save area */
+ 	lis	r11,swsusp_save_area@h
+@@ -129,7 +136,7 @@ _GLOBAL(swsusp_arch_suspend)
+ 
+ 	blr
+ 
+-
++#ifdef CONFIG_SOFTWARE_SUSPEND
+ /* Resume code */
+ _GLOBAL(swsusp_arch_resume)
+ 
+@@ -211,7 +218,14 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+ 	addi	r3,r3,0x0020
+ 	bdnz	1b
+ 	sync
++	
++	li	r3, 0
++#endif
+ 
++	/* r3 = nonzero if the MMU is completely disabled and BATs
++	 * may be restored, zero otherwise.
++	 */
++_GLOBAL(do_resume)
+ 	/* Ok, we are now running with the kernel data of the old
+ 	 * kernel fully restored. We can get to the save area
+ 	 * easily now. As for the rest of the code, it assumes the
+@@ -242,7 +256,9 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+ 	lwz	r4,SL_SPRG0+12(r11)
+ 	mtsprg	3,r4
+ 
+-#if 0
++	cmpw	r3, 0
++	beq	1f
++
+ 	lwz	r4,SL_DBAT0(r11)
+ 	mtdbatu	0,r4
+ 	lwz	r4,SL_DBAT0+4(r11)
+@@ -275,8 +291,8 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+ 	mtibatu	3,r4
+ 	lwz	r4,SL_IBAT3+4(r11)
+ 	mtibatl	3,r4
+-#endif
+ 
++1:
+ BEGIN_FTR_SECTION
+ 	li	r4,0
+ 	mtspr	SPRN_DBAT4U,r4
+@@ -306,8 +322,16 @@ END_FTR_SECTION_IFSET(CPU_FTR_HAS_HIGH_BATS)
+ 
+ 	/* restore the MSR and turn on the MMU */
+ 	lwz	r3,SL_MSR(r11)
+-	bl	turn_on_mmu
+-	tovirt(r11,r11)
++	lis	r4,1f@h
++	ori	r4,r4,1f@l
++
++	mtsrr0	r4
++	mtsrr1	r3
++	sync
++	isync
++	rfi
++
++1:	tovirt(r11,r11)
+ 
+ 	/* Restore TB */
+ 	li	r3,0
+@@ -334,15 +358,3 @@ END_FTR_SECTION_IFSET(CPU_FTR_HAS_HIGH_BATS)
+ 
+ 	li	r3,0
+ 	blr
+-
+-/* FIXME:This construct is actually not useful since we don't shut
+- * down the instruction MMU, we could just flip back MSR-DR on.
+- */
+-turn_on_mmu:
+-	mflr	r4
+-	mtsrr0	r4
+-	mtsrr1	r3
+-	sync
+-	isync
+-	rfi
+-
+diff --git a/arch/powerpc/platforms/83xx/Makefile b/arch/powerpc/platforms/83xx/Makefile
+index 0b732a7..8412cd5 100644
+--- a/arch/powerpc/platforms/83xx/Makefile
++++ b/arch/powerpc/platforms/83xx/Makefile
+@@ -3,6 +3,7 @@
+ #
+ obj-y				:= misc.o
+ obj-$(CONFIG_PCI)		+= pci.o
++obj-$(CONFIG_PM)		+= pm.o sleep.o timer.o
+ obj-$(CONFIG_MPC8313_RDB)	+= mpc8313_rdb.o
+ obj-$(CONFIG_MPC834x_SYS)	+= mpc834x_sys.o
+ obj-$(CONFIG_MPC834x_ITX)	+= mpc834x_itx.o
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+index 39ee0c6..dfd102c 100644
+--- a/arch/powerpc/platforms/83xx/mpc8313_rdb.c
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -186,6 +186,21 @@ static int __init mpc8313_rdb_probe(void)
+ 	return 1;
+ }
+ 
++static struct of_device_id mpc831x_soc_ids[] = {
++	{ .type = "soc", },
++	{},
++};
++
++static int __init mpc831x_declare_of_platform_devices(void)
++{
++	if (!machine_is(mpc8313_rdb))
++		return 0;
++
++	of_platform_bus_probe(NULL, mpc831x_soc_ids, NULL);
++		return 0;
++}
++device_initcall(mpc831x_declare_of_platform_devices);
++
+ #if 0
+ #ifdef CONFIG_RTC_CLASS
+ late_initcall(rtc_class_hookup);
+diff --git a/arch/powerpc/platforms/83xx/pm.c b/arch/powerpc/platforms/83xx/pm.c
+new file mode 100644
+index 0000000..6ee6ba1
+--- /dev/null
++++ b/arch/powerpc/platforms/83xx/pm.c
+@@ -0,0 +1,367 @@
++/*
++ * arch/powerpc/platforms/83xx/pm.c
++ *
++ * MPC83xx Power Management support
++ *
++ * Author: Scott Wood <scottwood@freescale.com>
++ *
++ * Copyright (c) 2006 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++
++#include <linux/init.h>
++#include <linux/pm.h>
++#include <linux/types.h>
++#include <linux/ioport.h>
++#include <linux/interrupt.h>
++#include <linux/wait.h>
++#include <linux/kthread.h>
++#include <linux/freezer.h>
++
++#include <asm/prom.h>
++#include <asm/reg.h>
++#include <asm/io.h>
++#include <asm/time.h>
++
++#include <sysdev/fsl_soc.h>
++
++#define PMCCR1_NEXT_STATE       0x0C /* Next state for power management */
++#define PMCCR1_NEXT_STATE_SHIFT 2
++#define PMCCR1_CURR_STATE       0x03 /* Current state for power management*/
++#define IMMR_RCW_OFFSET         0x900
++#define RCW_PCI_HOST            0x80000000
++
++void mpc83xx_enter_sleep(void);
++void mpc83xx_enter_deep_sleep(phys_addr_t immrbase);
++int mpc83xx_change_state(void);
++void mpc83xx_set_agent(void);
++extern void mpc831x_clear_pme(void);
++extern void mpc83xx_pm_enable_pme(void);
++extern void mpc83xx_pm_assert_pme(void);
++
++struct mpc83xx_pmc {
++	u32 config;
++#define PMCCR_DLPEN 2 /* DDR SDRAM low power enable */
++#define PMCCR_SLPEN 1 /* System low power enable */
++
++	u32 event;
++	u32 mask;
++/* All but PMCI are deep-sleep only */
++#define PMCER_GPIO   0x100
++#define PMCER_PCI    0x080
++#define PMCER_USB    0x040
++#define PMCER_ETSEC1 0x020
++#define PMCER_ETSEC2 0x010
++#define PMCER_TIMER  0x008
++#define PMCER_INT1   0x004
++#define PMCER_INT2   0x002
++#define PMCER_PMCI   0x001
++#define PMCER_ALL    0x1FF
++
++	/* deep-sleep only */
++	u32 config1;
++#define PMCCR1_USE_STATE  0x80000000
++#define PMCCR1_PME_EN     0x080
++#define PMCCR1_ASSERT_PME 0x040
++#define PMCCR1_POWER_OFF  0x20
++
++	/* deep-sleep only */
++	u32 config2;
++};
++
++struct mpc83xx_rcw {
++	u32 rcwlr;
++	u32 rcwhr;
++};
++
++static int has_deep_sleep, deep_sleeping;
++static int pmc_irq;
++static struct mpc83xx_pmc __iomem *pmc_regs;
++static struct mpc83xx_rcw __iomem *rcw_regs;
++static u32 __iomem *syscfg_regs;
++static int is_pci_agent, wake_from_pci;
++static phys_addr_t immrbase;
++static int pci_pm_state;
++static DECLARE_WAIT_QUEUE_HEAD(agent_wq);
++
++int fsl_deep_sleep(void)
++{
++	return deep_sleeping;
++}
++
++static irqreturn_t pmc_irq_handler(int irq, void *dev_id)
++{
++#ifdef CONFIG_PCI
++	u32 reg_er = 0, pci_host = 0;
++#endif
++	u32 event = in_be32(&pmc_regs->event);
++	int ret = IRQ_NONE;
++
++	if (mpc83xx_change_state())
++		ret = IRQ_HANDLED;
++
++	if (event) {
++		pr_debug("83xx/pm.c: Wake event %x\n", event);
++
++		/* Clear the events */
++		out_be32(&pmc_regs->event, event);
++		ret = IRQ_HANDLED;
++	}
++
++	return ret;
++}
++
++int mpc83xx_change_state(void)
++{
++	u32 curr_state;
++	u32 reg_cfg1 = in_be32(&pmc_regs->config1);
++
++	if (is_pci_agent) {
++		pci_pm_state = (reg_cfg1 & PMCCR1_NEXT_STATE) >>
++		               PMCCR1_NEXT_STATE_SHIFT;
++		curr_state = reg_cfg1 & PMCCR1_CURR_STATE;
++
++		if (curr_state != pci_pm_state) {
++			reg_cfg1 &= ~PMCCR1_CURR_STATE;
++			reg_cfg1 |= pci_pm_state;
++			out_be32(&pmc_regs->config1, reg_cfg1);
++
++			wake_up(&agent_wq);
++			return 1;
++		}
++	}
++
++	return 0;
++}
++
++static int mpc83xx_pm_suspend(void)
++{
++	int ret = -EAGAIN;
++
++	/* Don't go to sleep if there's a race where pci_pm_state changes
++	 * between the agent thread checking it and the PM code disabling
++	 * interrupts.
++	 */
++	if (wake_from_pci) {
++		if (pci_pm_state != (deep_sleeping ? 3 : 2))
++			goto out;
++
++		out_be32(&pmc_regs->config1,
++		         in_be32(&pmc_regs->config1) | PMCCR1_PME_EN);
++	}
++
++	/* The 8313 has a problem properly entering deep sleep when a
++	 * decrementer interrupt is pending.  To avoid this, the
++	 * timebase is stopped, and the decrementer read.  If the
++	 * decrementer is negative (i.e. an interrupt is pending),
++	 * then the timebase is turned back on and the suspend
++	 * is aborted.
++	 */
++	if (deep_sleeping) {
++		out_be32(&syscfg_regs[4],
++		         in_be32(&syscfg_regs[4]) & ~0x400000);
++
++		if ((s32)get_dec() < 0) {
++			out_be32(&syscfg_regs[4],
++			         in_be32(&syscfg_regs[4]) | 0x400000);
++
++			goto out;
++		}
++	}
++
++	/* Put the system into low-power mode and the RAM
++	 * into self-refresh mode once the core goes to
++	 * sleep.
++	 */
++
++	out_be32(&pmc_regs->config, PMCCR_SLPEN | PMCCR_DLPEN);
++
++	/* If it has deep sleep (i.e. it's an 831x or compatible),
++	 * disable power to the core upon entering sleep mode.  This will
++	 * require going through the boot firmware upon a wakeup event.
++	 */
++
++	if (deep_sleeping) {
++		/* FIXME: make wake events configurable */
++		out_be32(&pmc_regs->mask, PMCER_PMCI |
++		                          PMCER_USB |
++		                          PMCER_ETSEC1 |
++		                          PMCER_ETSEC2 |
++		                          PMCER_GPIO |
++		                          PMCER_TIMER |
++		                          PMCER_PCI);
++
++		out_be32(&pmc_regs->config1,
++		         in_be32(&pmc_regs->config1) | PMCCR1_POWER_OFF);
++
++		enable_kernel_fp();
++
++		mpc83xx_enter_deep_sleep(immrbase);
++
++		out_be32(&pmc_regs->config1,
++		         in_be32(&pmc_regs->config1) & ~PMCCR1_POWER_OFF);
++
++		out_be32(&pmc_regs->mask, PMCER_PMCI);
++
++		out_be32(&syscfg_regs[4],
++		         in_be32(&syscfg_regs[4]) | 0x400000);
++		deep_sleeping = 0;
++	} else {
++		out_be32(&pmc_regs->mask, PMCER_PMCI);
++
++		mpc83xx_enter_sleep();
++	}
++
++	ret = 0;
++
++out:
++	out_be32(&pmc_regs->config1,
++	         in_be32(&pmc_regs->config1) & ~PMCCR1_PME_EN);
++
++	return ret;
++}
++
++static int mpc83xx_pm_prepare(suspend_state_t state)
++{
++	switch (state) {
++		case PM_SUSPEND_STANDBY:
++			deep_sleeping = 0;
++			return 0;
++
++		case PM_SUSPEND_MEM:
++			if (has_deep_sleep)
++				deep_sleeping = 1;
++
++			return 0;
++
++		case PM_SUSPEND_DISK:
++			return -ENOTSUPP;
++
++		default:
++			return -EINVAL;
++	}
++}
++
++static int mpc83xx_pm_enter(suspend_state_t state)
++{
++	switch (state) {
++		case PM_SUSPEND_STANDBY:
++		case PM_SUSPEND_MEM:
++			return mpc83xx_pm_suspend();
++
++		case PM_SUSPEND_DISK:
++			return -ENOTSUPP;
++
++		default:
++			return -EINVAL;
++	}
++}
++
++void mpc83xx_pm_assert_pme(void)
++{
++	if (is_pci_agent)
++		out_be32(&pmc_regs->config1,
++		         in_be32(&pmc_regs->config1) | PMCCR1_ASSERT_PME);
++}
++
++static int agent_thread_fn(void *data)
++{
++	while (1) {
++		wait_event_interruptible(agent_wq, pci_pm_state >= 2);
++		try_to_freeze();
++
++		if (signal_pending(current) || pci_pm_state < 2)
++			continue;
++
++		/* With a preemptible kernel (or SMP), this could race with a
++		 * userspace-driven suspend request.  It's probably best to
++		 * avoid mixing the two with such a configuration (or else fix
++		 * it by adding a mutex to state_store that we can synchronize
++		 * with).
++		 */
++
++		wake_from_pci = 1;
++
++		pm_suspend(pci_pm_state == 3 ? PM_SUSPEND_MEM :
++		                               PM_SUSPEND_STANDBY);
++
++		wake_from_pci = 0;
++	}
++
++	return 0;
++}
++
++void mpc83xx_set_agent(void)
++{
++	out_be32(&pmc_regs->config1, PMCCR1_USE_STATE);
++	out_be32(&pmc_regs->mask, PMCER_PMCI);
++
++	kthread_run(agent_thread_fn, NULL, "PCI power mgt");
++	is_pci_agent = 1;
++}
++
++static struct pm_ops mpc83xx_pm_ops = {
++	.pm_disk_mode = 0,
++	.prepare = mpc83xx_pm_prepare,
++	.enter = mpc83xx_pm_enter,
++};
++
++static int __init pmc_init(void)
++{
++	struct device_node *np;
++	struct resource res;
++	const char *deep_sleep_prop;
++	int ret = 0;
++
++	np = of_find_compatible_node(NULL, "power", "mpc83xx");
++	if (!np)
++		return -ENODEV;
++
++	deep_sleep_prop = get_property(np, "deep-sleep", NULL);
++	if (deep_sleep_prop) {
++		has_deep_sleep = 1;
++		immrbase = get_immrbase();
++	}
++
++	ret = of_address_to_resource(np, 0, &res);
++	if (ret)
++		goto out;
++
++	pmc_irq = irq_of_parse_and_map(np, 0);
++	if (pmc_irq == NO_IRQ) {
++		printk(KERN_ERR "PMC exists in device tree without IRQ\n");
++		ret = -ENODEV;
++		goto out;
++	}
++
++	ret = request_irq(pmc_irq, pmc_irq_handler, 0, "power", NULL);
++	if (ret)
++		goto out;
++
++	pmc_regs = (struct mpc83xx_pmc *)ioremap(res.start,
++	                                         sizeof(struct mpc83xx_pmc));
++
++	if (!pmc_regs) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	syscfg_regs = ioremap(get_immrbase() + 0x100, 0x100);
++
++	pm_set_ops(&mpc83xx_pm_ops);
++
++	rcw_regs = ioremap(get_immrbase() + IMMR_RCW_OFFSET,
++	                   sizeof(struct mpc83xx_rcw));
++
++	if (!(in_be32(&rcw_regs->rcwhr) & RCW_PCI_HOST))
++		mpc83xx_set_agent();
++
++out:
++	of_node_put(np);
++	return ret;
++}
++
++module_init(pmc_init);
+diff --git a/arch/powerpc/platforms/83xx/sleep.S b/arch/powerpc/platforms/83xx/sleep.S
+new file mode 100644
+index 0000000..43e8922
+--- /dev/null
++++ b/arch/powerpc/platforms/83xx/sleep.S
+@@ -0,0 +1,306 @@
++/*
++ * arch/powerpc/platforms/83xx/sleep.S
++ *
++ * Enter and leave sleep state on MPC83xx
++ *
++ * Author: Scott Wood <scottwood@freescale.com>
++ *
++ * Copyright (c) 2006 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++
++#include <asm/page.h>
++#include <asm/ppc_asm.h>
++#include <asm/reg.h>
++
++#define SS_MEMSAVE	0x00
++#define SS_HID		0x08 /* 3 HIDs */
++#define SS_IABR		0x14 /* 2 IABRs */
++#define SS_IBCR		0x1c
++#define SS_DABR		0x20 /* 2 DABRs */
++#define SS_DBCR		0x28
++#define SS_SR		0x2c /* 16 sgement registers */
++#define STATE_SAVE_SIZE 0x6c
++
++	.section .data
++	.align	5
++
++mpc83xx_sleep_save_area:
++	.space	STATE_SAVE_SIZE
++immrbase:
++	.long	0
++
++	.section .text
++	.align	5
++
++	/* r3 = physical address of IMMR */
++_GLOBAL(mpc83xx_enter_deep_sleep)
++	/* Re-use the state saving/restoring code in
++	 * arch/powerpc/kernel/swsusp_32.S, but have
++	 * it call us instead of swsusp_save.
++	 */
++
++	lis	r4, immrbase@ha
++	stw	r3, immrbase@l(r4)
++
++	lis	r3, mpc83xx_do_enter_deep_sleep@h
++	ori	r3, r3, mpc83xx_do_enter_deep_sleep@l
++	b	do_suspend
++
++mpc83xx_do_enter_deep_sleep:
++	/* The first 2 words of memory are used to communicate with the
++	 * bootloader, to tell it how to resume.
++	 *
++	 * The first word is the magic number 0xf5153ae5, and the second
++	 * is the pointer to mpc83xx_deep_resume.
++	 *
++	 * The original content of these two words is saved in the state
++	 * save area.
++	 */
++
++	lis	r3, mpc83xx_sleep_save_area@h
++	ori	r3, r3, mpc83xx_sleep_save_area@l
++
++	lis	r4, KERNELBASE@h
++	lwz	r5, 0(r4)
++	lwz	r6, 4(r4)
++
++	stw	r5, SS_MEMSAVE+0(r3)
++	stw	r6, SS_MEMSAVE+4(r3)
++
++	mfspr	r5, SPRN_HID0
++	mfspr	r6, SPRN_HID1
++	mfspr	r7, SPRN_HID2
++
++	stw	r5, SS_HID+0(r3)
++	stw	r6, SS_HID+4(r3)
++	stw	r7, SS_HID+8(r3)
++
++	mfspr	r4, SPRN_IABR
++	mfspr	r5, SPRN_IABR2
++	mfspr	r6, SPRN_IBCR
++	mfspr	r7, SPRN_DABR
++	mfspr	r8, SPRN_DABR2
++	mfspr	r9, SPRN_DBCR
++
++	stw	r4, SS_IABR+0(r3)
++	stw	r5, SS_IABR+4(r3)
++	stw	r6, SS_IBCR(r3)
++	stw	r7, SS_DABR+0(r3)
++	stw	r8, SS_DABR+4(r3)
++	stw	r9, SS_DBCR(r3)
++
++	li	r4, 0
++	addi	r6, r3, SS_SR-4
++1:	mfsrin	r5, r4
++	stwu	r5, 4(r6)
++	addis	r4, r4, 0x1000
++	cmpwi	r4, 0
++	bne	1b
++
++	lis	r6, 0xf515
++	ori	r6, r6, 0x3ae5
++
++	lis	r7, mpc83xx_deep_resume@h
++	ori	r7, r7, mpc83xx_deep_resume@l
++	tophys(r7, r7)
++
++	lis	r5, KERNELBASE@h
++	stw	r6, 0(r5)
++	stw	r7, 4(r5)
++
++	bl	__flush_disable_L1
++
++	/* Disable machine checks and critical exceptions */
++	mfmsr	r4
++	li	r5, 0x1080	/* ME, CE */
++	andc	r4, r4, r5
++	mtmsr	r4
++	isync
++
++	mfspr	r3, SPRN_HID0
++	ori	r3, r3, HID0_ICE
++	ori	r4, r3, HID0_ICFI
++	isync
++	mtspr	SPRN_HID0, r4
++	mtspr	SPRN_HID0, r3
++	isync
++
++#define	TMP_VIRT_IMMR		0xf0000000
++#define DEFAULT_IMMR_VALUE	0xff400000
++#define IMMRBAR_BASE		0x0000
++
++	lis	r4, immrbase@ha
++	lwz	r4, immrbase@l(r4)
++
++	/* Use DBAT0 to address the current IMMR space */
++
++	ori	r4, r4, 0x002a
++	mtspr	SPRN_DBAT0L, r4
++	lis	r8, TMP_VIRT_IMMR@h
++	ori	r4, r8, 0x001e	/* 1 MByte accessable from Kernel Space only */
++	mtspr	SPRN_DBAT0U, r4
++	isync
++
++	/* Use DBAT1 to address the original IMMR space */
++
++	lis	r4, DEFAULT_IMMR_VALUE@h
++	ori	r4, r4, 0x002a
++	mtspr	SPRN_DBAT1L, r4
++	lis	r9, (TMP_VIRT_IMMR + 0x01000000)@h
++	ori	r4, r9, 0x001e	/* 1 MByte accessable from Kernel Space only */
++	mtspr	SPRN_DBAT1U, r4
++	isync
++
++	/* Reset BARs */
++
++	li	r4, 0
++	stw	r4, 0x0024(r8)
++	stw	r4, 0x002c(r8)
++	stw	r4, 0x0034(r8)
++	stw	r4, 0x003c(r8)
++	stw	r4, 0x0064(r8)
++	stw	r4, 0x006c(r8)
++
++	/* The 8313 has problems with PMC interrupts that are pending
++	 * during the transition to deep sleep state (such as if the
++	 * host sets the state to D3 and then D0 in rapid succession).
++	 * This check shrinks the race window somewhat.
++	 */
++
++	lwz	r3, 0x0b04(r8)
++	andi.	r3, r3, 1
++	bne-	mpc83xx_deep_resume
++
++	/* Move IMMR back to the default location,
++	 * following the procedure specified in the
++	 * MPC8313 manual.
++	 */
++	lwz	r4, IMMRBAR_BASE(r8)
++	isync
++	lis	r4, DEFAULT_IMMR_VALUE@h
++	stw	r4, IMMRBAR_BASE(r8)
++	lis	r4, KERNELBASE@h
++	lwz	r4, 0(r4)
++	isync
++	lwz	r4, IMMRBAR_BASE(r9)
++	mr	r8, r9
++	isync
++
++	/* Check the Reset Configuration Word to see whether flash needs
++	 * to be mapped at a low address or a high address.
++	 */
++
++	lwz	r4, 0x0904(r8)
++	andis.	r4, r4, 0x0400
++	li	r4, 0
++	beq	boot_low
++	lis	r4, 0xff80
++boot_low:
++	stw	r4, 0x0020(r8)
++	lis	r7, 0x8000
++	ori	r7, r7, 0x0016
++
++	mfspr	r5, SPRN_HID0
++	rlwinm	r5, r5, 0, 10, 7 /* Clear DOZE and NAP modes */
++	oris	r5, r5, HID0_SLEEP@h
++	mtspr	SPRN_HID0, r5
++	isync
++
++	mfmsr	r5
++	oris	r5, r5, MSR_POW@h
++
++	/* Enable the flash mapping at the appropriate address.  This
++	 * mapping will override the RAM mapping, so there's no need to
++	 * disable the latter.  This must be done inside the same cache
++	 * line as setting MSR_POW, so that no instruction fetches from
++	 * RAM happen after the flash mapping is turned on.
++	 */
++
++	.align	5
++	stw	r7, 0x0024(r8)
++	sync
++	isync
++	mtmsr	r5
++	isync
++1:	b	1b
++
++mpc83xx_deep_resume:
++	lis	r4, 1f@h
++	ori	r4, r4, 1f@l
++	tophys(r4, r4)
++	mtsrr0	r4
++
++	mfmsr	r4
++	rlwinm	r4, r4, 0, 28, 25 /* Turn off IMMU, DMMU */
++	mtsrr1	r4
++
++	rfi
++1:	bl	__inval_enable_L1
++
++	lis	r3, mpc83xx_sleep_save_area@h
++	ori	r3, r3, mpc83xx_sleep_save_area@l
++	tophys(r3, r3)
++
++	lwz	r5, SS_MEMSAVE+0(r3)
++	lwz	r6, SS_MEMSAVE+4(r3)
++
++	stw	r5, 0(0)
++	stw	r6, 4(0)
++
++	lwz	r5, SS_HID+0(r3)
++	lwz	r6, SS_HID+4(r3)
++	lwz	r7, SS_HID+8(r3)
++
++	mtspr	SPRN_HID0, r5
++	mtspr	SPRN_HID1, r6
++	mtspr	SPRN_HID2, r7
++
++	lwz	r4, SS_IABR+0(r3)
++	lwz	r5, SS_IABR+4(r3)
++	lwz	r6, SS_IBCR(r3)
++	lwz	r7, SS_DABR+0(r3)
++	lwz	r8, SS_DABR+4(r3)
++	lwz	r9, SS_DBCR(r3)
++
++	mtspr	SPRN_IABR, r4
++	mtspr	SPRN_IABR2, r5
++	mtspr	SPRN_IBCR, r6
++	mtspr	SPRN_DABR, r7
++	mtspr	SPRN_DABR2, r8
++	mtspr	SPRN_DBCR, r9
++
++	li	r4, 0
++	addi	r6, r3, SS_SR-4
++1:	lwzu	r5, 4(r6)
++	mtsrin	r5, r4
++	addis	r4, r4, 0x1000
++	cmpwi	r4, 0
++	bne	1b
++
++	li	r3, 1		/* BAT restore requested */
++	b	do_resume
++
++_GLOBAL(mpc83xx_enter_sleep)
++	mfspr	r5, SPRN_HID0
++	rlwinm	r5, r5, 0, 10, 7 /* Clear DOZE and NAP modes */
++	oris	r5, r5, HID0_SLEEP@h
++	mtspr	SPRN_HID0, r5
++	isync
++
++	mfmsr	r5
++	ori	r5, r5, MSR_EE
++	mtmsr	r5
++	oris	r5, r5, MSR_POW@h
++	sync
++	mtmsr	r5
++	isync
++
++	mfmsr	r5
++	rlwinm	r5, r5, 0, 17, 15 /* Clear MSR_EE */
++	mtmsr	r5
++
++	blr
+diff --git a/arch/powerpc/platforms/83xx/timer.c b/arch/powerpc/platforms/83xx/timer.c
+new file mode 100644
+index 0000000..b285c45
+--- /dev/null
++++ b/arch/powerpc/platforms/83xx/timer.c
+@@ -0,0 +1,309 @@
++/*
++ * MPC83xx Global Timer4 support
++ *
++ * This driver is currently specific to timer 4 in 16-bit mode,
++ * as that is all that can be used as a wakeup source for deep sleep
++ * on the MPC8313.
++ *
++ * Copyright (c) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/sched.h>
++#include <linux/errno.h>
++#include <linux/module.h>
++#include <linux/mm.h>
++#include <linux/delay.h>
++#include <linux/fs.h>
++#include <linux/string.h>
++#include <linux/interrupt.h>
++#include <linux/sysfs.h>
++
++#include <asm/io.h>
++#include <asm/irq.h>
++#include <asm/of_platform.h>
++
++#include <sysdev/fsl_soc.h>
++
++#define MDR_ICLK_DIV16	0x0004
++
++struct gtm_regs {
++	u8    cfr1; /* Timer1/2 Configuration  */
++	#define CFR1_PCAS 0x80 /* Pair Cascade mode  */
++	#define CFR1_BCM  0x40  /* Backward compatible mode  */
++	#define CFR1_STP2 0x20 /* Stop timer  */
++	#define CFR1_RST2 0x10 /* Reset timer  */
++	#define CFR1_GM2  0x08 /* Gate mode for pin 2  */
++	#define CFR1_GM1  0x04 /* Gate mode for pin 1  */
++	#define CFR1_STP1 0x02 /* Stop timer  */
++	#define CFR1_RST1 0x01 /* Reset timer  */
++	#define CFR1_RES ~(CFR1_PCAS | CFR1_STP2 | CFR1_RST2 | CFR1_GM2 |\
++		CFR1_GM1 | CFR1_STP1 | CFR1_RST1)
++
++	u8    res0[3];
++	u8    cfr2; /* Timer3/4 Configuration  */
++	#define CFR2_PCAS 0x80 /* Pair Cascade mode  */
++	#define CFR2_SCAS 0x40 /* Super Cascade mode  */
++	#define CFR2_STP4 0x20 /* Stop timer  */
++	#define CFR2_RST4 0x10 /* Reset timer  */
++	#define CFR2_GM4  0x08 /* Gate mode for pin 4  */
++	#define CFR2_GM3  0x04 /* Gate mode for pin 3  */
++	#define CFR2_STP3 0x02 /* Stop timer  */
++	#define CFR2_RST3 0x01 /* Reset timer  */
++
++	u8    res1[11];
++	u16   mdr1; /* Timer1 Mode Register  */
++	#define MDR_SPS  0xff00 /* Secondary Prescaler value (256) */
++	#define MDR_CE   0x00c0 /* Capture edge and enable interrupt  */
++	#define MDR_OM   0x0020 /* Output mode  */
++	#define MDR_ORI  0x0010 /* Output reference interrupt enable  */
++	#define MDR_FRR  0x0008 /* Free run/restart  */
++	#define MDR_ICLK 0x0006 /* Input clock source for the timer */
++	#define MDR_GE   0x0001 /* Gate enable  */
++
++	u16   mdr2; /* Timer2 Mode Register  */
++	u16   rfr1; /* Timer1 Reference Register  */
++	u16   rfr2; /* Timer2 Reference Register  */
++	u16   cpr1; /* Timer1 Capture Register  */
++	u16   cpr2; /* Timer2 Capture Register  */
++	u16   cnr1; /* Timer1 Counter Register  */
++	u16   cnr2; /* Timer2 Counter Register  */
++	u16   mdr3; /* Timer3 Mode Register  */
++	u16   mdr4; /* Timer4 Mode Register  */
++	u16   rfr3; /* Timer3 Reference Register  */
++	u16   rfr4; /* Timer4 Reference Register  */
++	u16   cpr3; /* Timer3 Capture Register  */
++	u16   cpr4; /* Timer4 Capture Register  */
++	u16   cnr3; /* Timer3 Counter Register  */
++	u16   cnr4; /* Timer4 Counter Register  */
++	u16   evr1; /* Timer1 Event Register  */
++	u16   evr2; /* Timer2 Event Register  */
++	u16   evr3; /* Timer3 Event Register  */
++	u16   evr4; /* Timer4 Event Register  */
++	#define GTEVR_REF 0x0002 /* Output reference event  */
++	#define GTEVR_CAP 0x0001 /* Counter Capture event   */
++	#define GTEVR_RES ~(EVR_CAP|EVR_REF)
++
++	u16   psr1; /* Timer1 Prescaler Register  */
++	u16   psr2; /* Timer2 Prescaler Register  */
++	u16   psr3; /* Timer3 Prescaler Register  */
++	u16   psr4; /* Timer4 Prescaler Register  */
++	#define GTPSR_PPS  0x00FF /* Primary Prescaler Bits (256). */
++	#define GTPSR_RES  ~(GTPSR_PPS)
++};
++
++struct gtm_priv {
++	/* Pointer to the PMC Memory Mapped Registers */
++	struct gtm_regs __iomem *regs;
++	int irq;
++	int ticks_per_sec;
++	spinlock_t lock;
++};
++
++/* Interrupt Handler for GTM */
++static irqreturn_t fsl_gtm_isr(int irq, void *dev_id)
++{
++	struct gtm_priv *priv = dev_id;
++	unsigned long flags;
++	u16 event;
++
++	spin_lock_irqsave(&priv->lock, flags);
++
++	event = in_be16(&priv->regs->evr4);
++	out_be16(&priv->regs->evr4, event);
++
++	if (event & GTEVR_REF)
++		out_8(&priv->regs->cfr2, CFR2_STP4);
++
++	spin_unlock_irqrestore(&priv->lock, flags);
++	return event ? IRQ_HANDLED : IRQ_NONE;
++}
++
++static ssize_t gtm_timeout_store(struct device *dev,
++                                 struct device_attribute *attr,
++                                 const char *buf, size_t count)
++{
++	struct gtm_priv *priv = dev_get_drvdata(dev);
++	unsigned long interval = simple_strtoul(buf, NULL, 0);
++
++	if (interval > 0xffff) {
++		printk("gtm too long\n");
++		return -EINVAL;
++	}
++
++	interval *= priv->ticks_per_sec;
++
++	if (interval > 0xffff) {
++		printk("gtm too long\n");
++		return -EINVAL;
++	}
++
++	spin_lock_irq(&priv->lock);
++
++	/* reset timer 4 */
++	out_8(&priv->regs->cfr2, CFR2_STP3 | CFR2_STP4);
++
++	if (interval != 0) {
++		out_8(&priv->regs->cfr2, CFR2_GM4 | CFR2_RST4 | CFR2_STP4);
++		/* clear events */
++		out_be16(&priv->regs->evr4, GTEVR_REF | GTEVR_CAP);
++		/* maximum primary prescale (256) */
++		out_be16(&priv->regs->psr4, GTPSR_PPS);
++		/* clear current counter */
++		out_be16(&priv->regs->cnr4, 0x0);
++		/* set count limit */
++		out_be16(&priv->regs->rfr4, interval);
++		out_be16(&priv->regs->mdr4, MDR_SPS | MDR_ORI | MDR_FRR |
++		                            MDR_ICLK_DIV16);
++		/* start timer */
++		out_8(&priv->regs->cfr2, CFR2_GM4 | CFR2_STP3 | CFR2_RST4);
++	}
++
++	spin_unlock_irq(&priv->lock);
++	return count;
++}
++
++static ssize_t gtm_timeout_show(struct device *dev,
++                                struct device_attribute *attr,
++                                char *buf)
++{
++	struct gtm_priv *priv = dev_get_drvdata(dev);
++	int timeout = 0;
++
++	spin_lock_irq(&priv->lock);
++
++	if (!(in_8(&priv->regs->cfr2) & CFR2_STP4)) {
++		timeout = in_be16(&priv->regs->rfr4) -
++		          in_be16(&priv->regs->cnr4);
++		timeout += priv->ticks_per_sec - 1;
++		timeout /= priv->ticks_per_sec;
++	}
++
++	spin_unlock_irq(&priv->lock);
++	return sprintf(buf, "%u\n", timeout);
++}
++
++static DEVICE_ATTR(timeout, 0660, gtm_timeout_show, gtm_timeout_store);
++
++static int __devinit gtm_probe(struct of_device *dev,
++                               const struct of_device_id *match)
++{
++	struct device_node *np = dev->node;
++	struct device_node *soc;
++	struct resource res;
++	int ret = 0;
++	const u32 *busfreq;
++	struct gtm_priv *priv;
++
++	soc = of_find_node_by_type(NULL, "soc");
++	if (!soc) {		
++		printk(KERN_ERR "gtm: No soc node in device tree.\n");
++		return -ENODEV;
++	}
++
++	busfreq = get_property(soc, "bus-frequency", NULL);
++	if (busfreq == 0) {
++		printk(KERN_ERR "gtm: No bus frequency in device tree.\n");
++		ret = -ENODEV;
++		goto nosoc;
++	}
++
++	priv = kmalloc(sizeof(struct gtm_priv), GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++
++	spin_lock_init(&priv->lock);
++	dev_set_drvdata(&dev->dev, priv);
++
++	ret = of_address_to_resource(np, 0, &res);
++	if (ret)
++		goto out;
++
++	priv->irq = irq_of_parse_and_map(np, 0);
++	if (priv->irq == NO_IRQ) {
++		printk(KERN_ERR "mpc83xx-gtm exists in device tree "
++		                "without an IRQ.\n");
++		ret = -ENODEV;
++		goto out;
++	}
++
++	ret = request_irq(priv->irq, fsl_gtm_isr, 0, "gtm timer", priv);
++	if (ret)
++		goto out;
++
++	priv->regs = ioremap(res.start, sizeof(struct gtm_regs));
++	if (!priv->regs) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	/* Disable the unused clocks to save power. */
++	out_8(&priv->regs->cfr1, CFR1_STP1 | CFR1_STP2);
++	out_8(&priv->regs->cfr2, CFR2_STP3 | CFR2_STP4);
++
++	/*
++	 * Maximum prescaling is used (input clock/16, 256 primary prescaler,
++	 * 256 secondary prescaler) to maximize the timer's range.  With a
++	 * bus clock of 133MHz, this yields a maximum interval of 516
++	 * seconds while retaining subsecond precision.  Since only
++	 * timer 4 is supported for wakeup on the 8313, and timer 4
++	 * is the LSB when chained, we can't use chaining to increase
++	 * the range.
++	 */
++	priv->ticks_per_sec = *busfreq / (16*256*256);
++
++	ret = device_create_file(&dev->dev, &dev_attr_timeout);
++	if (ret)
++		goto out;
++
++	of_node_put(soc);
++
++	return 0;
++
++out:
++	kfree(priv);
++nosoc:
++	of_node_put(soc);
++
++	return ret;
++}
++
++static int __devexit gtm_remove(struct of_device *dev)
++{
++	struct gtm_priv *priv = dev_get_drvdata(&dev->dev);
++
++	device_remove_file(&dev->dev, &dev_attr_timeout);
++	free_irq(priv->irq, priv);
++	iounmap(priv->regs);
++
++	dev_set_drvdata(&dev->dev, NULL);
++	kfree(priv);
++	return 0;
++}
++
++static struct of_device_id gtm_match[] = {
++	{
++		.type = "timer",
++		.compatible = "mpc83xx-gtm",
++	},
++	{},
++};
++
++static struct of_platform_driver gtm_driver = {
++	.name = "mpc83xx-gtm-timer",
++	.match_table = gtm_match,
++	.probe = gtm_probe,
++	.remove = __devexit_p(gtm_remove)
++};
++
++static int __init gtm_init(void)
++{
++	return of_register_platform_driver(&gtm_driver);
++}
++
++module_init(gtm_init);
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 26dd806..4735a0c 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -124,6 +124,84 @@ u32 get_baudrate(void)
+ EXPORT_SYMBOL(get_baudrate);
+ #endif /* CONFIG_CPM2 */
+ 
++static void __init fsl_sleep_of_init(struct fsl_sleep_platform_data *sleep,
++                                     struct device_node *node)
++{
++	int proplen;
++	u32 *sleepdata = (u32 *)get_property(node, "sleep", &proplen);
++	struct device_node *sleep_controller;
++	struct resource res;
++	
++	if (!sleepdata || proplen != 20)
++		return;
++	
++	sleep_controller = of_find_node_by_phandle(sleepdata[0]);
++	if (!sleep_controller)
++		return;
++
++	if (!get_property(sleep_controller, "allow-direct-device-sleep", NULL))
++		goto out;
++	
++	if (of_address_to_resource(sleep_controller, sleepdata[1], &res))
++		goto out;
++
++	if (!(res.flags & IORESOURCE_MEM))
++		goto out;
++	
++	if (sleepdata[2] > res.end - res.start ||
++	    sleepdata[2] + 3 > res.end - res.start)
++		goto out;
++	
++	sleep->reg = (u32 *)ioremap(res.start + sleepdata[2], 4);
++	sleep->mask = sleepdata[3];
++	sleep->val = sleepdata[4];
++
++out:
++	of_node_put(sleep_controller);
++}
++
++static DEFINE_SPINLOCK(device_sleep_lock);
++
++u32 fsl_sleep_device(struct fsl_sleep_platform_data *data)
++{
++	u32 ret = 0;
++
++	if (data->reg) {
++		unsigned long flags;
++		u32 sleep_reg;
++
++		spin_lock_irqsave(&device_sleep_lock, flags);
++		ret = sleep_reg = in_be32(data->reg);
++
++		sleep_reg &= ~data->mask;
++		sleep_reg |= data->val;
++
++		out_be32(data->reg, sleep_reg);
++		spin_unlock_irqrestore(&device_sleep_lock, flags);
++	}
++	
++	return ret;
++}
++EXPORT_SYMBOL(fsl_sleep_device);
++
++void fsl_wake_device(struct fsl_sleep_platform_data *data, u32 saved_reg)
++{
++	if (data->reg) {
++		unsigned long flags;
++		u32 sleep_reg;
++
++		spin_lock_irqsave(&device_sleep_lock, flags);
++		sleep_reg = in_be32(data->reg);
++
++		sleep_reg &= ~data->mask;
++		sleep_reg |= (saved_reg & data->mask);
++
++		out_be32(data->reg, sleep_reg);
++		spin_unlock_irqrestore(&device_sleep_lock, flags);
++	}
++}
++EXPORT_SYMBOL(fsl_wake_device);
++
+ static int __init gfar_mdio_of_init(void)
+ {
+ 	struct device_node *np;
+@@ -270,6 +348,9 @@ static int __init gfar_of_init(void)
+ 		ph = get_property(np, "phy-handle", NULL);
+ 		phy = of_find_node_by_phandle(*ph);
+ 
++		if (get_property(np, "has-magic-packet", NULL))
++			gfar_data.device_flags |= FSL_GIANFAR_DEV_HAS_MAGIC_PACKET;
++
+ 		if (phy == NULL) {
+ 			ret = -ENODEV;
+ 			goto unreg;
+@@ -291,6 +372,8 @@ static int __init gfar_of_init(void)
+ 		of_node_put(phy);
+ 		of_node_put(mdio);
+ 
++		fsl_sleep_of_init(&gfar_data.sleep, np);
++
+ 		ret =
+ 		    platform_device_add_data(gfar_dev, &gfar_data,
+ 					     sizeof(struct
+@@ -490,6 +573,8 @@ static int __init fsl_usb_of_init(void)
+ 		prop = get_property(np, "phy_type", NULL);
+ 		usb_data.phy_mode = determine_usb_phy(prop);
+ 
++		fsl_sleep_of_init(&usb_data.sleep, np);
++
+ 		ret =
+ 		    platform_device_add_data(usb_dev_mph, &usb_data,
+ 					     sizeof(struct
+diff --git a/arch/powerpc/sysdev/ipic.c b/arch/powerpc/sysdev/ipic.c
+index 746f78c..2e57615 100644
+--- a/arch/powerpc/sysdev/ipic.c
++++ b/arch/powerpc/sysdev/ipic.c
+@@ -724,8 +724,73 @@ unsigned int ipic_get_irq(void)
+ 	return irq_linear_revmap(primary_ipic->irqhost, irq);
+ }
+ 
++#ifdef CONFIG_PM
++static struct {
++	u32 sicfr;
++	u32 siprr[2];
++	u32 simsr[2];
++	u32 sicnr;
++	u32 smprr[2];
++	u32 semsr;
++	u32 secnr;
++	u32 sermr;
++	u32 sercr;
++} ipic_saved_state;
++
++static int ipic_suspend(struct sys_device *sdev, pm_message_t state)
++{
++	struct ipic *ipic = primary_ipic;
++
++	ipic_saved_state.sicfr = ipic_read(ipic->regs, IPIC_SICFR);
++	ipic_saved_state.siprr[0] = ipic_read(ipic->regs, IPIC_SIPRR_A);
++	ipic_saved_state.siprr[1] = ipic_read(ipic->regs, IPIC_SIPRR_D);
++	ipic_saved_state.simsr[0] = ipic_read(ipic->regs, IPIC_SIMSR_H);
++	ipic_saved_state.simsr[1] = ipic_read(ipic->regs, IPIC_SIMSR_L);
++	ipic_saved_state.sicnr = ipic_read(ipic->regs, IPIC_SICNR);
++	ipic_saved_state.smprr[0] = ipic_read(ipic->regs, IPIC_SMPRR_A);
++	ipic_saved_state.smprr[1] = ipic_read(ipic->regs, IPIC_SMPRR_B);
++	ipic_saved_state.semsr = ipic_read(ipic->regs, IPIC_SEMSR);
++	ipic_saved_state.secnr = ipic_read(ipic->regs, IPIC_SECNR);
++	ipic_saved_state.sermr = ipic_read(ipic->regs, IPIC_SERMR);
++	ipic_saved_state.sercr = ipic_read(ipic->regs, IPIC_SERCR);
++
++	if (fsl_deep_sleep()) {
++		ipic_write(ipic->regs, IPIC_SIMSR_H, 0);
++		ipic_write(ipic->regs, IPIC_SIMSR_L, 0);
++		ipic_write(ipic->regs, IPIC_SEMSR, 0);
++		ipic_write(ipic->regs, IPIC_SERMR, 0);
++	}
++
++	return 0;
++}
++
++static int ipic_resume(struct sys_device *sdev)
++{
++	struct ipic *ipic = primary_ipic;
++
++	ipic_write(ipic->regs, IPIC_SICFR, ipic_saved_state.sicfr);
++	ipic_write(ipic->regs, IPIC_SIPRR_A, ipic_saved_state.siprr[0]);
++	ipic_write(ipic->regs, IPIC_SIPRR_D, ipic_saved_state.siprr[1]);
++	ipic_write(ipic->regs, IPIC_SIMSR_H, ipic_saved_state.simsr[0]);
++	ipic_write(ipic->regs, IPIC_SIMSR_L, ipic_saved_state.simsr[1]);
++	ipic_write(ipic->regs, IPIC_SICNR, ipic_saved_state.sicnr);
++	ipic_write(ipic->regs, IPIC_SMPRR_A, ipic_saved_state.smprr[0]);
++	ipic_write(ipic->regs, IPIC_SMPRR_B, ipic_saved_state.smprr[1]);
++	ipic_write(ipic->regs, IPIC_SEMSR, ipic_saved_state.semsr);
++	ipic_write(ipic->regs, IPIC_SECNR, ipic_saved_state.secnr);
++	ipic_write(ipic->regs, IPIC_SERMR, ipic_saved_state.sermr);
++	ipic_write(ipic->regs, IPIC_SERCR, ipic_saved_state.sercr);
++
++	return 0;
++}
++#endif
++
+ static struct sysdev_class ipic_sysclass = {
+ 	set_kset_name("ipic"),
++#ifdef CONFIG_PM
++	.suspend = ipic_suspend,
++	.resume = ipic_resume,
++#endif
+ };
+ 
+ static struct sys_device device_ipic = {
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index 5c21445..9d10d0f 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -161,6 +161,7 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb, int l
+ static void gfar_vlan_rx_register(struct net_device *netdev,
+ 		                struct vlan_group *grp);
+ static void gfar_vlan_rx_kill_vid(struct net_device *netdev, uint16_t vid);
++static void gfar_halt_nodisable(struct net_device *dev);
+ void gfar_halt(struct net_device *dev);
+ void gfar_start(struct net_device *dev);
+ static void gfar_clear_exact_match(struct net_device *dev);
+@@ -249,6 +250,7 @@ static int gfar_probe(struct platform_device *pdev)
+ 
+ 	spin_lock_init(&priv->txlock);
+ 	spin_lock_init(&priv->rxlock);
++	spin_lock_init(&priv->bflock);
+ 
+ 	platform_set_drvdata(pdev, dev);
+ 
+@@ -443,6 +445,115 @@ static int gfar_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_PM
++// FIXME: look into reducing to 10 Mbps during magic packet mode.
++
++static int gfar_suspend(struct platform_device *pdev, pm_message_t state)
++{
++	struct net_device *dev = platform_get_drvdata(pdev);
++	struct gfar_private *priv = netdev_priv(dev);
++	unsigned long flags;
++	u32 tempval;
++
++	int magic_packet = priv->wol_en && 
++		(priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET);
++	
++	netif_device_detach(dev);
++	
++	if (netif_running(dev)) {
++		spin_lock_irqsave(&priv->txlock, flags);
++		spin_lock(&priv->rxlock);
++
++		gfar_halt_nodisable(dev);
++	
++		/* Disable Tx, and Rx if wake-on-LAN is disabled. */
++		tempval = gfar_read(&priv->regs->maccfg1);
++
++		tempval &= ~MACCFG1_TX_EN;
++	
++		if (!magic_packet)
++			tempval &= ~MACCFG1_RX_EN;
++	
++		gfar_write(&priv->regs->maccfg1, tempval);
++
++		spin_unlock(&priv->rxlock);
++		spin_unlock_irqrestore(&priv->txlock, flags);
++
++#ifdef CONFIG_GFAR_NAPI
++		netif_poll_disable(dev);
++#endif
++
++		if (magic_packet) {
++			// Enable interrupt on Magic Packet
++			gfar_write(&priv->regs->imask, IMASK_MAG);
++		
++			// Enable Magic Packet mode
++			tempval = gfar_read(&priv->regs->maccfg2);
++			tempval |= MACCFG2_MPEN;
++			gfar_write(&priv->regs->maccfg2, tempval);
++		} else {
++			phy_stop(priv->phydev);
++		}
++	}
++
++	if (!magic_packet || !netif_running(dev)) {
++		if (priv->phydev)
++			phy_stop(priv->phydev);
++		
++		priv->saved_sleep_reg = fsl_sleep_device(&priv->einfo->sleep);
++		priv->suspended = 1;
++	}
++	
++	return 0;
++}
++
++static int gfar_resume(struct platform_device *pdev)
++{
++	struct net_device *dev = platform_get_drvdata(pdev);
++	struct gfar_private *priv = netdev_priv(dev);
++	unsigned long flags;
++	u32 tempval;
++	int was_suspended = priv->suspended;
++	int magic_packet = priv->wol_en && 
++		(priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET);
++
++	if (was_suspended) {
++		fsl_wake_device(&priv->einfo->sleep, priv->saved_sleep_reg);
++		priv->suspended = 0;
++	}
++
++	if (!netif_running(dev)) {
++		netif_device_attach(dev);
++		return 0;
++	}
++	
++	if (!magic_packet && priv->phydev)
++		phy_start(priv->phydev);
++
++	// Disable Magic Packet mode, in case something
++	// else woke us up.
++
++	spin_lock_irqsave(&priv->txlock, flags);
++	spin_lock(&priv->rxlock);
++	
++	tempval = gfar_read(&priv->regs->maccfg2);
++	tempval &= ~MACCFG2_MPEN;
++	gfar_write(&priv->regs->maccfg2, tempval);
++	
++	gfar_start(dev);
++
++	spin_unlock(&priv->rxlock);
++	spin_unlock_irqrestore(&priv->txlock, flags);
++
++	netif_device_attach(dev);
++
++#ifdef CONFIG_GFAR_NAPI
++	netif_poll_enable(dev);
++#endif
++
++	return 0;
++}
++#endif //CONFIG_PM
+ 
+ /* Reads the controller's registers to determine what interface
+  * connects it to the PHY.
+@@ -581,7 +692,7 @@ static void init_registers(struct net_device *dev)
+ }
+ 
+ /* Halt the receive and transmit queues */
+-void gfar_halt(struct net_device *dev)
++static void gfar_halt_nodisable(struct net_device *dev)
+ {
+ 	struct gfar_private *priv = netdev_priv(dev);
+ 	struct gfar __iomem *regs = priv->regs;
+@@ -604,6 +715,16 @@ void gfar_halt(struct net_device *dev)
+ 			 (IEVENT_GRSC | IEVENT_GTSC)))
+ 			cpu_relax();
+ 	}
++}
++
++/* Halt the receive and transmit queues */
++void gfar_halt(struct net_device *dev)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	struct gfar __iomem *regs = priv->regs;
++	u32 tempval;
++	
++	gfar_halt_nodisable(dev);
+ 
+ 	/* Disable Rx and Tx */
+ 	tempval = gfar_read(&regs->maccfg1);
+@@ -665,7 +786,7 @@ static void gfar_reset_skb_handler(void* dummy) {
+ 	sh->recycle_count = 0;
+ 	sh->recycle_queue = NULL;
+ 	spin_unlock_irqrestore(&sh->lock, flags);
+-	printk(KERN_INFO"SKB Handler initialized(max=%d)\n",sh->recycle_max);
++	printk(KERN_INFO"SKB Handler initialized(max=%ld)\n",sh->recycle_max);
+ }
+ 
+ /*
+@@ -2361,7 +2482,12 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
+ 	u32 events = gfar_read(&priv->regs->ievent);
+ 
+ 	/* Clear IEVENT */
+-	gfar_write(&priv->regs->ievent, IEVENT_ERR_MASK);
++	gfar_write(&priv->regs->ievent, events & IEVENT_ERR_MASK);
++	
++	/* Magic Packet is not an error. */
++	if ((priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET) &&
++	    (events & IEVENT_MAG))
++		events &= ~IEVENT_MAG;
+ 
+ 	/* Hmm... */
+ 	if (netif_msg_rx_err(priv) || netif_msg_tx_err(priv))
+@@ -2437,6 +2563,10 @@ static irqreturn_t gfar_error(int irq, void *dev_id)
+ static struct platform_driver gfar_driver = {
+ 	.probe = gfar_probe,
+ 	.remove = gfar_remove,
++#ifdef CONFIG_PM
++	.suspend = gfar_suspend,
++	.resume = gfar_resume,
++#endif
+ 	.driver	= {
+ 		.name = "fsl-gianfar",
+ 	},
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index 24853ce..64eedd5 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -170,6 +170,7 @@ extern const char gfar_driver_version[];
+ #define MACCFG2_GMII            0x00000200
+ #define MACCFG2_HUGEFRAME	0x00000020
+ #define MACCFG2_LENGTHCHECK	0x00000010
++#define MACCFG2_MPEN		0x00000008 // Magic Packet Enable, 831x only
+ 
+ #define ECNTRL_INIT_SETTINGS	0x00001000
+ #define ECNTRL_TBI_MODE         0x00000020
+@@ -242,6 +243,7 @@ extern const char gfar_driver_version[];
+ #define IEVENT_CRL		0x00020000
+ #define IEVENT_XFUN		0x00010000
+ #define IEVENT_RXB0		0x00008000
++#define IEVENT_MAG		0x00000800 // 831x only
+ #define IEVENT_GRSC		0x00000100
+ #define IEVENT_RXF0		0x00000080
+ #define IEVENT_FIR		0x00000008
+@@ -253,7 +255,8 @@ extern const char gfar_driver_version[];
+ #define IEVENT_ERR_MASK         \
+ (IEVENT_RXC | IEVENT_BSY | IEVENT_EBERR | IEVENT_MSRO | \
+  IEVENT_BABT | IEVENT_TXC | IEVENT_TXE | IEVENT_LC \
+- | IEVENT_CRL | IEVENT_XFUN | IEVENT_DPE | IEVENT_PERR)
++ | IEVENT_CRL | IEVENT_XFUN | IEVENT_DPE | IEVENT_PERR | \
++ IEVENT_MAG)
+ 
+ #define IMASK_INIT_CLEAR	0x00000000
+ #define IMASK_BABR              0x80000000
+@@ -271,6 +274,7 @@ extern const char gfar_driver_version[];
+ #define IMASK_CRL		0x00020000
+ #define IMASK_XFUN		0x00010000
+ #define IMASK_RXB0              0x00008000
++#define IMASK_MAG		0x00000800
+ #define IMASK_GTSC              0x00000100
+ #define IMASK_RXFEN0		0x00000080
+ #define IMASK_FIR		0x00000008
+@@ -741,10 +745,15 @@ struct gfar_private {
+ 	unsigned int fifo_starve;
+ 	unsigned int fifo_starve_off;
+ 
++	/* Bitfield update lock */
++	spinlock_t bflock;
++
+ 	unsigned char vlan_enable:1,
+ 		rx_csum_enable:1,
+ 		extended_hash:1,
+-		bd_stash_en:1;
++		bd_stash_en:1,
++		wol_en:1, // Wake-on-LAN enabled
++		suspended:1;
+ 	unsigned short padding;
+ 
+ 	unsigned int interruptTransmit;
+@@ -754,6 +763,8 @@ struct gfar_private {
+ 	/* info structure initialized by platform code */
+ 	struct gianfar_platform_data *einfo;
+ 
++	u32 saved_sleep_reg;
++
+ 	/* PHY stuff */
+ 	struct phy_device *phydev;
+ 	struct mii_bus *mii_bus;
+diff --git a/drivers/net/gianfar_ethtool.c b/drivers/net/gianfar_ethtool.c
+index 6d71bea..4c272d2 100644
+--- a/drivers/net/gianfar_ethtool.c
++++ b/drivers/net/gianfar_ethtool.c
+@@ -481,13 +481,13 @@ static int gfar_sringparam(struct net_device *dev, struct ethtool_ringparam *rva
+ static int gfar_set_rx_csum(struct net_device *dev, uint32_t data)
+ {
+ 	struct gfar_private *priv = netdev_priv(dev);
++	unsigned long flags;
+ 	int err = 0;
+ 
+ 	if (!(priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_CSUM))
+ 		return -EOPNOTSUPP;
+ 
+ 	if (dev->flags & IFF_UP) {
+-		unsigned long flags;
+ 
+ 		/* Halt TX and RX, and process the frames which
+ 		 * have already been received */
+@@ -504,7 +504,9 @@ static int gfar_set_rx_csum(struct net_device *dev, uint32_t data)
+ 		stop_gfar(dev);
+ 	}
+ 
++	spin_lock_irqsave(&priv->bflock, flags);
+ 	priv->rx_csum_enable = data;
++	spin_unlock_irqrestore(&priv->bflock, flags);
+ 
+ 	if (dev->flags & IFF_UP)
+ 		err = startup_gfar(dev);
+@@ -566,6 +568,38 @@ static void gfar_set_msglevel(struct net_device *dev, uint32_t data)
+ 	priv->msg_enable = data;
+ }
+ 
++#ifdef CONFIG_PM
++static void gfar_get_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++
++	if (priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET) {
++		wol->supported = WAKE_MAGIC;
++		wol->wolopts = priv->wol_en ? WAKE_MAGIC : 0;
++	} else {
++		wol->supported = wol->wolopts = 0;
++	}
++}
++
++static int gfar_set_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
++{
++	struct gfar_private *priv = netdev_priv(dev);
++	unsigned long flags;
++
++	if (!(priv->einfo->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET) &&
++	    wol->wolopts != 0)
++		return -EINVAL;
++	
++	if (wol->wolopts & ~WAKE_MAGIC)
++		return -EINVAL;
++	
++	spin_lock_irqsave(&priv->bflock, flags);
++	priv->wol_en = wol->wolopts & WAKE_MAGIC ? 1 : 0;
++	spin_unlock_irqrestore(&priv->bflock, flags);
++	
++	return 0;
++}
++#endif
+ 
+ const struct ethtool_ops gfar_ethtool_ops = {
+ 	.get_settings = gfar_gsettings,
+@@ -587,4 +621,8 @@ const struct ethtool_ops gfar_ethtool_ops = {
+ 	.set_tx_csum = gfar_set_tx_csum,
+ 	.get_msglevel = gfar_get_msglevel,
+ 	.set_msglevel = gfar_set_msglevel,
++#ifdef CONFIG_PM
++	.get_wol = gfar_get_wol,
++	.set_wol = gfar_set_wol,
++#endif
+ };
+diff --git a/drivers/usb/host/ehci-fsl.c b/drivers/usb/host/ehci-fsl.c
+index 2459e5d..3d1cd55 100644
+--- a/drivers/usb/host/ehci-fsl.c
++++ b/drivers/usb/host/ehci-fsl.c
+@@ -26,8 +26,10 @@
+ 
+ #include "ehci-fsl.h"
+ 
+-/* FIXME: Power Managment is un-ported so temporarily disable it */
+-#undef CONFIG_PM
++struct ehci_fsl_priv {
++	struct ehci_hcd ehci;
++	u32 saved_sleep_reg;
++};
+ 
+ /* PCI-based HCs are common, but plenty of non-PCI HCs are used too */
+ 
+@@ -267,6 +269,57 @@ static int ehci_fsl_setup(struct usb_hcd *hcd)
+ 	return retval;
+ }
+ 
++#ifdef CONFIG_PM
++static int ehci_fsl_suspend(struct usb_hcd *hcd, pm_message_t message)
++{
++	struct fsl_usb2_platform_data *pdata;
++	void __iomem *non_ehci = hcd->regs;
++	struct ehci_fsl_priv *priv = (struct ehci_fsl_priv *)hcd->hcd_priv;
++	u32 ctrl;
++
++	pdata = (struct fsl_usb2_platform_data *)
++		hcd->self.controller->platform_data;
++
++	if (time_before(jiffies, priv->ehci.next_statechange))
++		msleep(10);
++
++	ctrl = in_be32(non_ehci + FSL_SOC_USB_CTRL);
++	ctrl |= 2; // Enable wakeup interrupt
++	out_be32(non_ehci + FSL_SOC_USB_CTRL, ctrl);
++
++	writel(0, &priv->ehci.regs->intr_enable);
++	(void)readl(&priv->ehci.regs->intr_enable);
++
++	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
++	
++	if (!device_may_wakeup(hcd->self.controller))
++		priv->saved_sleep_reg = fsl_sleep_device(&pdata->sleep);
++	
++	return 0;
++}
++
++static int ehci_fsl_resume(struct usb_hcd *hcd)
++{
++	struct fsl_usb2_platform_data *pdata;
++	struct ehci_fsl_priv *priv = (struct ehci_fsl_priv *)hcd->hcd_priv;
++
++	pdata = (struct fsl_usb2_platform_data *)
++		hcd->self.controller->platform_data;
++
++	if (time_before(jiffies, priv->ehci.next_statechange))
++		msleep(100);
++
++	if (!device_may_wakeup(hcd->self.controller))
++		fsl_wake_device(&pdata->sleep, priv->saved_sleep_reg);
++
++	/* Mark hardware accessible again as we are out of D3 state by now */
++	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
++
++	usb_hcd_resume_root_hub(hcd);
++	return 0;
++}
++#endif
++
+ static const struct hc_driver ehci_fsl_hc_driver = {
+ 	.description = hcd_name,
+ 	.product_desc = "Freescale On-Chip EHCI Host Controller",
+@@ -284,8 +337,8 @@ static const struct hc_driver ehci_fsl_hc_driver = {
+ 	.reset = ehci_fsl_setup,
+ 	.start = ehci_run,
+ #ifdef	CONFIG_PM
+-	.suspend = ehci_bus_suspend,
+-	.resume = ehci_bus_resume,
++	.suspend = ehci_fsl_suspend,
++	.resume = ehci_fsl_resume,
+ #endif
+ 	.stop = ehci_stop,
+ 	.shutdown = ehci_shutdown,
+@@ -327,6 +380,25 @@ static int ehci_fsl_drv_remove(struct platform_device *pdev)
+ 
+ 	return 0;
+ }
++#ifdef CONFIG_PM
++static int ehci_fsl_drv_suspend(struct platform_device *pdev, pm_message_t message)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++	
++	if (hcd->driver->suspend)
++		return hcd->driver->suspend(hcd,message);
++	return -EINVAL;
++}
++
++static int ehci_fsl_drv_resume(struct platform_device *pdev)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++
++	if (hcd->driver->resume)
++		return hcd->driver->resume(hcd);
++	return -EINVAL;
++}
++#endif
+ 
+ MODULE_ALIAS("fsl-ehci");
+ 
+@@ -334,6 +406,10 @@ static struct platform_driver ehci_fsl_driver = {
+ 	.probe = ehci_fsl_drv_probe,
+ 	.remove = ehci_fsl_drv_remove,
+ 	.shutdown = usb_hcd_platform_shutdown,
++#ifdef CONFIG_PM
++	.suspend = ehci_fsl_drv_suspend,
++	.resume = ehci_fsl_drv_resume,
++#endif
+ 	.driver = {
+ 		   .name = "fsl-ehci",
+ 		   },
+diff --git a/include/asm-powerpc/reg.h b/include/asm-powerpc/reg.h
+index a3631b1..2d3f456 100644
+--- a/include/asm-powerpc/reg.h
++++ b/include/asm-powerpc/reg.h
+@@ -153,7 +153,9 @@
+ #define   CTRL_RUNLATCH	0x1
+ #define SPRN_DABR	0x3F5	/* Data Address Breakpoint Register */
+ #define   DABR_TRANSLATION	(1UL << 2)
++#define SPRN_DABR2	0x13D	/* 83xx */
+ #define SPRN_DAR	0x013	/* Data Address Register */
++#define SPRN_DBCR	0x136	/* 83xx Data Breakpoint Control Reg */
+ #define SPRN_DSISR	0x012	/* Data Storage Interrupt Status Register */
+ #define   DSISR_NOHPTE		0x40000000	/* no translation found */
+ #define   DSISR_PROTFAULT	0x08000000	/* protection fault */
+@@ -258,6 +260,8 @@
+ #define HID1_PS		(1<<16)		/* 750FX PLL selection */
+ #define SPRN_HID2	0x3F8		/* Hardware Implementation Register 2 */
+ #define SPRN_IABR	0x3F2	/* Instruction Address Breakpoint Register */
++#define SPRN_IABR2	0x3FA	/* 83xx */
++#define SPRN_IBCR	0x135	/* 83xx Insn Breakpoint Control Reg */
+ #define SPRN_HID4	0x3F4		/* 970 HID4 */
+ #define SPRN_HID5	0x3F6		/* 970 HID5 */
+ #define SPRN_HID6	0x3F9	/* BE HID 6 */
+diff --git a/include/linux/fsl_devices.h b/include/linux/fsl_devices.h
+index 0b39de2..3b63eca 100644
+--- a/include/linux/fsl_devices.h
++++ b/include/linux/fsl_devices.h
+@@ -48,6 +48,25 @@
+  *
+  */
+ 
++struct fsl_sleep_platform_data {
++	 /* Register containing this device's sleep/clock disable bits.
++	    NULL if no valid "sleep" property was found in the device tree
++	    for this device. */
++	u32 __iomem *reg;
++
++	/* Mask of bits in the above register which are relevant to
++	   this device */
++	u32 mask;
++	
++	/* Value to set those bits to when putting the device to sleep.
++	   The driver must save the previous value of these bits in
++	   order to wake the device later. */
++	u32 val;
++};
++
++u32 fsl_sleep_device(struct fsl_sleep_platform_data *data);
++void fsl_wake_device(struct fsl_sleep_platform_data *data, u32 saved_reg);
++
+ struct gianfar_platform_data {
+ 	/* device specific information */
+ 	u32	device_flags;
+@@ -56,6 +75,7 @@ struct gianfar_platform_data {
+ 	u32	bus_id;
+ 	u32	phy_id;
+ 	u8	mac_addr[6];
++	struct fsl_sleep_platform_data sleep;
+ };
+ 
+ struct gianfar_mdio_data {
+@@ -72,6 +92,7 @@ struct gianfar_mdio_data {
+ #define FSL_GIANFAR_DEV_HAS_VLAN		0x00000020
+ #define FSL_GIANFAR_DEV_HAS_EXTENDED_HASH	0x00000040
+ #define FSL_GIANFAR_DEV_HAS_PADDING		0x00000080
++#define FSL_GIANFAR_DEV_HAS_MAGIC_PACKET	0x00000100
+ 
+ /* Flags in gianfar_platform_data */
+ #define FSL_GIANFAR_BRD_HAS_PHY_INTR	0x00000001 /* set or use a timer */
+@@ -108,6 +129,7 @@ struct fsl_usb2_platform_data {
+ 	unsigned int			max_ep_nr;
+ 	unsigned int			port_enables;
+ 	unsigned int			control_init;
++	struct fsl_sleep_platform_data	sleep;
+ };
+ 
+ /* Flags in fsl_usb2_mph_platform_data */
+-- 
+1.5.0
+

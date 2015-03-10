@@ -1,0 +1,13 @@
+Index: linux-2.6.19/drivers/net/ibm_emac/ibm_emac_phy.c
+===================================================================
+--- linux-2.6.19.orig/drivers/net/ibm_emac/ibm_emac_phy.c
++++ linux-2.6.19/drivers/net/ibm_emac/ibm_emac_phy.c
+@@ -121,7 +122,7 @@ static int genmii_setup_forced(struct mi
+ 	ctl = phy_read(phy, MII_BMCR);
+ 	if (ctl < 0)
+ 		return ctl;
+-	ctl &= ~(BMCR_FULLDPLX | BMCR_SPEED100 | BMCR_ANENABLE);
++	ctl &= ~(BMCR_FULLDPLX | BMCR_SPEED100 | BMCR_SPEED1000 | BMCR_ANENABLE);
+ 
+ 	/* First reset the PHY */
+ 	phy_write(phy, MII_BMCR, ctl | BMCR_RESET);

@@ -1,0 +1,5 @@
+ip_forward=no
+spoofprotect=yes
+syncookies=no
+remove_default_gateway=eth1
+media='autoneg off speed 100 duplex full' 'autoneg off speed 100 duplex full'

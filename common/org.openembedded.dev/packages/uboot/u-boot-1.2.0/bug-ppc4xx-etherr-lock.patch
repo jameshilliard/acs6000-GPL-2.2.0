@@ -1,0 +1,29 @@
+Index: u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c
+===================================================================
+--- u-boot-1.2.0.orig/cpu/ppc4xx/4xx_enet.c
++++ u-boot-1.2.0/cpu/ppc4xx/4xx_enet.c
+@@ -1099,6 +1119,7 @@ int enetInt (struct eth_device *dev)
+ 			/* look for mal error */
+ 			if (my_uic1msr & (UIC_MS | UIC_MTDE | UIC_MRDE)) {
+ 				mal_err (dev, mal_isr, my_uic1msr, MAL_UIC_DEF, MAL_UIC_ERR);
++				mtdcr (uic1sr, UIC_MS | UIC_MTDE | UIC_MRDE);	/* Clear */
+ 				serviced = 1;
+ 				rc = 0;
+ 			}
+@@ -1266,6 +1287,7 @@ int enetInt (struct eth_device *dev)
+ 			/* look for mal error */
+ 			if ((my_uicmsr & MAL_UIC_ERR) != 0) {
+ 				mal_err (dev, mal_isr, my_uicmsr, MAL_UIC_DEF, MAL_UIC_ERR);
++				mtdcr (uicsr, MAL_UIC_ERR);	/* Clear */
+ 				serviced = 1;
+ 				rc = 0;
+ 			}
+@@ -1328,7 +1350,7 @@ static void mal_err (struct eth_device *
+ 
+ 	/* clear DE interrupt */
+ 	mtdcr (maltxdeir, 0xC0000000);
+-	mtdcr (malrxdeir, 0x80000000);
++	mtdcr (malrxdeir, 0xC0000000);
+ 
+ #ifdef INFO_4XX_ENET
+ 	printf ("\nMAL error occured.... ISR = %lx UIC = = %lx	MAL_DEF = %lx  MAL_ERR= %lx \n", isr, uic, maldef, mal_errr);

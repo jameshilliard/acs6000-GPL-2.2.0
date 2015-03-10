@@ -1,0 +1,179 @@
+diff -Nru openssh-4.0p1-orig/auth2.c openssh-4.0p1/auth2.c
+--- openssh-4.0p1-orig/auth2.c	2005-02-08 04:52:48.000000000 -0600
++++ openssh-4.0p1/auth2.c	2006-08-31 17:38:29.000000000 -0500
+@@ -141,6 +141,9 @@
+ 		fatal("input_userauth_request: no authctxt");
+ 
+ 	user = packet_get_string(NULL);
++	/* FIXME: SSH Pass Through for publickey */
++	authctxt->server_user = xstrdup(user);
++
+ 	service = packet_get_string(NULL);
+ 	method = packet_get_string(NULL);
+ 	debug("userauth-request for user %s service %s method %s", user, service, method);
+diff -Nru openssh-4.0p1-orig/auth2-pubkey.c openssh-4.0p1/auth2-pubkey.c
+--- openssh-4.0p1-orig/auth2-pubkey.c	2004-12-10 20:39:50.000000000 -0600
++++ openssh-4.0p1/auth2-pubkey.c	2006-08-31 17:15:07.000000000 -0500
+@@ -105,7 +105,8 @@
+ 		}
+ 		/* reconstruct packet */
+ 		buffer_put_char(&b, SSH2_MSG_USERAUTH_REQUEST);
+-		buffer_put_cstring(&b, authctxt->user);
++		/* FIXME: buffer_put_cstring(&b, authctxt->user); */
++		buffer_put_cstring(&b, authctxt->server_user);
+ 		buffer_put_cstring(&b,
+ 		    datafellows & SSH_BUG_PKSERVICE ?
+ 		    "ssh-userauth" :
+diff -Nru openssh-4.0p1-orig/auth.h openssh-4.0p1/auth.h
+--- openssh-4.0p1-orig/auth.h	2005-02-02 07:20:53.000000000 -0600
++++ openssh-4.0p1/auth.h	2006-08-31 17:13:22.000000000 -0500
+@@ -53,7 +53,8 @@
+ 	int		 attempt;
+ 	int		 failures;
+ 	int		 force_pwchange;
+-	char		*user;		/* username sent by the client */
++	char		*server_user;		/* username sent by the client */
++	char		*user;		/* username sent by the client but delete the style. */
+ 	char		*service;
+ 	struct passwd	*pw;		/* set if 'valid' */
+ 	char		*style;
+diff -Nru openssh-4.0p1-orig/monitor.c openssh-4.0p1/monitor.c
+--- openssh-4.0p1-orig/monitor.c	2005-03-06 05:31:36.000000000 -0600
++++ openssh-4.0p1/monitor.c	2006-08-31 17:29:23.000000000 -0500
+@@ -1059,6 +1059,12 @@
+ 	if (buffer_get_char(&b) != SSH2_MSG_USERAUTH_REQUEST)
+ 		fail++;
+ 	p = buffer_get_string(&b, NULL);
++
++	/* FIXME: support SSH pass through for publickey */
++	char *ps;
++	if ((ps = strchr(p, ':')) != NULL)
++		*ps++ = 0;
++
+ 	if (strcmp(authctxt->user, p) != 0) {
+ 		logit("wrong user name passed to monitor: expected %s != %.100s",
+ 		    authctxt->user, p);
+@@ -1107,6 +1113,12 @@
+ 	if (buffer_get_char(&b) != SSH2_MSG_USERAUTH_REQUEST)
+ 		fail++;
+ 	p = buffer_get_string(&b, NULL);
++
++	/* FIXME: support SSH pass through for publickey */
++	char *ps;
++	if ((ps = strchr(p, ':')) != NULL)
++		*ps++ = 0;
++
+ 	if (strcmp(authctxt->user, p) != 0) {
+ 		logit("wrong user name passed to monitor: expected %s != %.100s",
+ 		    authctxt->user, p);
+diff -Nru openssh-4.0p1-orig/servconf.c openssh-4.0p1/servconf.c
+--- openssh-4.0p1-orig/servconf.c	2005-03-01 04:24:33.000000000 -0600
++++ openssh-4.0p1/servconf.c	2006-08-31 16:48:39.000000000 -0500
+@@ -270,7 +270,7 @@
+ 	sBanner, sUseDNS, sHostbasedAuthentication,
+ 	sHostbasedUsesNameFromPacketOnly, sClientAliveInterval,
+ 	sClientAliveCountMax, sAuthorizedKeysFile, sAuthorizedKeysFile2,
+-	sGssAuthentication, sGssCleanupCreds, sAcceptEnv,
++	sGssAuthentication, sGssCleanupCreds, sAcceptEnv, sPTCommand, 
+ 	sUsePrivilegeSeparation,
+ 	sDeprecated, sUnsupported
+ } ServerOpCodes;
+@@ -373,6 +373,7 @@
+ 	{ "authorizedkeysfile2", sAuthorizedKeysFile2 },
+ 	{ "useprivilegeseparation", sUsePrivilegeSeparation},
+ 	{ "acceptenv", sAcceptEnv },
++	{ "PassThroughCommand", sPTCommand },
+ 	{ NULL, sBadOption }
+ };
+ 
+@@ -936,6 +937,17 @@
+ 		}
+ 		break;
+ 
++	case sPTCommand:
++		arg = cp; 
++		if (!arg || *arg == '\0') {
++			debug("%s line %d: missing passthrough command format.",
++			    filename, linenum);
++			options->ptcmd = NULL;	
++		}
++		options->ptcmd = xstrdup(arg);
++		cp = NULL;
++		break;
++
+ 	case sDeprecated:
+ 		logit("%s line %d: Deprecated option %s",
+ 		    filename, linenum, arg);
+diff -Nru openssh-4.0p1-orig/servconf.h openssh-4.0p1/servconf.h
+--- openssh-4.0p1-orig/servconf.h	2005-01-19 17:57:56.000000000 -0600
++++ openssh-4.0p1/servconf.h	2006-08-31 16:48:39.000000000 -0500
+@@ -133,6 +133,7 @@
+ 
+ 	char   *authorized_keys_file;	/* File containing public keys */
+ 	char   *authorized_keys_file2;
++	char   *ptcmd;   /* Pass through command format */
+ 	int	use_pam;		/* Enable auth via PAM */
+ }       ServerOptions;
+ 
+diff -Nru openssh-4.0p1-orig/session.c openssh-4.0p1/session.c
+--- openssh-4.0p1-orig/session.c	2005-03-06 05:38:52.000000000 -0600
++++ openssh-4.0p1/session.c	2006-08-31 17:37:24.000000000 -0500
+@@ -659,6 +659,10 @@
+ void
+ do_exec(Session *s, const char *command)
+ {
++	char *style = (char *)(s->authctxt->style);
++	char realcommand[256];
++	char *xcmd;
++
+ 	if (forced_command) {
+ 		original_command = command;
+ 		command = forced_command;
+@@ -677,10 +681,19 @@
+ 	}
+ #endif
+ 
++	memset(realcommand, 0, sizeof(realcommand));
++	/* FIXME: should we ignore force command if we set pass through command? */
++	if ((style != NULL) && (strlen(style) > 0) && (options.ptcmd != NULL)) {
++		sprintf(realcommand, options.ptcmd, style, (command ? command : ""));
++		debug("SSH Pass-Through command: '%.900s'", realcommand);	
++		xcmd = realcommand;
++	} else
++		xcmd = (char *)command;
++
+ 	if (s->ttyfd != -1)
+-		do_exec_pty(s, command);
++		do_exec_pty(s, xcmd);
+ 	else
+-		do_exec_no_pty(s, command);
++		do_exec_no_pty(s, xcmd);
+ 
+ 	original_command = NULL;
+ 
+@@ -1571,6 +1584,13 @@
+ 	else
+ 		shell0 = shell;
+ 
++	/* FIXME: for this specific passthrough, we must use /bin/sh as shell, not the configured clp. 
++	 * And here, we always have command: PassThroughCommand.
++	 */
++	if (((char *)(s->authctxt->style) != NULL) && (strlen((char *)(s->authctxt->style)) > 0) && (options.ptcmd != NULL)) {
++		shell = _PATH_BSHELL;
++	}
++
+ 	/*
+ 	 * If we have no command, execute the shell.  In this case, the shell
+ 	 * name to be passed in argv[0] is preceded by '-' to indicate that
+diff -Nru openssh-4.0p1-orig/sshd_config openssh-4.0p1/sshd_config
+--- openssh-4.0p1-orig/sshd_config	2005-01-19 17:57:56.000000000 -0600
++++ openssh-4.0p1/sshd_config	2006-08-31 16:48:39.000000000 -0500
+@@ -100,5 +100,8 @@
+ # no default banner path
+ #Banner /some/path
+ 
++# pass through command format definition: must follow this format
++# PassThroughCommand /usr/bin/ssh root@%s %s
++
+ # override default of no subsystems
+ Subsystem	sftp	/usr/libexec/sftp-server

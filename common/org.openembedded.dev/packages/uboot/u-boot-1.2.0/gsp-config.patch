@@ -1,0 +1,103 @@
+Index: u-boot-1.2.0/board/avocent/gsp/gsp-config.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/board/avocent/gsp/gsp-config.c	2007-12-13 17:29:32.000000000 -0800
+@@ -0,0 +1,74 @@
++#include <common.h>
++#include <asm/processor.h>
++#include "gsp-config.h"
++
++#ifdef CONFIG_AVOCENT_GSP
++int gsp_config_wdt(void)
++{
++	DECLARE_GLOBAL_DATA_PTR;
++	bd_t *bd = gd->bd;
++	int set = 0;
++	char *tmp;
++
++#if defined(CONFIG_WATCHDOG)
++        if ((tmp = getenv("wdt")) == NULL) {
++                setenv("wdt", "yes");
++		set = 1;
++                bd->wdt = 1;
++        } else if (strcmp(tmp, "yes") == 0  || strcmp(tmp, "YES") == 0 ||
++        	strcmp(tmp, "on") == 0  || strcmp(tmp, "ON") == 0) {
++                bd->wdt = 1;
++        } else if (strcmp(tmp, "no") == 0 || strcmp(tmp, "NO") == 0 ||
++        	strcmp(tmp, "off") == 0 || strcmp(tmp, "OFF") == 0) {
++                bd->wdt = 0;
++	} else {
++                setenv("wdt", "yes");
++		set = 1;
++                bd->wdt = 1;
++	}
++	if (bd->wdt) {
++		puts ("       Watchdog enabled\n");
++	}
++#endif
++	return set;
++}
++
++int gsp_config_fecmode(int nb, int giga)
++{
++	DECLARE_GLOBAL_DATA_PTR;
++	bd_t *bd = gd->bd;
++	char aux[20], *tmp;
++	int set = 0;
++
++	sprintf(aux, "fecmode%d", nb + 1);
++	if ((tmp = getenv (aux)) == NULL) {
++		setenv(aux, "auto");
++		set = 1;
++		bd->mii_operation[nb] = 0;
++	} else if (strcmp(tmp, "auto") == 0) {
++		bd->mii_operation[nb] = 0;
++#ifdef CONFIG_GIGABIT
++	} else if (giga &&
++		(strcmp(tmp, "1000F") == 0 || strcmp(tmp, "1000f") == 0)) {
++		bd->mii_operation[nb] = 1;
++	} else if (giga &&
++		(strcmp(tmp, "1000H") == 0 || strcmp(tmp, "1000h") == 0)) {
++		bd->mii_operation[nb] = 2;
++#endif
++	} else if (strcmp(tmp, "100F") == 0  || strcmp(tmp, "100f") == 0) {
++		bd->mii_operation[nb] = 3;
++	} else if (strcmp(tmp, "100H") == 0  || strcmp(tmp, "100h") == 0) {
++		bd->mii_operation[nb] = 4;
++	} else if (strcmp(tmp, "10F") == 0   || strcmp(tmp, "10f") == 0) {
++		bd->mii_operation[nb] = 5;
++	} else if (strcmp(tmp, "10H") == 0   || strcmp(tmp, "10h") == 0) {
++		bd->mii_operation[nb] = 6;
++	} else {
++		setenv(aux, "auto");
++		set = 1;
++		bd->mii_operation[nb] = 0;
++	}
++	return set;
++}
++#endif
++
+Index: u-boot-1.2.0/board/avocent/gsp/gsp-config.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.2.0/board/avocent/gsp/gsp-config.h	2007-12-13 17:29:14.000000000 -0800
+@@ -0,0 +1,2 @@
++int gsp_config_wdt(void);
++int gsp_config_fecmode(int, int);
+Index: u-boot-1.2.0/include/asm-ppc/u-boot.h
+===================================================================
+--- u-boot-1.2.0.orig/include/asm-ppc/u-boot.h	2007-12-13 17:29:09.000000000 -0800
++++ u-boot-1.2.0/include/asm-ppc/u-boot.h	2007-12-13 17:29:14.000000000 -0800
+@@ -106,6 +106,12 @@
+ #ifdef CONFIG_HAS_ETH3
+ 	unsigned char   bi_enet3addr[6];
+ #endif
++#ifdef CONFIG_AVOCENT_GSP
++	unsigned char   wdt;
++	unsigned char   mii_operation[2];
++	unsigned short	family;
++	unsigned char	serialnb[6];
++#endif
+ 
+ #if defined(CONFIG_405GP) || defined(CONFIG_405EP) || defined (CONFIG_440GX) || \
+     defined(CONFIG_440EP) || defined(CONFIG_440GR) || \

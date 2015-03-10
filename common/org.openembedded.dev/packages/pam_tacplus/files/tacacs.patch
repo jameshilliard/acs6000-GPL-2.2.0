@@ -1,0 +1,45 @@
+Index: pam_tacplus/support.c
+===================================================================
+--- pam_tacplus.orig/support.c	2008-07-17 18:32:25.000000000 -0700
++++ pam_tacplus/support.c	2008-07-17 18:32:25.000000000 -0700
+@@ -349,13 +349,20 @@
+ 
+ 			linenum++;
+ 
+-			if (!strncmp(line, "authhost1=", 10) ||
+-				!strncmp(line, "authhost2=", 10) ||
+-				!strncmp(line, "accthost1=", 10) ||
+-				!strncmp(line, "accthost2=", 10)) {
+-					memset(tmpstr, 0, sizeof(tmpstr));
+-					sprintf(tmpstr, "server=%s", line+10);
+-					ctrl = _pam_parse_argv(ctrl, tmpstr);
++                        if (!strncmp(line, "authhost1=", 10) ||
++                                !strncmp(line, "authhost2=", 10)) {
++                                        if (acct == 0) {
++                                                memset(tmpstr, 0, sizeof(tmpstr));
++                                                sprintf(tmpstr, "server=%s", line+10);
++                                                ctrl = _pam_parse_argv(ctrl, tmpstr);
++                                        }
++                        } else if (!strncmp(line, "accthost1=", 10) ||
++                                                !strncmp(line, "accthost2=", 10)) {
++                                        if (acct == 1) {
++                                                memset(tmpstr, 0, sizeof(tmpstr));
++                                                sprintf(tmpstr, "server=%s", line+10);
++                                                ctrl = _pam_parse_argv(ctrl, tmpstr);
++                                        }
+ 			} else if (!strncmp(line, "secret=", 7)) {
+ 					ctrl = _pam_parse_argv(ctrl, line);
+ 			} else if (!strncmp(line, "encrypt=", 8)) {
+Index: pam_tacplus/pam_tacplus.c
+===================================================================
+--- pam_tacplus.orig/pam_tacplus.c	2008-07-17 18:32:25.000000000 -0700
++++ pam_tacplus/pam_tacplus.c	2008-07-17 18:57:58.000000000 -0700
+@@ -647,7 +647,7 @@
+   
+   /* when we are sending STOP packet we no longer have uid 0 */
+ /*  if(type == TAC_PLUS_ACCT_FLAG_START) */
+-  ctrl = _pam_parse (0,0, argc, argv);
++  ctrl = _pam_parse (1,0, argc, argv);
+ 
+   if (ctrl & PAM_TAC_DEBUG)
+     syslog (LOG_DEBUG, "%s: [%s] called (pam_tacplus v%hu.%hu.%hu)"

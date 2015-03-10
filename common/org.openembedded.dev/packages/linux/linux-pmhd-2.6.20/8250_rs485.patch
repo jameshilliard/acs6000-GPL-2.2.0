@@ -1,0 +1,139 @@
+Index: linux-2.6.20/drivers/serial/8250.c
+===================================================================
+--- linux-2.6.20.orig/drivers/serial/8250.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/serial/8250.c	2008-03-11 16:34:29.000000000 -0700
+@@ -1116,6 +1116,12 @@
+ 
+ 	__stop_tx(up);
+ 
++	if (port->flags & UPF_LEGACY_RTS) {
++		/* disable transmission and enable reception */
++		up->mcr |= UART_MCR_RTS|UART_MCR_DTR;
++		serial_out(up, UART_MCR, up->mcr);
++	}
++
+ 	/*
+ 	 * We really want to stop the transmitter from sending.
+ 	 */
+@@ -1132,6 +1138,11 @@
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
+ 
+ 	if (!(up->ier & UART_IER_THRI)) {
++		if (port->flags & UPF_LEGACY_RTS) {
++			/* Stop reception and start transmission */
++			up->mcr &= ~(UART_MCR_RTS | UART_MCR_DTR);
++			serial_out(up, UART_MCR, up->mcr);
++		}
+ 		up->ier |= UART_IER_THRI;
+ 		serial_out(up, UART_IER, up->ier);
+ 
+@@ -1263,7 +1274,22 @@
+ 		return;
+ 	}
+ 	if (uart_circ_empty(xmit)) {
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Enable interrupt when transmission has not
++			finished yet */
++			if (! (serial_inp(up, UART_LSR) &  UART_LSR_TEMT)) {
++				up->ier |= UART_IER_THRI;
++				serial_out(up, UART_IER, up->ier);
++				return;
++			}
++		}
+ 		__stop_tx(up);
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Disable transmission and enable reception */
++			up->mcr |= UART_MCR_RTS | UART_MCR_DTR;
++			serial_out(up, UART_MCR, up->mcr);
++		}
++
+ 		return;
+ 	}
+ 
+@@ -1281,8 +1307,23 @@
+ 
+ 	DEBUG_INTR("THRE...");
+ 
+-	if (uart_circ_empty(xmit))
++	if (uart_circ_empty(xmit)) {
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Enable interrupt when transmission has not
++			finished yet */
++			if (! (serial_inp(up, UART_LSR) &  UART_LSR_TEMT)) {
++				up->ier |= UART_IER_THRI;
++				serial_out(up, UART_IER, up->ier);
++				return;
++			}
++		}
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Disable transmission and enable reception */
++			up->mcr |= UART_MCR_RTS | UART_MCR_DTR;
++			serial_out(up, UART_MCR, up->mcr);
++		}
+ 		__stop_tx(up);
++	}
+ }
+ 
+ static unsigned int check_modem_status(struct uart_8250_port *up)
+@@ -1504,22 +1545,39 @@
+ static void serial8250_set_mctrl(struct uart_port *port, unsigned int mctrl)
+ {
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
+-	unsigned char mcr = 0;
++	unsigned char mcr = up->mcr;
+ 
+-	if (mctrl & TIOCM_RTS)
+-		mcr |= UART_MCR_RTS;
+-	if (mctrl & TIOCM_DTR)
+-		mcr |= UART_MCR_DTR;
+-	if (mctrl & TIOCM_OUT1)
++	if (!(port->flags & UPF_LEGACY_RTS)) {
++		if (mctrl & TIOCM_RTS) {
++			mcr |= UART_MCR_RTS;
++		} else {
++			mcr &= ~UART_MCR_RTS;
++		}
++		if (mctrl & TIOCM_DTR) {
++			mcr |= UART_MCR_DTR;
++		} else {
++			mcr &= ~UART_MCR_DTR;
++		}
++	}
++	if (mctrl & TIOCM_OUT1) {
+ 		mcr |= UART_MCR_OUT1;
+-	if (mctrl & TIOCM_OUT2)
++	} else {
++		mcr &= ~UART_MCR_OUT1;
++	}
++	if (mctrl & TIOCM_OUT2) {
+ 		mcr |= UART_MCR_OUT2;
+-	if (mctrl & TIOCM_LOOP)
++	} else {
++		mcr &= ~UART_MCR_OUT2;
++	}
++	if (mctrl & TIOCM_LOOP) {
+ 		mcr |= UART_MCR_LOOP;
++	} else {
++		mcr &= ~UART_MCR_LOOP;
++	}
+ 
+-	mcr = (mcr & up->mcr_mask) | up->mcr_force | up->mcr;
++	up->mcr = (mcr & up->mcr_mask) | up->mcr_force;
+ 
+-	serial_out(up, UART_MCR, mcr);
++	serial_out(up, UART_MCR, up->mcr);
+ }
+ 
+ static void serial8250_break_ctl(struct uart_port *port, int break_state)
+Index: linux-2.6.20/include/linux/serial_core.h
+===================================================================
+--- linux-2.6.20.orig/include/linux/serial_core.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/serial_core.h	2008-03-11 16:13:47.000000000 -0700
+@@ -257,6 +257,7 @@
+ #define UPF_LOW_LATENCY		((__force upf_t) (1 << 13))
+ #define UPF_BUGGY_UART		((__force upf_t) (1 << 14))
+ #define UPF_MAGIC_MULTIPLIER	((__force upf_t) (1 << 16))
++#define UPF_LEGACY_RTS          ((__force upf_t) (1 << 20))
+ #define UPF_CONS_FLOW		((__force upf_t) (1 << 23))
+ #define UPF_SHARE_IRQ		((__force upf_t) (1 << 24))
+ #define UPF_BOOT_AUTOCONF	((__force upf_t) (1 << 28))

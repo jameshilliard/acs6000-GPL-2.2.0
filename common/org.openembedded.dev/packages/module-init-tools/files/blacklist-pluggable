@@ -1,0 +1,2 @@
+blacklist yenta-socket
+blacklist pcmcia

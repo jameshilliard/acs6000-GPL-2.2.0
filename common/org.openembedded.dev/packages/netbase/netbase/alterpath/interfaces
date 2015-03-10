@@ -1,0 +1,23 @@
+# /etc/network/interfaces -- configuration file for ifup(8), ifdown(8)
+ 
+auto lo eth0 eth1 priv0
+# The loopback interface
+iface lo inet loopback
+
+# Wired or wireless interfaces
+iface eth0 inet dhcp
+iface eth0 inet6 manual
+
+iface eth1 inet dhcp
+iface eth1 inet6 manual
+
+# Bonding interface
+#iface bond0 inet dhcp
+#	address 0.0.0.0
+#	netmask 255.255.255.255
+#	broadcast +
+#	slaves eth0 eth1
+
+iface priv0 inet static
+	address 0.0.0.0
+	netmask 255.255.255.255

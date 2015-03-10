@@ -1,0 +1,3870 @@
+From cd7d88aa0b15c121a5cccf7336e3951f25e6ebb4 Mon Sep 17 00:00:00 2001
+From: lil <tony.li@freescale.com>
+Date: Fri, 13 Apr 2007 14:16:48 +0800
+Subject: [PATCH] MPC8313ERDB REVA1/2 init support.
+This commit contains the all feature in ltib-mpc8313erdb-20070306
+release.
+---
+ arch/powerpc/Kconfig                      |   32 +-
+ arch/powerpc/Makefile                     |    5 +
+ arch/powerpc/boot/dts/mpc8313erdb.dts     |  261 ++++++
+ arch/powerpc/kernel/setup_32.c            |    4 +-
+ arch/powerpc/platforms/83xx/Kconfig       |   12 +
+ arch/powerpc/platforms/83xx/Makefile      |    1 +
+ arch/powerpc/platforms/83xx/mpc8313_rdb.c |  126 +++
+ arch/powerpc/platforms/83xx/mpc8313_rdb.h |   24 +
+ arch/powerpc/platforms/83xx/pci.c         |    5 +
+ arch/powerpc/sysdev/fsl_soc.c             |   81 ++
+ drivers/mtd/maps/Kconfig                  |    6 +
+ drivers/mtd/maps/Makefile                 |    1 +
+ drivers/mtd/maps/mpc8313erdb.c            |  111 +++
+ drivers/mtd/nand/Kconfig                  |    8 +
+ drivers/mtd/nand/Makefile                 |    1 +
+ drivers/mtd/nand/fsl_elbc.c               | 1325 +++++++++++++++++++++++++++++
+ drivers/net/phy/Kconfig                   |   14 +-
+ drivers/net/phy/Makefile                  |    1 +
+ drivers/net/phy/phy_device.c              |   16 +-
+ drivers/net/phy/vitesse_7385.c            |  108 +++
+ drivers/usb/host/ehci-fsl.c               |   12 +-
+ drivers/usb/host/ehci-hcd.c               |    2 +-
+ include/asm-ppc/reg_booke.h               |    8 +
+ include/linux/fsl_devices.h               |    6 +-
+ include/linux/mtd/fsl_elbc.h              |  313 +++++++
+ include/linux/phy.h                       |   10 +-
+ kernel/Makefile                           |    1 +
+ kernel/codetest.c                         |  743 ++++++++++++++++
+ kernel/ctswic.h                           |   40 +
+ kernel/exit.c                             |   11 +
+ kernel/fork.c                             |   11 +
+ kernel/irq/handle.c                       |   29 +
+ kernel/sched.c                            |   20 +
+ lib/Kconfig.debug                         |    6 +
+ 34 files changed, 3343 insertions(+), 11 deletions(-)
+ create mode 100644 arch/powerpc/boot/dts/mpc8313erdb.dts
+ create mode 100644 arch/powerpc/platforms/83xx/mpc8313_rdb.c
+ create mode 100644 arch/powerpc/platforms/83xx/mpc8313_rdb.h
+ create mode 100644 drivers/mtd/maps/mpc8313erdb.c
+ create mode 100644 drivers/mtd/nand/fsl_elbc.c
+ create mode 100644 drivers/net/phy/vitesse_7385.c
+ create mode 100644 include/linux/mtd/fsl_elbc.h
+ create mode 100644 kernel/codetest.c
+ create mode 100644 kernel/ctswic.h
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index d6abe49..02c360f 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -67,7 +67,7 @@ config PPC
+ 
+ config EARLY_PRINTK
+ 	bool
+-	default y
++	default n
+ 
+ config COMPAT
+ 	bool
+@@ -1193,6 +1193,36 @@ endmenu
+ 
+ source "arch/powerpc/Kconfig.debug"
+ 
++menu "CodeTEST setup"
++
++config CODETEST
++	bool "Turn on Metrowerks CodeTEST support"
++
++config CT_HOOKS_ENABLED
++	bool "Enable hooks by default"
++	depends on CODETEST
++
++config CT_USEPCI
++	bool "Use PCI Adapter"
++	depends on CODETEST
++
++config CT_USEMICTOR
++	bool "Use Mictor"
++	depends on CODETEST
++	default n if CT_USEPCI
++	default y if !CT_USEPCI
++
++config CT_ADDR
++	hex "Tag Port Physical Address"
++	depends on CODETEST && CT_USEMICTOR
++	default 0xFE010000
++
++config CT_BIG_ENDIAN
++	bool "Big Endian"
++	depends on CODETEST
++
++endmenu
++
+ source "security/Kconfig"
+ 
+ config KEYS_COMPAT
+diff --git a/arch/powerpc/Makefile b/arch/powerpc/Makefile
+index a00fe72..bc0f7ee 100644
+--- a/arch/powerpc/Makefile
++++ b/arch/powerpc/Makefile
+@@ -110,6 +110,11 @@ ifeq ($(CONFIG_6xx),y)
+ CFLAGS		+= -mcpu=powerpc
+ endif
+ 
++ifeq ($(CONFIG_DEBUG_CW),y)
++CFLAGS += -g2 -gdwarf-2
++AFLAGS_KERNEL += -Wa,-gdwarf2
++endif
++
+ cpu-as-$(CONFIG_4xx)		+= -Wa,-m405
+ cpu-as-$(CONFIG_6xx)		+= -Wa,-maltivec
+ cpu-as-$(CONFIG_POWER4)		+= -Wa,-maltivec
+diff --git a/arch/powerpc/boot/dts/mpc8313erdb.dts b/arch/powerpc/boot/dts/mpc8313erdb.dts
+new file mode 100644
+index 0000000..2476252
+--- /dev/null
++++ b/arch/powerpc/boot/dts/mpc8313erdb.dts
+@@ -0,0 +1,261 @@
++/*
++ * MPC8313E RDB Device Tree Source
++ *
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++/ {
++	model = "MPC8313ERDB";
++	compatible = "mpc83xx";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	cpus {
++		#cpus = <1>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		PowerPC,8313@0 {
++			device_type = "cpu";
++			reg = <0>;
++			d-cache-line-size = <20>;	// 32 bytes
++			i-cache-line-size = <20>;	// 32 bytes
++			d-cache-size = <4000>;		// L1, 16K
++			i-cache-size = <4000>;		// L1, 16K
++			timebase-frequency = <0>;	// from bootloader
++			bus-frequency = <0>;		// from bootloader
++			clock-frequency = <0>;		// from bootloader
++			32-bit;
++		};
++	};
++
++	memory {
++		device_type = "memory";
++		reg = <00000000 08000000>;	// 128MB at 0
++	};
++
++	nand0 {
++		device_type = "nand";
++		compatible = "fsl-nand";
++		linux,phandle = <301>;
++		reg = <e2800000 2000>;
++		/*partitions = "nand0:1m(u-boot)ro,3m(kernel),-(jffs2)";*/
++	};
++
++	soc8313@e0000000 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		#interrupt-cells = <2>;
++		device_type = "soc";
++		ranges = <0 e0000000 00100000>;
++		reg = <e0000000 00000200>;
++		bus-frequency = <0>;
++
++		wdt@200 {
++			device_type = "watchdog";
++			compatible = "mpc83xx_wdt";
++			reg = <200 100>;
++		};
++
++		i2c@3000 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3000 100>;
++			interrupts = <e 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		i2c@3100 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3100 100>;
++			interrupts = <f 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		spi@7000 {
++			device_type = "spi";
++			compatible = "mpc83xx_spi";
++			reg = <7000 1000>;
++			interrupts = <10 8>;
++			interrupt-parent = <700>;
++			mode = <0>;
++		};
++
++		/* phy type (ULPI, UTMI, UTMI_WIDE, SERIAL) */
++		usb@23000 {
++			device_type = "usb";
++			compatible = "fsl-usb2-dr";
++			reg = <23000 1000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			interrupt-parent = <700>;
++			interrupts = <26 2>;
++			phy_type = "utmi_wide";
++			control_init  = <00000280>; // UTMI ext 48 MHz clk
++			sleep = <b00 1 8 00300000 0>;
++		};
++
++		mdio@24520 {
++			device_type = "mdio";
++			compatible = "gianfar";
++			reg = <24520 20>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			linux,phandle = <24520>;
++			ethernet-phy@1 {
++				linux,phandle = <2452001>;
++				interrupt-parent = <700>;
++				interrupts = <13 2>;
++				reg = <1>;
++				device_type = "ethernet-phy";
++			};
++			ethernet-phy@4 {
++				linux,phandle = <2452004>;
++				interrupt-parent = <700>;
++				interrupts = <14 2>;
++				reg = <4>;
++				device_type = "ethernet-phy";
++			};
++		};
++
++		ethernet@24000 {
++			device_type = "network";
++			model = "TSEC";
++			compatible = "gianfar";
++			reg = <24000 1000>;
++			address = [ 00 00 00 00 00 00 ];
++			local-mac-address = [ 00 00 00 00 00 00 ];
++			interrupts = <25 8 24 8 23 8>;
++			interrupt-parent = <700>;
++			phy-handle = <2452001>;
++			sleep = <b00 1 8 20000000 0>;
++		};
++
++		ethernet@25000 {
++			#address-cells = <1>;
++			#size-cells = <0>;
++			device_type = "network";
++			model = "TSEC";
++			compatible = "gianfar";
++			reg = <25000 1000>;
++			address = [ 00 00 00 00 00 00 ];
++			local-mac-address = [ 00 00 00 00 00 00 ];
++			interrupts = <22 8 21 8 20 8>;
++			interrupt-parent = <700>;
++			phy-handle = <2452004>;
++			sleep = <b00 1 8 10000000 0>;
++		};
++
++		serial@4500 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4500 100>;
++			clock-frequency = <0>;
++			interrupts = <9 8>;
++			interrupt-parent = <700>;
++		};
++
++		serial@4600 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4600 100>;
++			clock-frequency = <0>;
++			interrupts = <a 8>;
++			interrupt-parent = <700>;
++		};
++
++		pci@8500 {
++			interrupt-map-mask = <f800 0 0 7>;
++			interrupt-map = <
++
++					/* IDSEL 0x0E -mini PCI */
++					 7000 0 0 1 700 12 8
++					 7000 0 0 2 700 12 8
++					 7000 0 0 3 700 12 8
++					 7000 0 0 4 700 12 8
++
++					/* IDSEL 0x0F - PCI slot */
++					 7800 0 0 1 700 11 8
++					 7800 0 0 2 700 12 8
++					 7800 0 0 3 700 11 8
++					 7800 0 0 4 700 12 8>;
++			interrupt-parent = <700>;
++			interrupts = <42 8>;
++			bus-range = <0 0>;
++			ranges = <02000000 0 90000000 90000000 0 10000000
++			          42000000 0 80000000 80000000 0 10000000
++			          01000000 0 00000000 e2000000 0 00100000>;
++			clock-frequency = <3f940aa>;
++			#interrupt-cells = <1>;
++			#size-cells = <2>;
++			#address-cells = <3>;
++			reg = <8500 100>;
++			compatible = "83xx";
++			device_type = "pci";
++			sleep = <b00 1 8 00010000 0>;
++		};
++
++		/* May need to remove if on a part without crypto engine */
++		crypto@30000 {
++			device_type = "crypto";
++			model = "SEC2";
++			compatible = "talitos";
++			reg = <30000 10000>;
++			interrupts = <b 8>;
++			interrupt-parent = <700>;
++			num-channels = <4>;
++			channel-fifo-len = <18>;
++			exec-units-mask = <0000007e>;
++			/* desc mask is for rev2.0,
++			 * we need runtime fixup for >2.0 */
++			descriptor-types-mask = <01010ebf>;
++			sleep = <b00 1 8 03000000 0>;
++		};
++
++		/* IPIC
++		 * interrupts cell = <intr #, sense>
++		 * sense values match linux IORESOURCE_IRQ_* defines:
++		 * sense == 8: Level, low assertion
++		 * sense == 2: Edge, high-to-low change
++		 */
++		pic@700 {
++			linux,phandle = <700>;
++			interrupt-controller;
++			#address-cells = <0>;
++			#interrupt-cells = <2>;
++			reg = <700 100>;
++			built-in;
++			device_type = "ipic";
++		};
++
++		elbc@5000 {
++			linux,phandle = <5000>;
++			device_type = "elbc";
++			compatible = "fsl-elbc";
++			reg = <5000 1000>;
++			interrupts = <4d 8>;
++			interrupt-parent = <700>;
++			allow-direct-device-sleep;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "mpc831x\0mpc83xx";
++			reg = <b00 100
++			       a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++			allow-direct-device-sleep;
++		};
++	};
++};
++
+diff --git a/arch/powerpc/kernel/setup_32.c b/arch/powerpc/kernel/setup_32.c
+index 61c65d1..4700e6f 100644
+--- a/arch/powerpc/kernel/setup_32.c
++++ b/arch/powerpc/kernel/setup_32.c
+@@ -238,8 +238,10 @@ void __init setup_arch(char **cmdline_p)
+ 
+ 	smp_setup_cpu_maps();
+ 
++#ifdef CONFIG_EARLY_PRINTK
+ 	/* Register early console */
+ 	register_early_udbg_console();
++#endif
+ 
+ 	xmon_setup();
+ 
+@@ -287,8 +289,8 @@ void __init setup_arch(char **cmdline_p)
+ 	conswitchp = &dummy_con;
+ #endif
+ 
++//printk("!!!!!!!!!!!!\n");
+ 	ppc_md.setup_arch();
+ 	if ( ppc_md.progress ) ppc_md.progress("arch: exit", 0x3eab);
+-
+ 	paging_init();
+ }
+diff --git a/arch/powerpc/platforms/83xx/Kconfig b/arch/powerpc/platforms/83xx/Kconfig
+index edcd5b8..eb38988 100644
+--- a/arch/powerpc/platforms/83xx/Kconfig
++++ b/arch/powerpc/platforms/83xx/Kconfig
+@@ -5,6 +5,12 @@ choice
+ 	prompt "Machine Type"
+ 	default MPC834x_SYS
+ 
++config MPC8313_RDB
++	bool "Freescale MPC8313 RDB"
++	select DEFAULT_UIMAGE
++	help
++	  This option enables support fro the MPC8313 RDB board.
++
+ config MPC832x_MDS
+ 	bool "Freescale MPC832x MDS"
+ 	select DEFAULT_UIMAGE
+@@ -41,6 +47,12 @@ config MPC8360E_PB
+ 
+ endchoice
+ 
++config PPC_MPC831x
++	bool
++	select PPC_UDBG_16550
++	select PPC_INDIRECT_PCI
++	default y if MPC8313_RDB
++
+ config PPC_MPC832x
+ 	bool
+ 	select PPC_UDBG_16550
+diff --git a/arch/powerpc/platforms/83xx/Makefile b/arch/powerpc/platforms/83xx/Makefile
+index f1aa7e2..0b732a7 100644
+--- a/arch/powerpc/platforms/83xx/Makefile
++++ b/arch/powerpc/platforms/83xx/Makefile
+@@ -3,6 +3,7 @@
+ #
+ obj-y				:= misc.o
+ obj-$(CONFIG_PCI)		+= pci.o
++obj-$(CONFIG_MPC8313_RDB)	+= mpc8313_rdb.o
+ obj-$(CONFIG_MPC834x_SYS)	+= mpc834x_sys.o
+ obj-$(CONFIG_MPC834x_ITX)	+= mpc834x_itx.o
+ obj-$(CONFIG_MPC8360E_PB)	+= mpc8360e_pb.o
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.c b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+new file mode 100644
+index 0000000..44d0b75
+--- /dev/null
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.c
+@@ -0,0 +1,126 @@
++/*
++ * arch/powerpc/platforms/83xx/mpc8313_rdb.c
++ *
++ * Description: MPC8313x RDB board specific routines. This file is based on mpc834x_sys.c
++ * Author: Lo Wlison <r43300@freescale.com>
++ *
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/errno.h>
++#include <linux/reboot.h>
++#include <linux/pci.h>
++#include <linux/kdev_t.h>
++#include <linux/major.h>
++#include <linux/console.h>
++#include <linux/delay.h>
++#include <linux/seq_file.h>
++#include <linux/root_dev.h>
++
++#include <asm/system.h>
++#include <asm/atomic.h>
++#include <asm/time.h>
++#include <asm/io.h>
++#include <asm/machdep.h>
++#include <asm/ipic.h>
++#include <asm/bootinfo.h>
++#include <asm/irq.h>
++#include <asm/prom.h>
++#include <asm/udbg.h>
++#include <sysdev/fsl_soc.h>
++
++#include "mpc83xx.h"
++
++#ifndef CONFIG_PCI
++unsigned long isa_io_base = 0;
++unsigned long isa_mem_base = 0;
++#endif
++
++/* ************************************************************************
++ *
++ * Setup the architecture
++ *
++ */
++static void __init mpc8313_rdb_setup_arch(void)
++{
++	struct device_node *np;
++
++	if (ppc_md.progress)
++		ppc_md.progress("mpc8313_rdb_setup_arch()", 0);
++
++	np = of_find_node_by_type(NULL, "cpu");
++	if (np != 0) {
++		const unsigned int *fp =
++			get_property(np, "clock-frequency", NULL);
++		if (fp != 0)
++			loops_per_jiffy = *fp / HZ;
++		else
++			loops_per_jiffy = 50000000 / HZ;
++		of_node_put(np);
++	}
++#ifdef CONFIG_PCI
++	for (np = NULL; (np = of_find_node_by_type(np, "pci")) != NULL;)
++		add_bridge(np);
++
++	ppc_md.pci_exclude_device = mpc83xx_exclude_device;
++#endif
++
++#ifdef  CONFIG_ROOT_NFS
++	ROOT_DEV = Root_NFS;
++#else
++	ROOT_DEV = Root_HDA1;
++#endif
++}
++
++void __init mpc8313_rdb_init_IRQ(void)
++{
++	struct device_node *np;
++
++	np = of_find_node_by_type(NULL, "ipic");
++	if (!np)
++		return;
++
++	ipic_init(np, 0);
++
++	/* Initialize the default interrupt mapping priorities,
++	 * in case the boot rom changed something on us.
++	 */
++	ipic_set_default_priority();
++}
++
++/*
++ * Called very early, MMU is off, device-tree isn't unflattened
++ */
++static int __init mpc8313_rdb_probe(void)
++{
++	/* We always match for now, eventually we should look at the flat
++	   dev tree to ensure this is the board we are suppose to run on
++	*/
++	return 1;
++}
++
++#if 0
++#ifdef CONFIG_RTC_CLASS
++late_initcall(rtc_class_hookup);
++#endif
++#endif
++
++define_machine(mpc8313_rdb) {
++	.name			= "MPC8313 RDB",
++	.probe			= mpc8313_rdb_probe,
++	.setup_arch		= mpc8313_rdb_setup_arch,
++	.init_IRQ		= mpc8313_rdb_init_IRQ,
++	.get_irq		= ipic_get_irq,
++	.restart		= mpc83xx_restart,
++	.time_init		= mpc83xx_time_init,
++	.calibrate_decr		= generic_calibrate_decr,
++	.progress		= udbg_progress,
++};
+diff --git a/arch/powerpc/platforms/83xx/mpc8313_rdb.h b/arch/powerpc/platforms/83xx/mpc8313_rdb.h
+new file mode 100644
+index 0000000..6e2a1f8
+--- /dev/null
++++ b/arch/powerpc/platforms/83xx/mpc8313_rdb.h
+@@ -0,0 +1,24 @@
++/*
++ * arch/powerpc/platforms/83xx/mpc8313_rdb.h
++ *
++ * Description: MPC8313 RDB common board definitions. This file is based on mpc834x_sys.h
++ * Author: Lo Wlison <r43300@freescale.com>
++ *
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ *
++ */
++                                                                                                                                                             
++#ifndef	__MACH_MPC8313_RDB_H__
++#define	__MACH_MPC8313_RDB_H__
++
++#define PIRQA	MPC83xx_IRQ_EXT1
++#define PIRQB	MPC83xx_IRQ_EXT2
++#define PIRQC	MPC83xx_IRQ_EXT1
++#define PIRQD	MPC83xx_IRQ_EXT2
++#endif				/* __MACH_MPC8313_RDB_H__ */
++
+diff --git a/arch/powerpc/platforms/83xx/pci.c b/arch/powerpc/platforms/83xx/pci.c
+index 9c36505..d632fbb 100644
+--- a/arch/powerpc/platforms/83xx/pci.c
++++ b/arch/powerpc/platforms/83xx/pci.c
+@@ -3,6 +3,11 @@
+  *
+  * Maintained by Kumar Gala (see MAINTAINERS for contact information)
+  *
++ * Change log:
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ * 2006: Lo Wilson (r43300@freescale.com)
++ *	     Added mpc83xx_pcibios_fixup.
++ *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+  * Free Software Foundation;  either version 2 of the  License, or (at your
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index ad31e56..268f71a 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -6,6 +6,12 @@
+  * 2006 (c) MontaVista Software, Inc.
+  * Vitaly Bordug <vbordug@ru.mvista.com>
+  *
++ * Change log:
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ * 2006: Lo Wilson (r43300@freescale.com)
++ *	     Added support for Enhanced Local Bus Controller
++ *	     Added support for USB UTMI mode on-chip PHY
++ *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+  * Free Software Foundation;  either version 2 of the  License, or (at your
+@@ -26,6 +32,8 @@
+ #include <linux/fsl_devices.h>
+ #include <linux/fs_enet_pd.h>
+ #include <linux/fs_uart_pd.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/fsl_elbc.h>
+ 
+ #include <asm/system.h>
+ #include <asm/atomic.h>
+@@ -521,6 +529,10 @@ static int __init fsl_usb_of_init(void)
+ 		prop = get_property(np, "phy_type", NULL);
+ 		usb_data.phy_mode = determine_usb_phy(prop);
+ 
++		prop = get_property(np, "control_init", NULL);
++		if (prop)
++			usb_data.control_init = *((unsigned int *)prop);
++
+ 		ret =
+ 		    platform_device_add_data(usb_dev_dr, &usb_data,
+ 					     sizeof(struct
+@@ -542,6 +554,75 @@ err:
+ 
+ arch_initcall(fsl_usb_of_init);
+ 
++static int __init fsl_elbc_of_init(void)
++{
++	struct device_node *np;
++	unsigned int i;
++	struct platform_device *elbc_dev = NULL;
++	struct platform_device *nand_dev = NULL;
++	int ret;
++
++	/* find and register the enhanced local bus controller */
++	for (np = NULL, i = 0;
++	     (np = of_find_compatible_node(np, "elbc", "fsl-elbc")) != NULL;
++	     i++) {
++		struct resource r[2];
++
++		memset(&r, 0, sizeof(r));
++
++		ret = of_address_to_resource(np, 0, &r[0]);
++		if (ret)
++			goto err;
++
++		r[1].start = r[1].end = irq_of_parse_and_map(np, 0);
++		r[1].flags = IORESOURCE_IRQ;
++
++		elbc_dev =
++		    platform_device_register_simple("fsl-elbc", i, r, 2);
++		if (IS_ERR(elbc_dev)) {
++			ret = PTR_ERR(elbc_dev);
++			goto err;
++		}
++	}
++
++	/* find and register NAND memories if the eLBC was found */
++	for (np = NULL, i = 0;
++	     elbc_dev &&
++	     (np = of_find_compatible_node(np, "nand", "fsl-nand")) != NULL;
++	     i++) {
++		struct resource r;
++		struct platform_fsl_nand_chip chip_data;
++
++		memset(&r, 0, sizeof(r));
++		memset(&chip_data, 0, sizeof(chip_data));
++
++		ret = of_address_to_resource(np, 0, &r);
++		if (ret)
++			goto err;
++
++		nand_dev =
++		    platform_device_register_simple("fsl-nand", i, &r, 1);
++		if (IS_ERR(nand_dev)) {
++			ret = PTR_ERR(nand_dev);
++			goto err;
++		}
++
++		chip_data.name = get_property(np, "name", NULL);
++		chip_data.partitions_str = get_property(np, "partitions", NULL);
++
++		ret = platform_device_add_data(nand_dev, &chip_data,
++					sizeof(struct platform_fsl_nand_chip));
++		if (ret)
++			goto err;
++	}
++	return 0;
++
++err:
++	return ret;
++}
++
++arch_initcall(fsl_elbc_of_init);
++
+ #ifdef CONFIG_CPM2
+ 
+ static const char fcc_regs[] = "fcc_regs";
+diff --git a/drivers/mtd/maps/Kconfig b/drivers/mtd/maps/Kconfig
+index f457315..656defc 100644
+--- a/drivers/mtd/maps/Kconfig
++++ b/drivers/mtd/maps/Kconfig
+@@ -78,6 +78,12 @@ config MTD_SUN_UFLASH
+ 	  Sun Microsystems boardsets.  This driver will require CFI support
+ 	  in the kernel, so if you did not enable CFI previously, do that now.
+ 
++config MTD_MPC8313ERDB
++	tristate "CFI Flash device map on MPC8313E RDB support"
++	depends on 83xx && MTD_CFI && MTD_PARTITIONS
++	help
++	  Freescale MPC8313ERDB board uses CFI compliant flash.
++
+ config MTD_PNC2000
+ 	tristate "CFI Flash device mapped on Photron PNC-2000"
+ 	depends on X86 && MTD_CFI && MTD_PARTITIONS
+diff --git a/drivers/mtd/maps/Makefile b/drivers/mtd/maps/Makefile
+index 071d0bf..6093151 100644
+--- a/drivers/mtd/maps/Makefile
++++ b/drivers/mtd/maps/Makefile
+@@ -38,6 +38,7 @@ obj-$(CONFIG_MTD_SC520CDP)	+= sc520cdp.o
+ obj-$(CONFIG_MTD_NETSC520)	+= netsc520.o
+ obj-$(CONFIG_MTD_TS5500)	+= ts5500_flash.o
+ obj-$(CONFIG_MTD_SUN_UFLASH)	+= sun_uflash.o
++obj-$(CONFIG_MTD_MPC8313ERDB)	+= mpc8313erdb.o
+ obj-$(CONFIG_MTD_VMAX)		+= vmax301.o
+ obj-$(CONFIG_MTD_SCx200_DOCFLASH)+= scx200_docflash.o
+ obj-$(CONFIG_MTD_DBOX2)		+= dbox2-flash.o
+diff --git a/drivers/mtd/maps/mpc8313erdb.c b/drivers/mtd/maps/mpc8313erdb.c
+new file mode 100644
+index 0000000..c418283
+--- /dev/null
++++ b/drivers/mtd/maps/mpc8313erdb.c
+@@ -0,0 +1,111 @@
++/*
++ * Description: Handle mapping of the flash on MPC8313rdb board
++ *
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ * Author: Li yawei(r66110@freescale.com)
++ * 
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ */
++
++#include <linux/module.h>
++#include <linux/types.h>
++#include <linux/kernel.h>
++#include <asm/io.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/map.h>
++#include <linux/mtd/partitions.h>
++
++
++/* MPC8313RDB flash layout 
++ * 0 : 0xFE00 0000 - 0xFE0F FFFF : U-Boot (1M)
++ * 1 : 0xFE10 0000 - 0xFE2F FFFF : Kernel (2M)
++ * 2 : 0xFE30 0000 - 0xFE6F FFFF : Ramdisk/JFFS2/YAFFS file system (4MB)
++ * 3 : 0xFE7F 0000 - 0xFE7F FFFF : OF tree (dtb) (1M), Vitesse 7385 image at 0xFE7F E000 - 0xFE7F FFFF
++ */
++
++#define WINDOW_ADDR 0xFE000000
++#define WINDOW_SIZE 0x00800000
++
++
++/* partition_info gives details on the logical partitions that the split the
++ * single flash device into. If the size if zero we use up to the end of the
++ * device. */
++static struct mtd_partition partition_info[]={
++	{
++		.name		= "U-Boot",
++		.offset 	= 0,
++		.size		= 0x100000,
++		.mask_flags     = MTD_WRITEABLE
++	},
++	{
++		.name		= "Kernel",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x200000
++	},
++	{
++		.name		= "JFFS2",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x400000,
++    	},
++	{
++		.name		= "dtb",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x100000,
++	},
++};
++#define PARTITION_NUM (sizeof(partition_info)/sizeof(struct mtd_partition))
++
++static struct mtd_info *mymtd;
++
++
++struct map_info mpc8313rdb_map = {
++	.name		= "MPC8313RDB Flash Map Info",
++	.size		= WINDOW_SIZE,
++	.phys		= WINDOW_ADDR,
++	.bankwidth	= 2,
++};
++
++int __init init_mpc8313rdb(void)
++{
++	printk(KERN_NOTICE"MPC8313RDB flash device: %x at %x Partition number %d\n",
++			WINDOW_SIZE, WINDOW_ADDR, PARTITION_NUM);
++	mpc8313rdb_map.virt = ioremap(WINDOW_ADDR, WINDOW_SIZE);
++
++	if (!mpc8313rdb_map.virt) {
++		printk("Failed to ioremap\n");
++		return -EIO;
++	}
++	simple_map_init(&mpc8313rdb_map);
++	
++	mymtd = do_map_probe("cfi_probe", &mpc8313rdb_map);
++	if (mymtd) {
++		mymtd->owner = THIS_MODULE;
++                add_mtd_partitions(mymtd, partition_info, PARTITION_NUM);
++		printk(KERN_NOTICE "MPC8313RDB flash device (%s) initialized\n",mymtd->name);
++		return 0;
++	}
++
++	iounmap((void *)mpc8313rdb_map.virt);
++	return -ENXIO;
++}
++
++static void __exit cleanup_mpc8313rdb(void)
++{
++	if (mymtd) {
++		del_mtd_device(mymtd);
++		map_destroy(mymtd);
++	}
++	if (mpc8313rdb_map.virt) {
++		iounmap((void *)mpc8313rdb_map.virt);
++		mpc8313rdb_map.virt = 0;
++	}
++}
++module_init(init_mpc8313rdb);
++module_exit(cleanup_mpc8313rdb);
++
++MODULE_AUTHOR("Li Yawei");
++MODULE_DESCRIPTION("MTD map driver for Freescale MPC8313RDB board");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/mtd/nand/Kconfig b/drivers/mtd/nand/Kconfig
+index 358f55a..b27bb3a 100644
+--- a/drivers/mtd/nand/Kconfig
++++ b/drivers/mtd/nand/Kconfig
+@@ -248,6 +248,14 @@ config MTD_NAND_AT91
+ 	  Enables support for NAND Flash / Smart Media Card interface
+ 	  on Atmel AT91 processors.
+ 
++config MTD_NAND_FSL_ELBC
++	tristate "NAND support for MPC831x"
++	depends on MTD_NAND && PPC_MPC831x
++	help
++	  The MPC831x includes a NAND FLASH Controller Module with built-in hardware
++	  ECC capabilities. Enabling this This option will enable you to use these to
++	  control external NAND device.
++
+ config MTD_NAND_NANDSIM
+ 	tristate "Support for NAND Flash Simulator"
+ 	depends on MTD_NAND && MTD_PARTITIONS
+diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
+index f7a53f0..61b39f3 100644
+--- a/drivers/mtd/nand/Makefile
++++ b/drivers/mtd/nand/Makefile
+@@ -24,6 +24,7 @@ obj-$(CONFIG_MTD_NAND_NANDSIM)		+= nandsim.o
+ obj-$(CONFIG_MTD_NAND_CS553X)		+= cs553x_nand.o
+ obj-$(CONFIG_MTD_NAND_NDFC)		+= ndfc.o
+ obj-$(CONFIG_MTD_NAND_AT91)		+= at91_nand.o
++obj-$(CONFIG_MTD_NAND_FSL_ELBC)		+= fsl_elbc.o
+ 
+ nand-objs := nand_base.o nand_bbt.o
+ cafe_nand-objs := cafe.o cafe_ecc.o
+diff --git a/drivers/mtd/nand/fsl_elbc.c b/drivers/mtd/nand/fsl_elbc.c
+new file mode 100644
+index 0000000..b3f113a
+--- /dev/null
++++ b/drivers/mtd/nand/fsl_elbc.c
+@@ -0,0 +1,1325 @@
++/* linux/drivers/mtd/nand/fsl_elbc.c
++ *
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ *
++ * Freescale Enhanced Local Bus Controller NAND driver
++ *
++ * Author: Nick Spence <Nick.Spence@freescale.com>
++ * Maintainer: Tony Li <Tony.Li@freescale.com>
++ *
++ * Changelog:
++ *      2006-12 Tony Li <Tony.Li@freescale.com>
++ *              Adopt to MPC8313ERDB board
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++*/
++
++//#ifdef CONFIG_MTD_NAND_DEBUG
++//#define DEBUG
++//#endif
++//#define DEBUG
++
++#include <linux/module.h>
++#include <linux/types.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/string.h>
++#include <linux/ioport.h>
++#include <linux/platform_device.h>
++#include <linux/delay.h>
++#include <linux/err.h>
++#include <linux/slab.h>
++#include <linux/interrupt.h>
++#include <linux/device.h>
++#include <linux/fsl_devices.h>
++
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/nand_ecc.h>
++#include <linux/mtd/partitions.h>
++
++#include <asm/io.h>
++#include <asm/mpc83xx.h>
++#include <linux/mtd/fsl_elbc.h>
++
++#define PFX "fsl-elbc: "
++
++#undef CFG_FCM_DEBUG
++#define CFG_FCM_DEBUG_LVL 3
++#ifdef CFG_FCM_DEBUG
++static int fcm_debug_level = CFG_FCM_DEBUG_LVL;
++#define FCM_DEBUG(n, args...)			\
++	do {					\
++		if (n <= fcm_debug_level)	\
++			printk(args);		\
++	} while(0)
++#else /* CONFIG_FCM_DEBUG */
++#define FCM_DEBUG(n, args...) do { } while(0)
++#endif
++
++#define FCM_SIZE (8 * 1024)
++
++#define MAX_BANKS (8)
++
++/* use interrupt instead of busy waiting TODO */
++#define FCM_USE_INTERRUPT
++
++#define MIN(x, y)		((x < y) ? x : y)
++
++#define ERR_BYTE 0xFF	/* Value returned for read bytes when read failed */
++
++#define FCM_TIMEOUT_MSECS 100 /* Maximum number of mSecs to wait for FCM */
++
++
++
++struct fsl_elbc_ctrl;
++
++/* mtd information per set */
++
++struct fsl_elbc_mtd {
++	struct mtd_info		mtd;
++	struct nand_chip	chip;
++	struct platform_fsl_nand_chip pl_chip;
++	struct fsl_elbc_ctrl	*ctrl;
++
++	struct device		*device;
++//	int			nr_chips;       /* Number of chips in set    */
++//	int			nr_partitions;  /* Number of partitions or 0 */
++	char			*name;          /* Name of set (optional)    */
++	int			*nr_map;        /* Physical chip num (option)*/
++//	struct mtd_partition	*partitions;    /* MTD partition list (option*/
++//	struct nand_ecclayout   *ecclayout;
++	unsigned int		options;
++	struct resource		*area;
++	int			bank;	/* Chip select bank number           */
++	unsigned int		pbase;	/* Chip select base physical address */
++	unsigned int		vbase;	/* Chip select base virtual address  */
++	int			pgs;	/* NAND page size (0=512, 1=2048)    */
++	unsigned int		fmr;	/* FCM Flash Mode Register value     */
++};
++
++/* overview of the fsl elbc controller */
++
++struct fsl_elbc_ctrl {
++	struct nand_hw_control		controller;
++	struct fsl_elbc_mtd		*nmtd[MAX_BANKS];
++
++	/* device info */
++	atomic_t	childs_active;
++	struct device	*device;
++	struct resource	*area;
++	lbus83xx_t	*regs;
++	int		irq;
++	wait_queue_head_t irq_wait;
++	unsigned int	irq_status; /* status read from LTESR by irq handler */
++	u_char	       *addr;       /* Address of assigned FCM buffer        */
++	unsigned int	page;       /* Last page written to / read from      */
++	unsigned int	read_bytes; /* Number of bytes read during command   */
++	unsigned int	index;      /* Pointer to next byte to 'read'        */
++	unsigned int	status;     /* status read from LTESR after last op  */
++	int		oobbuf;     /* Pointer to OOB block                  */
++	unsigned int	mdr;        /* UPM/FCM Data Register value           */
++	unsigned int	use_mdr;    /* Non zero if the MDR is to be set      */
++};
++
++struct fsl_elbc_ctrl elbc_ctrl;
++
++/* These map to the positions used by the FCM hardware ECC generator */
++
++/* Small Page FLASH with FMR[ECCM] = 0 */
++static struct nand_ecclayout fsl_elbc_oob_sp_eccm0 = { /* TODO */
++//TODO	.useecc = MTD_NANDECC_AUTOPL_USR, /* MTD_NANDECC_PLACEONLY, */
++	.eccbytes = 3,
++	.eccpos = {6, 7, 8},
++	.oobfree = { {0, 5}, {9, 7} }
++};
++
++/* Small Page FLASH with FMR[ECCM] = 1 */
++static struct nand_ecclayout fsl_elbc_oob_sp_eccm1 = { /* TODO */
++//TODO	.useecc = MTD_NANDECC_AUTOPL_USR, /* MTD_NANDECC_PLACEONLY, */
++	.eccbytes = 3,
++	.eccpos = {8, 9, 10},
++	.oobfree = { {0, 5}, {6, 2}, {11, 5} }
++};
++
++/* Large Page FLASH with FMR[ECCM] = 0 */
++static struct nand_ecclayout fsl_elbc_oob_lp_eccm0 = {
++//TODO	.useecc = MTD_NANDECC_AUTOPL_USR, /* MTD_NANDECC_PLACEONLY, */
++	.eccbytes = 12,
++	.eccpos = {6, 7, 8, 22, 23, 24, 38, 39, 40, 54, 55, 56},
++	.oobfree = { {1, 5}, {9, 13}, {25, 13}, {41, 13}, {57, 7} }
++};
++
++/* Large Page FLASH with FMR[ECCM] = 1 */
++static struct nand_ecclayout fsl_elbc_oob_lp_eccm1 = {
++//TODO	.useecc = MTD_NANDECC_AUTOPL_USR, /* MTD_NANDECC_PLACEONLY, */
++	.eccbytes = 12,
++	.eccpos = {8, 9, 10, 24, 25, 26, 40, 41, 42, 56, 57, 58},
++	.oobfree = { {1, 7}, {11, 13}, {27, 13}, {43, 13}, {59, 5} }
++};
++
++/*=================================*/
++
++/*
++ * Set up the FCM hardware block and page address fields, and the fcm
++ * structure addr field to point to the correct FCM buffer in memory
++ */
++static void set_addr(struct mtd_info *mtd, int column, int page_addr, int oob)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	int buf_num;
++
++	ctrl->page = page_addr;
++
++	lbc->fbar = page_addr >> (chip->phys_erase_shift - chip->page_shift);
++	if (nmtd->pgs) {
++		lbc->fpar = ((page_addr << FPAR_LP_PI_SHIFT) & FPAR_LP_PI) |
++			    ( oob ? FPAR_LP_MS : 0) |
++			      column;
++		buf_num = (page_addr & 1) << 2;
++	} else {
++		lbc->fpar = ((page_addr << FPAR_SP_PI_SHIFT) & FPAR_SP_PI) |
++			    ( oob ? FPAR_SP_MS : 0) |
++			      column;
++		buf_num = page_addr & 7;
++	}
++	ctrl->addr = (unsigned char*)(nmtd->vbase + (buf_num * 1024));
++
++	/* for OOB data point to the second half of the buffer */
++	if (oob) {
++		ctrl->addr += (nmtd->pgs ? 2048 : 512);
++	}
++	FCM_DEBUG(2,"set_addr: bank=%d, ctrl->addr=0x%p (0x%08x)\n", buf_num, ctrl->addr, nmtd->vbase);
++}
++
++/*
++ * execute FCM command and wait for it to complete
++ */
++static int fsl_elbc_run_command(struct mtd_info *mtd)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	/* Setup the FMR[OP] to execute without write protection */
++	lbc->fmr = nmtd->fmr | 3;
++	if (ctrl->use_mdr)
++		lbc->mdr = ctrl->mdr;
++
++	FCM_DEBUG(5,"fsl_elbc_run_command: fmr= %08X fir= %08X fcr= %08X\n",
++		lbc->fmr, lbc->fir, lbc->fcr);
++	FCM_DEBUG(5,"fsl_elbc_run_command: fbar=%08X fpar=%08X fbcr=%08X bank=%d\n",
++		lbc->fbar, lbc->fpar, lbc->fbcr, nmtd->bank);
++
++	/* clear event registers */
++	lbc->lteatr = 0;
++	lbc->ltesr |= (LTESR_FCT | LTESR_PAR | LTESR_CC);
++
++	/* execute special operation */
++	lbc->lsor = nmtd->bank;
++
++	/* wait for FCM complete flag or timeout */
++/* TODO */
++#ifdef FCM_USE_INTERRUPT
++	ctrl->status = ctrl->irq_status = 0;
++	wait_event_timeout(ctrl->irq_wait, ctrl->irq_status, FCM_TIMEOUT_MSECS * HZ/1000);
++	ctrl->status = ctrl->irq_status;
++#else
++	{
++	unsigned long timeout;
++	unsigned long now;
++	now = jiffies_to_msecs(jiffies);
++	timeout = now + FCM_TIMEOUT_MSECS;
++	while (time_before(now, timeout)) {
++		ctrl->status = lbc->ltesr & (LTESR_FCT | LTESR_PAR | LTESR_CC);
++		if (ctrl->status)
++			break;
++		now = jiffies_to_msecs(jiffies);
++	}
++	}
++#endif
++
++	/* store mdr value in case it was needed */
++	if (ctrl->use_mdr)
++		ctrl->mdr = lbc->mdr;
++
++	ctrl->use_mdr = 0;
++
++	FCM_DEBUG(5,"fsl_elbc_run_command: stat=%08X mdr= %08X fmr= %08X\n",
++		ctrl->status, ctrl->mdr, lbc->fmr);
++
++	/* returns 0 on success otherwise non-zero) */
++	return (ctrl->status == LTESR_CC ? 0 : EFAULT);
++}
++
++/* cmdfunc send commands to the FCM */
++static void fsl_elbc_cmdfunc(struct mtd_info *mtd, unsigned command,
++			int column, int page_addr)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++
++	ctrl->use_mdr = 0;
++
++	/* clear the read buffer */
++	ctrl->read_bytes = 0;
++	if (command != NAND_CMD_PAGEPROG) {
++		ctrl->index = 0;
++		ctrl->oobbuf = -1;
++	}
++
++	switch (command) {
++	/* READ0 and READ1 read the entire buffer to use hardware ECC */
++	case NAND_CMD_READ1:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_READ1, page_addr:"
++			    " 0x%x, column: 0x%x.\n", page_addr, column);
++		ctrl->index = column + 256;
++		goto read0;
++	case NAND_CMD_READ0:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_READ0, page_addr:"
++			    " 0x%x, column: 0x%x.\n", page_addr, column);
++		ctrl->index = column;
++read0:
++		if (nmtd->pgs) {
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP1_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_CW1 << FIR_OP3_SHIFT) |
++				   (FIR_OP_RBW << FIR_OP4_SHIFT);
++		} else {
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP1_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_RBW << FIR_OP3_SHIFT);
++		}
++		lbc->fcr = (NAND_CMD_READ0     << FCR_CMD0_SHIFT) |
++			   (NAND_CMD_READSTART << FCR_CMD1_SHIFT);
++		lbc->fbcr = 0; /* read entire page to enable ECC */
++		set_addr(mtd, 0, page_addr, 0);
++		ctrl->read_bytes = mtd->writesize + mtd->oobsize;
++		goto write_cmd2;
++	/* READOOB read only the OOB becasue no ECC is performed */
++	case NAND_CMD_READOOB:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_READOOB, page_addr:"
++			    " 0x%x, column: 0x%x.\n", page_addr, column);
++		if (nmtd->pgs) {
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP1_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_CW1 << FIR_OP3_SHIFT) |
++				   (FIR_OP_RBW << FIR_OP4_SHIFT);
++			lbc->fcr = (NAND_CMD_READ0     << FCR_CMD0_SHIFT) |
++				   (NAND_CMD_READSTART << FCR_CMD1_SHIFT);
++		} else {
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP1_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_RBW << FIR_OP3_SHIFT);
++			lbc->fcr = (NAND_CMD_READOOB << FCR_CMD0_SHIFT);
++		}
++		lbc->fbcr = mtd->oobsize - column;
++		set_addr(mtd, column, page_addr, 1);
++		ctrl->read_bytes = mtd->oobsize;
++		ctrl->index = column;
++		goto write_cmd2;
++	/* READID must read all 5 possible bytes while CEB is active */
++	case NAND_CMD_READID:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_READID.\n");
++		lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++			   (FIR_OP_UA  << FIR_OP1_SHIFT) |
++			   (FIR_OP_RBW << FIR_OP2_SHIFT);
++		lbc->fcr = (NAND_CMD_READID << FCR_CMD0_SHIFT);
++		lbc->fbcr = 5; /* 5 bytes for manuf, device and exts */
++		ctrl->use_mdr = 1;
++		ctrl->mdr = 0;
++		goto write_cmd0;
++	/* ERASE1 stores the block and page address */
++	case NAND_CMD_ERASE1:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_ERASE1, page_addr:"
++			    " 0x%x.\n", page_addr);
++		set_addr(mtd, 0, page_addr, 0);
++		goto end;
++	/* ERASE2 uses the block and page address from ERASE1 */
++	case NAND_CMD_ERASE2:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_ERASE2.\n");
++		lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++			   (FIR_OP_PA  << FIR_OP1_SHIFT) |
++			   (FIR_OP_CM1 << FIR_OP2_SHIFT);
++		lbc->fcr = (NAND_CMD_ERASE1 << FCR_CMD0_SHIFT) |
++			   (NAND_CMD_ERASE2 << FCR_CMD1_SHIFT);
++		lbc->fbcr = 0;
++		goto write_cmd1;
++	/* SEQIN sets up the addr buffer and all registers except the length */
++	case NAND_CMD_SEQIN:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_SEQIN/PAGE_PROG, page_addr:"
++			    " 0x%x, column: 0x%x.\n", page_addr, column);
++		if (column == 0) {
++			lbc->fbcr = 0; /* write entire page to enable ECC */
++		} else {
++			lbc->fbcr = 1; /* mark as partial page so no HW ECC */
++		}
++		if (nmtd->pgs) {
++			/* always use READ0 for large page devices */
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP1_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_WB  << FIR_OP3_SHIFT) |
++				   (FIR_OP_CW1 << FIR_OP4_SHIFT);
++			lbc->fcr = (NAND_CMD_SEQIN << FCR_CMD0_SHIFT) |
++				   (NAND_CMD_PAGEPROG << FCR_CMD1_SHIFT);
++			set_addr(mtd, column, page_addr, 0);
++		} else {
++			lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++				   (FIR_OP_CM2 << FIR_OP1_SHIFT) |
++				   (FIR_OP_CA  << FIR_OP2_SHIFT) |
++				   (FIR_OP_PA  << FIR_OP3_SHIFT) |
++				   (FIR_OP_WB  << FIR_OP4_SHIFT) |
++				   (FIR_OP_CW1 << FIR_OP5_SHIFT);
++			if (column >= mtd->writesize) {
++				/* OOB area --> READOOB */
++				column -= mtd->writesize;
++				lbc->fcr = (NAND_CMD_READOOB << FCR_CMD0_SHIFT)
++					 | (NAND_CMD_PAGEPROG<< FCR_CMD1_SHIFT)
++					 | (NAND_CMD_SEQIN << FCR_CMD2_SHIFT);
++				set_addr(mtd, column, page_addr, 1);
++			} else if (column < 256) {
++				/* First 256 bytes --> READ0 */
++				lbc->fcr = (NAND_CMD_READ0 << FCR_CMD0_SHIFT)
++					 | (NAND_CMD_PAGEPROG<< FCR_CMD1_SHIFT)
++					 | (NAND_CMD_SEQIN << FCR_CMD2_SHIFT);
++				set_addr(mtd, column, page_addr, 0);
++			} else {
++				/* Second 256 bytes --> READ1 */
++				column -= 256;
++				lbc->fcr = (NAND_CMD_READ1 << FCR_CMD0_SHIFT)
++					 | (NAND_CMD_PAGEPROG<< FCR_CMD1_SHIFT)
++					 | (NAND_CMD_SEQIN << FCR_CMD2_SHIFT);
++				set_addr(mtd, column, page_addr, 0);
++			}
++		}
++		goto end;
++	/* PAGEPROG reuses all of the setup from SEQIN and adds the length */
++	case NAND_CMD_PAGEPROG:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_PAGEPROG"
++			    " writing %d bytes.\n",ctrl->index);
++		/* if the write did not start at 0 or is not a full page */
++		/* then set the exact length, otherwise use a full page  */
++		/* write so the HW generates the ECC. */
++		if (lbc->fbcr ||
++		   (ctrl->index != (mtd->writesize + mtd->oobsize)))
++			lbc->fbcr = ctrl->index;
++		goto write_cmd2;
++	/* CMD_STATUS must read the status byte while CEB is active */
++	/* Note - it does not wait for the ready line */
++	case NAND_CMD_STATUS:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_STATUS.\n");
++		lbc->fir = (FIR_OP_CM0 << FIR_OP0_SHIFT) |
++			   (FIR_OP_RBW << FIR_OP1_SHIFT);
++		lbc->fcr = (NAND_CMD_STATUS << FCR_CMD0_SHIFT);
++		lbc->fbcr = 1;
++		goto write_cmd0;
++	/* RESET without waiting for the ready line */
++	case NAND_CMD_RESET:
++		FCM_DEBUG(2,"fsl_elbc_cmdfunc: NAND_CMD_RESET.\n");
++		lbc->fir = (FIR_OP_CM0 << FIR_OP0_SHIFT);
++		lbc->fcr = (NAND_CMD_RESET << FCR_CMD0_SHIFT);
++		lbc->fbcr = 0;
++		goto write_cmd0;
++	default:
++		printk("fsl_elbc_cmdfunc: error, unsupported command.\n");
++		goto end;
++	}
++
++	/* Short cuts fall through to save code */
++ write_cmd0:
++	set_addr(mtd, 0, 0, 0);
++ write_cmd1:
++	ctrl->read_bytes = lbc->fbcr;
++ write_cmd2:
++	fsl_elbc_run_command(mtd);
++
++#ifdef CONFIG_MTD_NAND_VERIFY_WRITE
++	/* if we wrote a page then read back the oob to get the ECC */
++	if ((command == NAND_CMD_PAGEPROG) &&
++	    (chip->ecc.mode > NAND_ECC_SOFT) &&
++	    (lbc->fbcr == 0) &&
++	    (ctrl->oobbuf != 0) &&
++	    (ctrl->oobbuf != -1)) {
++		int i;
++		uint *oob_config;
++		unsigned char *oob_buf;
++
++		i = ctrl->page;
++		oob_buf = (unsigned char*) ctrl->oobbuf;
++		oob_config = chip->ecc.layout->eccpos;
++
++		/* wait for the write to complete and check it passed */
++		if (!(chip->waitfunc(mtd, chip) & 0x01)) {
++			/* read back the OOB */
++			fsl_elbc_cmdfunc(mtd, NAND_CMD_READOOB, 0, i);
++			/* if it succeeded then copy the ECC bytes */
++			if (ctrl->status == LTESR_CC) {
++				for (i=0; i < chip->ecc.layout->eccbytes; i++) {
++					oob_buf[oob_config[i]] =
++						ctrl->addr[oob_config[i]];
++				}
++			}
++		}
++	}
++#endif
++
++ end:
++	return;
++}
++
++/* select chip */
++
++static void fsl_elbc_select_chip(struct mtd_info *mtd, int chip)
++{
++}
++
++/* fsl_elbc_cmd_ctrl
++ *
++ * Issue command and address cycles to the chip
++*/
++
++static void fsl_elbc_cmd_ctrl(struct mtd_info *mtd, int dat,
++				    unsigned int ctrl)
++{
++}
++
++/* fsl_elbc_dev_ready()
++ *
++ * returns 0 if the nand is busy, 1 if it is ready
++*/
++
++static int fsl_elbc_dev_ready(struct mtd_info *mtd)
++{
++	return 0;
++}
++
++/*
++ * FCM does not support 16 bit data busses
++ */
++static u16 fsl_elbc_read_word(struct mtd_info *mtd)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_ctrl *ctrl = (struct fsl_elbc_ctrl *) chip->controller;
++
++	dev_err(ctrl->device, "fsl_elbc_read_word: UNIMPLEMENTED.\n");
++	return 0;
++}
++
++/*
++ * Write buf to the FCM Controller Data Buffer
++ */
++static void fsl_elbc_write_buf(struct mtd_info *mtd, const u_char *buf, int len)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++
++	FCM_DEBUG(3,"fsl_elbc_write_buf: writing %d bytes starting with 0x%lx"
++		    " at %d.\n", len, *((unsigned long*) buf), ctrl->index);
++
++	/* If armed catch the address of the OOB buffer so that it can be */
++	/* updated with the real signature after the program comletes */
++	if (!ctrl->oobbuf)
++		ctrl->oobbuf = (int) buf;
++
++	/* copy the data into the FCM hardware buffer and update the index */
++	memcpy(&(ctrl->addr[ctrl->index]), buf, len);
++	ctrl->index += len;
++	return;
++}
++
++
++/*
++ * read a byte from either the FCM hardware buffer if it has any data left
++ * otherwise issue a command to read a single byte.
++ */
++static u_char fsl_elbc_read_byte(struct mtd_info *mtd)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	unsigned char byte;
++
++	/* If there are still bytes in the FCM then use the next byte */
++	if(ctrl->index < ctrl->read_bytes) {
++		byte = ctrl->addr[(ctrl->index)++];
++		FCM_DEBUG(4,"fsl_elbc_read_byte: byte %u (%02X): %d of %d.\n",
++			  byte, byte, ctrl->index-1, ctrl->read_bytes);
++	} else {
++		/* otherwise issue a command to read 1 byte */
++		lbc->fir = (FIR_OP_RSW << FIR_OP0_SHIFT);
++		ctrl->use_mdr = 1;
++		ctrl->read_bytes = 0;
++		ctrl->index = 0;
++		ctrl->read_bytes = 0;
++		ctrl->index = 0;
++		byte = fsl_elbc_run_command(mtd) ? ERR_BYTE : ctrl->mdr & 0xff;
++		FCM_DEBUG(4,"fsl_elbc_read_byte: byte %u (%02X) from bus.\n",
++			  byte, byte);
++	}
++
++	return byte;
++}
++
++/*
++ * Read from the FCM Controller Data Buffer
++ */
++static void fsl_elbc_read_buf(struct mtd_info *mtd, u_char* buf, int len)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	int i;
++	int rest;
++	unsigned long old_status;
++
++	FCM_DEBUG(3,"fsl_elbc_read_buf: reading %d bytes.\n", len);
++
++	/* see how much is still in the FCM buffer */
++	i = min((unsigned int)len, (ctrl->read_bytes - ctrl->index));
++	rest = len - i;
++	len = i;
++
++	/* copying bytes even if there was an error so that the oob works */
++	memcpy(buf, &(ctrl->addr[(ctrl->index)]), len);
++	ctrl->index += len;
++
++	/* If more data is needed then issue another block read */
++	if (rest) {
++		FCM_DEBUG(3,"fsl_elbc_read_buf: getting %d more bytes.\n",
++			    rest);
++
++		buf += len;
++
++		/* keep last status in case it was an error */
++		old_status = ctrl->status;
++
++		/* read full next page to use HW ECC if enabled */
++		fsl_elbc_cmdfunc(mtd, NAND_CMD_READ0, 0, ctrl->page + 1);
++
++		/* preserve the worst status code */
++		if (ctrl->status == LTESR_CC)
++			ctrl->status = old_status;
++
++		fsl_elbc_read_buf(mtd, buf, rest);
++	}
++	return;
++}
++
++
++/*
++ * Verify buffer against the FCM Controller Data Buffer
++ */
++static int fsl_elbc_verify_buf(struct mtd_info *mtd, const u_char *buf, int len)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	int i;
++	int rest;
++
++	FCM_DEBUG(3,"fsl_elbc_verify_buf: checking %d bytes starting with 0x%02lx.\n",
++		len, *((unsigned long*) buf));
++
++	/* If last read failed then return error bytes */
++	if (ctrl->status != LTESR_CC) {
++		return EFAULT;
++	}
++
++	/* see how much is still in the FCM buffer */
++	i = min((unsigned int)len, (ctrl->read_bytes - ctrl->index));
++	rest = len - i;
++	len = i;
++
++	if (memcmp(buf,	&(ctrl->addr[(ctrl->index)]), len)) {
++		return EFAULT;
++	}
++
++	ctrl->index += len;
++	if (rest) {
++		FCM_DEBUG(3,"fsl_elbc_verify_buf: getting %d more bytes.\n", rest);
++		buf += len;
++
++		/* read full next page to use HW ECC if enabled */
++		fsl_elbc_cmdfunc(mtd, NAND_CMD_READ0, 0, ctrl->page + 1);
++
++		return fsl_elbc_verify_buf(mtd, buf, rest);
++	}
++	return 0;
++}
++
++/* this function is called after Program and Erase Operations to
++ * check for success or failure */
++static int fsl_elbc_wait(struct mtd_info *mtd, struct nand_chip *this)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++
++	if (ctrl->status != LTESR_CC) {
++		return(0x1); /* Status Read error */
++	}
++
++	/* Use READ_STATUS command, but wait for the device to be ready */
++	ctrl->use_mdr = 0;
++	ctrl->oobbuf = -1;
++	lbc->fir = (FIR_OP_CW0 << FIR_OP0_SHIFT) |
++		   (FIR_OP_RBW << FIR_OP1_SHIFT);
++	lbc->fcr = (NAND_CMD_STATUS << FCR_CMD0_SHIFT);
++	set_addr(mtd, 0, 0, 0);
++	lbc->fbcr = 1;
++	ctrl->index = 0;
++	ctrl->read_bytes = lbc->fbcr;
++	fsl_elbc_run_command(mtd);
++	if (ctrl->status != LTESR_CC) {
++		return(0x1); /* Status Read error */
++	}
++	return chip->read_byte(mtd);
++}
++
++/* ECC handling functions */
++
++/*
++ * fsl_elbc_enable_hwecc - start ECC generation
++ */
++static void fsl_elbc_enable_hwecc(struct mtd_info *mtd, int mode)
++{
++	return;
++}
++
++/*
++ * fsl_elbc_calculate_ecc - Calculate the ECC bytes
++ * This is done by hardware during the write process, so we use this
++ * to arm the oob buf capture on the next write_buf() call. The ECC bytes
++ * only need to be captured if CONFIG_MTD_NAND_VERIFY_WRITE is defined which
++ * reads back the pages and checks they match the data and oob buffers.
++ */
++static int fsl_elbc_calculate_ecc(struct mtd_info *mtd, const u_char *dat, u_char *ecc_code)
++{
++#ifdef CONFIG_MTD_NAND_VERIFY_WRITE
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++
++	/* arm capture of oob buf ptr on next write_buf */
++	ctrl->oobbuf = 0;
++#endif
++	return 0;
++}
++
++/*
++ * fsl_elbc_correct_data - Detect and correct bit error(s)
++ * The detection and correction is done automatically by the hardware,
++ * if the complete page was read. If the status code is okay then there
++ * was no error, otherwise we return an error code indicating an uncorrectable
++ * error.
++ */
++static int fsl_elbc_correct_data(struct mtd_info *mtd, u_char *dat, u_char *read_ecc, u_char *calc_ecc)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++
++	/* No errors */
++	if (ctrl->status == LTESR_CC)
++		return 0;
++
++	return -1; /* uncorrectable error */
++}
++
++/*************************************************************************/
++/*                     Chip setup and control functions                  */
++/*************************************************************************/
++
++/*
++ * Dummy scan_bbt to complete setup of the FMR based on NAND size
++ */
++static int fsl_elbc_chip_init_tail (struct mtd_info *mtd)
++{
++	struct nand_chip *chip = mtd->priv;
++	struct fsl_elbc_mtd *nmtd = chip->priv;
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	unsigned int i;
++	unsigned int al;
++
++	/* calculate FMR Address Length field */
++	al = 0;
++	for (i = chip->pagemask >> 16; i ; i >>= 8) {
++		al++;
++	}
++
++	/* add to ECCM mode set in fsl_elbc_init */
++	nmtd->fmr |= 12 << FMR_CWTO_SHIFT |  /* Timeout > 12 mSecs */
++		     al << FMR_AL_SHIFT;
++
++	FCM_DEBUG(1,"fsl_elbc_init: nand->options  =   %08X\n", chip->options);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->numchips = %10d\n", chip->numchips);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->chipsize = %10ld\n", chip->chipsize);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->pagemask = %10X\n", chip->pagemask);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->chip_delay = %8d\n", chip->chip_delay);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->badblockpos = %7d\n", chip->badblockpos);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->chip_shift = %8d\n", chip->chip_shift);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->page_shift = %8d\n", chip->page_shift);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->phys_erase_shift = %2d\n",
++						      chip->phys_erase_shift);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->ecclayout= %10p\n", chip->ecclayout);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->eccmode  = %10d\n", chip->ecc.mode );
++	FCM_DEBUG(1,"fsl_elbc_init: nand->eccsteps = %10d\n", chip->ecc.steps);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->eccsize  = %10d\n", chip->ecc.size );
++	FCM_DEBUG(1,"fsl_elbc_init: nand->eccbytes = %10d\n", chip->ecc.bytes);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->ecctotal = %10d\n", chip->ecc.total);
++	FCM_DEBUG(1,"fsl_elbc_init: nand->ecclayout= %10p\n", chip->ecc.layout);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->flags     =   %08X\n", mtd->flags);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->size      = %10d\n", mtd->size);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->erasesize = %10d\n", mtd->erasesize);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->writesize = %10d\n", mtd->writesize);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->oobsize   = %10d\n", mtd->oobsize);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->ecctype   = %10d\n", mtd->ecctype);
++	FCM_DEBUG(1,"fsl_elbc_init: mtd->eccsize   = %10d\n", mtd->eccsize);
++
++	/* adjust Option Register and ECC to match Flash page size */
++	if (mtd->writesize == 512)
++		lbc->bank[nmtd->bank].or &= ~(OR_FCM_PGS);
++	else if (mtd->writesize == 2048) {
++		lbc->bank[nmtd->bank].or |= OR_FCM_PGS;
++		/* adjust ecc setup if needed */
++		if ( (lbc->bank[nmtd->bank].br & BR_DECC) == BR_DECC_CHK_GEN) {
++			chip->ecc.size = 2048;
++			chip->ecc.steps = 1;
++//TODO			chip->ecc.bytes += 9;
++//TODO			chip->ecc.total += 9;
++			chip->ecc.layout = (nmtd->fmr & FMR_ECCM) ?
++					&fsl_elbc_oob_lp_eccm1 : &fsl_elbc_oob_lp_eccm0;
++			mtd->ecclayout = chip->ecc.layout;
++		}
++	}
++	else {
++		printk("fsl_elbc_init: page size %d is not supported\n",
++			mtd->writesize);
++		return -1;
++	}
++	nmtd->pgs = (lbc->bank[nmtd->bank].or>>OR_FCM_PGS_SHIFT) & 1;
++
++	/* fix up the oobavail size in case the layout was changed */
++	chip->ecc.layout->oobavail = 0;
++	for (i = 0; chip->ecc.layout->oobfree[i].length; i++)
++		chip->ecc.layout->oobavail +=
++			chip->ecc.layout->oobfree[i].length;
++
++	/* return to the default bbt_scan_routine */
++	chip->scan_bbt = nand_default_bbt;
++
++	/* restore complete options including the real SKIP_BBTSCAN setting */
++	chip->options = nmtd->options;
++
++	/* Check, if we should skip the bad block table scan */
++	if (chip->options & NAND_SKIP_BBTSCAN)
++		return 0;
++
++	return chip->scan_bbt(mtd);
++}
++/* fsl_elbc_chip_init
++ *
++ * init a single instance of an chip
++*/
++
++static int fsl_elbc_chip_init(struct fsl_elbc_mtd *nmtd)
++{
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	struct nand_chip *chip = &nmtd->chip;
++
++	FCM_DEBUG(1,"eLBC Set Information for bank %d\n", nmtd->bank);
++	FCM_DEBUG(1,"  name          = %s\n",
++		nmtd->pl_chip.name ? nmtd->pl_chip.name : "(NULL)");
++	FCM_DEBUG(1,"  nr_chips      = %d\n", nmtd->pl_chip.nr_chips);
++	FCM_DEBUG(1,"  partitions    = %s\n",
++		nmtd->pl_chip.partitions_str ?
++			nmtd->pl_chip.partitions_str : "(NULL)");
++	dev_dbg(nmtd->device,"eLBC Set Information for bank %d\n", nmtd->bank);
++	dev_dbg(nmtd->device,"  name          = %s\n",
++		nmtd->name ? nmtd->name : "(NULL)");
++	dev_dbg(nmtd->device,"  nr_chips      = %d\n", nmtd->pl_chip.nr_chips);
++	dev_dbg(nmtd->device,"  partitions    = %s\n",
++		nmtd->pl_chip.partitions_str ?
++			nmtd->pl_chip.partitions_str : "(NULL)");
++
++	/* Fill in fsl_elbc_mtd structure */
++	nmtd->name	= (char *) nmtd->pl_chip.name;
++	nmtd->mtd.name	= nmtd->name;
++	nmtd->mtd.priv	= chip;
++	nmtd->mtd.owner = THIS_MODULE;
++	nmtd->pgs = (lbc->bank[nmtd->bank].or>>OR_FCM_PGS_SHIFT) & 1;
++// TODO	nmtd->fmr = FMR_ECCM; /* rest filled in later */
++	nmtd->fmr = 0; /* rest filled in later */
++
++	/* fill in nand_chip structure */
++	/* set physical base address from the Base Register */
++	chip->IO_ADDR_W = (void __iomem*) (nmtd->pbase);
++	chip->IO_ADDR_R = chip->IO_ADDR_W;
++
++	/* set up function call table */
++//	chip->hwcontrol	 = fsl_elbc_hwcontrol;
++	chip->read_byte  = fsl_elbc_read_byte;
++	chip->read_word	 = fsl_elbc_read_word;
++	chip->write_buf	 = fsl_elbc_write_buf;
++	chip->read_buf	 = fsl_elbc_read_buf;
++	chip->verify_buf = fsl_elbc_verify_buf;
++	chip->select_chip  = fsl_elbc_select_chip;
++// TODO	chip->block_bad
++// TODO	chip->block_markbad
++	chip->cmd_ctrl  = fsl_elbc_cmd_ctrl;
++	chip->dev_ready = fsl_elbc_dev_ready;
++	chip->cmdfunc	 = fsl_elbc_cmdfunc;
++	chip->waitfunc	 = fsl_elbc_wait;
++	chip->scan_bbt	 = fsl_elbc_chip_init_tail;
++// TODO	chip->errstat
++
++	/* set up nand options */
++	chip->options = NAND_NO_READRDY;
++	chip->chip_delay   = 1;
++
++	chip->controller   = &ctrl->controller;
++	chip->priv	   = nmtd;
++
++	/* If CS Base Register selects full hardware ECC then use it */
++	if ( (lbc->bank[nmtd->bank].br & BR_DECC) == BR_DECC_CHK_GEN) {
++		chip->ecc.mode	    = NAND_ECC_HW;
++		chip->ecc.calculate = fsl_elbc_calculate_ecc;
++		chip->ecc.correct   = fsl_elbc_correct_data;
++		chip->ecc.hwctl	    = fsl_elbc_enable_hwecc;
++		/* put in small page settings and adjust later if needed */
++		chip->ecc.layout = (nmtd->fmr & FMR_ECCM) ?
++				&fsl_elbc_oob_sp_eccm1 : &fsl_elbc_oob_sp_eccm0;
++		chip->ecc.size	    = 512;
++		chip->ecc.bytes	    = 3;
++	} else {
++		/* otherwise fall back to default software ECC */
++		chip->ecc.mode	    = NAND_ECC_SOFT;
++	}
++
++	/* force BBT scan to get to custom scan_bbt for final settings */
++	nmtd->options = chip->options;
++	chip-> options &= ~(NAND_SKIP_BBTSCAN);
++
++	return 0;
++}
++
++
++
++static int fsl_elbc_chip_remove(struct platform_device *pdev)
++{
++	struct fsl_elbc_mtd *nmtd = platform_get_drvdata(pdev);
++	struct fsl_elbc_ctrl *ctrl = nmtd->ctrl;
++
++	nand_release(&nmtd->mtd);
++
++	if (nmtd->vbase != 0) {
++		iounmap((void __iomem*)nmtd->vbase);
++		nmtd->vbase = 0;
++	}
++
++/* TODO
++	if (nmtd->area != NULL) {
++		release_resource(nmtd->area);
++		kfree(nmtd->area);
++		nmtd->area = NULL;
++	}
++*/
++
++	platform_set_drvdata(pdev, NULL);
++
++	ctrl->nmtd[nmtd->bank] = NULL;
++	atomic_dec(&ctrl->childs_active);
++
++	kfree(nmtd);
++
++	return 0;
++}
++
++#ifdef CONFIG_MTD_PARTITIONS
++const char *part_probes[] = { "cmdlinepart", NULL };
++#endif
++
++static int fsl_elbc_chip_probe(struct platform_device *pdev)
++{
++	struct platform_fsl_nand_chip *pnc = pdev->dev.platform_data;
++	struct fsl_elbc_ctrl *ctrl = &elbc_ctrl;
++	volatile lbus83xx_t *lbc = ctrl->regs;
++	struct fsl_elbc_mtd *nmtd;
++	struct resource *res;
++	int err = 0;
++	int size;
++	int bank;
++	int mtd_parts_nb = 0;
++	struct mtd_partition *mtd_parts = 0;
++
++	dev_dbg(&pdev->dev, "fsl_elbc_chip_probe(%p)\n", pdev);
++
++	/* check that the platform data structure was supplied */
++	if (pnc == NULL) {
++		dev_err(&pdev->dev,"Device needs a platform data structure\n");
++		return -ENOENT;
++	}
++
++	/* check that the device has a name */
++	if (pnc->name == NULL) {
++		dev_err(&pdev->dev,"Device requires a name\n");
++		return -ENOENT;
++	}
++	/* get, allocate and map the memory resource */
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (res == NULL) {
++		dev_err(&pdev->dev,"failed to get memory region resource\n");
++		return -ENOENT;
++	}
++	/* find which chip select it is connected to */
++	for (bank=0; bank < MAX_BANKS; bank++) {
++		if ( (lbc->bank[bank].br & BR_V) &&
++		    ((lbc->bank[bank].br & BR_MSEL) == BR_MS_FCM) &&
++		    ((lbc->bank[bank].br & lbc->bank[bank].or & BR_BA) ==
++						res->start) ) {
++			break;
++		}
++	}
++
++	if (bank >= MAX_BANKS) {
++		dev_err(&pdev->dev,"address did not match any chip selects\n");
++		return -ENOENT;
++	}
++
++	nmtd = kmalloc (sizeof(*nmtd), GFP_KERNEL);
++	if (!nmtd) {
++		dev_err(ctrl->device, "no memory for nand chip structure\n");
++		return -ENOMEM;
++	}
++	memset(nmtd, 0, sizeof(*nmtd));
++
++	platform_set_drvdata(pdev, nmtd);
++
++	atomic_inc(&ctrl->childs_active);
++	if (pnc)
++		memcpy(&(nmtd->pl_chip), pnc, sizeof(*pnc));
++	ctrl->nmtd[bank] = nmtd;
++	nmtd->bank = bank;
++	nmtd->ctrl = ctrl;
++	nmtd->device = &pdev->dev;
++
++	size = ( res->end - res->start ) + 1;
++/* TODO - already requested by the elbc instance ?????
++	ctrl->area = request_mem_region(res->start, size, pdev->name);
++	if (ctrl->area == NULL) {
++		dev_err(&pdev->dev, "failed to get memory region\n");
++		err = -ENOENT;
++		goto exit_error;
++	}
++*/
++	nmtd->pbase = res->start;
++	nmtd->vbase = (unsigned int) ioremap(nmtd->pbase, FCM_SIZE);
++	if (nmtd->vbase == 0) {
++		dev_err(ctrl->device, "failed to ioremap() memory region\n");
++		err = -EIO;
++		goto exit_error;
++	}
++
++	err = fsl_elbc_chip_init(nmtd);
++	if (err != 0)
++		goto exit_error;
++
++	err = nand_scan(&nmtd->mtd,
++			 nmtd->pl_chip.nr_chips ? nmtd->pl_chip.nr_chips : 1 );
++	if (err != 0)
++		goto exit_error;
++
++#ifdef CONFIG_MTD_PARTITIONS
++	/* check for command line partition information */
++	if (!(nmtd->pl_chip.options & FSL_ELBC_NO_CMDLINE_PARTITIONS))
++		 mtd_parts_nb = parse_mtd_partitions(
++					&nmtd->mtd,
++				 	part_probes,
++					&mtd_parts,
++					0);
++#if 0
++	/* otherwise try local partition string */
++	if (mtd_parts_nb <= 0 && nmtd->pl_chip.partitions_str)
++		 mtd_parts_nb = parse_mtd_string_partitions(
++					&nmtd->mtd,
++				 	part_probes,
++					&mtd_parts,
++					0,
++					nmtd->pl_chip.partitions_str);
++#endif
++	if (mtd_parts_nb > 0)
++		err = add_mtd_partitions(&nmtd->mtd,
++					  mtd_parts,
++					  mtd_parts_nb);
++	else
++#endif
++		err = add_mtd_device(&nmtd->mtd);
++
++	if (err == 0)
++		return 0;
++
++ exit_error:
++	fsl_elbc_chip_remove(pdev);
++
++	if (err == 0)
++		err = -EINVAL;
++	return err;
++}
++
++
++/**************************************************************************/
++/*                  Controller setup and control functions                */
++/**************************************************************************/
++
++static int fsl_elbc_ctrl_init(struct fsl_elbc_ctrl *ctrl,
++			       struct platform_device *pdev)
++{
++	volatile lbus83xx_t *lbc= (lbus83xx_t*) ctrl->regs;
++
++	/* Enable only FCM detection of timeouts, ECC errors and completion */
++	lbc->ltedr = ~(LTESR_FCT | LTESR_PAR | LTESR_CC);
++
++	/* clear event registers */
++	lbc->lteatr = 0;
++	lbc->ltesr |= (LTESR_FCT | LTESR_PAR | LTESR_CC);
++
++	/* Enable interrupts for any detected events */
++	lbc->lteir = ~0;
++
++	ctrl->read_bytes = 0;
++	ctrl->index = 0;
++	ctrl->addr = (unsigned char*) (NULL);
++	ctrl->oobbuf = -1;
++
++	return 0;
++}
++
++static int fsl_elbc_ctrl_remove(struct platform_device *pdev)
++{
++	struct fsl_elbc_ctrl *ctrl = platform_get_drvdata(pdev);
++
++        if (atomic_read(&ctrl->childs_active))
++                return -EBUSY;
++
++	if (ctrl->regs != NULL) {
++		iounmap(ctrl->regs);
++		ctrl->regs = NULL;
++	}
++
++/* TODO
++	if (ctrl->area != NULL) {
++		release_resource(ctrl->area);
++		kfree(ctrl->area);
++		ctrl->area = NULL;
++	}
++*/
++	if (ctrl->irq) {
++		free_irq(ctrl->irq, pdev);
++		ctrl->irq = 0;
++	}
++
++	platform_set_drvdata(pdev, NULL);
++	memset(ctrl, 0, sizeof(*ctrl));
++
++	return 0;
++}
++
++
++/* interrupt handler code */
++
++static irqreturn_t fsl_elbc_ctrl_irq(int irqno, void *param)
++{
++	struct fsl_elbc_ctrl *ctrl = platform_get_drvdata((struct platform_device*)param);
++	volatile lbus83xx_t *lbc= (lbus83xx_t*) ctrl->regs;
++
++	ctrl->irq_status = lbc->ltesr & (LTESR_FCT | LTESR_PAR | LTESR_CC);
++	if (ctrl->irq_status)
++		wake_up(&ctrl->irq_wait);
++
++	/* clear event registers */
++	lbc->lteatr = 0;
++	lbc->ltesr |= ctrl->irq_status;
++
++	return IRQ_HANDLED;
++}
++
++
++/* fsl_elbc_ctrl_probe
++ *
++ * called by device layer when it finds a device matching
++ * one our driver can handled. This code allocates all of
++ * the resources needed for the controller only.  The
++ * resources for the NAND banks themselves are allocated
++ * in the chip probe function.
++*/
++
++static int fsl_elbc_ctrl_probe(struct platform_device *pdev)
++{
++	struct fsl_elbc_ctrl *ctrl;
++	struct resource *res;
++	int err = 0;
++	int size;
++	int ret;
++
++	dev_dbg(&pdev->dev, "fsl_elbc_ctrl_probe(%p)\n", pdev);
++	ctrl = &elbc_ctrl;
++
++	memset(ctrl, 0, sizeof(*ctrl));
++	platform_set_drvdata(pdev, ctrl);
++
++	spin_lock_init(&ctrl->controller.lock);
++	init_waitqueue_head(&ctrl->controller.wq);
++	init_waitqueue_head(&ctrl->irq_wait);
++
++	/* get, allocate and map the memory resource */
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (res == NULL) {
++		dev_err(&pdev->dev,"failed to get memory region resouce\n");
++		err = -ENOENT;
++		goto exit_error;
++	}
++
++	size = ( res->end - res->start ) + 1;
++/* TODO - already requested by the elbc instance ?????
++	ctrl->area = request_mem_region(res->start, size, pdev->name);
++	if (ctrl->area == NULL) {
++		dev_err(&pdev->dev, "failed to get memory region\n");
++		err = -ENOENT;
++		goto exit_error;
++	}
++*/
++	ctrl->regs = ioremap(res->start, size);
++	if (ctrl->regs == 0) {
++		dev_err(&pdev->dev, "failed to ioremap() region\n");
++		err = -EIO;
++		goto exit_error;
++	}
++
++	/* get and allocate the irq resource */
++	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
++	if (res == NULL) {
++		dev_err(&pdev->dev, "failed to get irq resource\n");
++		err = -ENOENT;
++		goto exit_error;
++	}
++
++	ret = request_irq(res->start, fsl_elbc_ctrl_irq, 0, pdev->name, pdev);
++	if (ret != 0) {
++		dev_err(&pdev->dev, "failed to install irq (%d)\n", ret);
++		err = -EIO;
++		goto exit_error;
++	}
++
++	ctrl->irq	= res->start;
++	ctrl->device	= &pdev->dev;
++	dev_dbg(&pdev->dev, "mapped registers at %p\n", ctrl->regs);
++
++	/* initialise the hardware */
++
++	err = fsl_elbc_ctrl_init(ctrl, pdev);
++	if (err == 0)
++		return 0;
++
++ exit_error:
++	fsl_elbc_ctrl_remove(pdev);
++
++	if (err == 0)
++		err = -EINVAL;
++	return err;
++}
++
++/* PM Support */
++#ifdef CONFIG_PM
++
++static int fsl_elbc_ctrl_suspend(struct platform_device *dev, pm_message_t pm)
++{
++	return 0;
++}
++
++static int fsl_elbc_ctrl_resume(struct platform_device *dev)
++{
++	return 0;
++}
++
++#else
++#define fsl_elbc_ctrl_suspend NULL
++#define fsl_elbc_ctrl_resume NULL
++#endif
++
++/*************************************************************************/
++/*                        device driver registration                     */
++/*************************************************************************/
++
++
++static struct platform_driver fsl_elbc_ctrl_driver = {
++	.probe		= fsl_elbc_ctrl_probe,
++	.remove		= fsl_elbc_ctrl_remove,
++	.suspend	= fsl_elbc_ctrl_suspend,
++	.resume		= fsl_elbc_ctrl_resume,
++	.driver		= {
++		.name	= "fsl-elbc",
++		.owner	= THIS_MODULE,
++	},
++};
++
++static struct platform_driver fsl_elbc_chip_driver = {
++	.probe		= fsl_elbc_chip_probe,
++	.remove		= fsl_elbc_chip_remove,
++	.driver		= {
++		.name	= "fsl-nand",
++		.owner	= THIS_MODULE,
++	},
++};
++
++static int __init fsl_elbc_init(void)
++{
++        int ret;
++
++	printk("Freescale eLBC NAND Driver (C) 2006 Freescale\n");
++
++        ret = platform_driver_register(&fsl_elbc_ctrl_driver);
++        if (!ret)
++                ret = platform_driver_register(&fsl_elbc_chip_driver);
++
++        return ret;
++}
++
++static void __exit fsl_elbc_exit(void)
++{
++	platform_driver_unregister(&fsl_elbc_chip_driver);
++	platform_driver_unregister(&fsl_elbc_ctrl_driver);
++}
++
++module_init(fsl_elbc_init);
++module_exit(fsl_elbc_exit);
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Nick Spence");
++MODULE_DESCRIPTION("Freescale Enhanced Local Bus Controller MTD NAND driver");
+diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
+index f994f12..e556700 100644
+--- a/drivers/net/phy/Kconfig
++++ b/drivers/net/phy/Kconfig
+@@ -45,10 +45,16 @@ config CICADA_PHY
+ 	---help---
+ 	  Currently supports the cis8204
+ config VITESSE_PHY
+-        tristate "Drivers for the Vitesse PHYs"
+-        depends on PHYLIB
+-        ---help---
+-          Currently supports the vsc8244
++	tristate "Drivers for the Vitesse PHYs"
++	depends on PHYLIB
++	---help---
++	  Currently supports the vsc8244
++
++config VITESSE_7385
++	tristate "Drivers for the Vitesse 7385 L2 switch"
++	depends on PHYLIB
++	---help---
++	  Currently supports the vsc7385
+ 
+ config SMSC_PHY
+ 	tristate "Drivers for SMSC PHYs"
+diff --git a/drivers/net/phy/Makefile b/drivers/net/phy/Makefile
+index bcd1efb..25f3da4 100644
+--- a/drivers/net/phy/Makefile
++++ b/drivers/net/phy/Makefile
+@@ -11,4 +11,5 @@ obj-$(CONFIG_QSEMI_PHY)		+= qsemi.o
+ obj-$(CONFIG_SMSC_PHY)		+= smsc.o
+ obj-$(CONFIG_VITESSE_PHY)	+= vitesse.o
+ obj-$(CONFIG_BROADCOM_PHY)	+= broadcom.o
++obj-$(CONFIG_VITESSE_7385)	+= vitesse_7385.o
+ obj-$(CONFIG_FIXED_PHY)		+= fixed.o
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index a4d7529..3da35f4 100644
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -6,7 +6,11 @@
+  *
+  * Author: Andy Fleming
+  *
+- * Copyright (c) 2004 Freescale Semiconductor, Inc.
++ * Copyright (C) 2004-2006 Freescale Semiconductor, Inc.
++ *
++ * Change log:
++ * 2006: Tony Li(Tony.Li@freescale.com)
++ *           Add MPC8313ERDB specific phy support.
+  *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+@@ -104,6 +108,16 @@ struct phy_device * get_phy_device(struct mii_bus *bus, int addr)
+ 
+ 	phy_id |= (phy_reg & 0xffff);
+ 
++#ifdef CONFIG_MPC8313_RDB
++	if (addr == MPC8313ERDB_SWITCHADDR)	/* if the switch on the MPC8313ERDB platform */
++		phy_id = MPC8313ERDB_SWITCHID;
++
++	/* on platform, a reading of address 0x1F returns a value of 0 and causes a PHY to be hooked in to this
++	address.  If 0x1f, return NULL (i.e. no PHY present).  Not sure if this is platform specific or TSEC specific */
++	if (addr == 0x1f)
++		 return NULL;
++#endif /* CONFIG_MPC8313_RDB */
++
+ 	/* If the phy_id is all Fs, there is no device there */
+ 	if (0xffffffff == phy_id)
+ 		return NULL;
+diff --git a/drivers/net/phy/vitesse_7385.c b/drivers/net/phy/vitesse_7385.c
+new file mode 100644
+index 0000000..64af890
+--- /dev/null
++++ b/drivers/net/phy/vitesse_7385.c
+@@ -0,0 +1,108 @@
++/*
++ * drivers/net/phy/vitesse_7385.c
++ *
++ * Dummy Ethernet switch driver for MPC8313ERDB platform
++ *
++ * Author:  Tony Li <Tony.Li@freescale.com>
++ *      Based on the MPC8349-mITX switch code. All the substantial init
++ *      operations has been done in u-boot. This code just creats a dummy
++ *      phy device to deal with kernel stock and do not touch hardware.
++ *
++ * Copyright (C) 2006 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/sched.h>
++#include <linux/string.h>
++#include <linux/errno.h>
++#include <linux/unistd.h>
++#include <linux/slab.h>
++#include <linux/interrupt.h>
++#include <linux/init.h>
++#include <linux/delay.h>
++#include <linux/netdevice.h>
++#include <linux/etherdevice.h>
++#include <linux/skbuff.h>
++#include <linux/spinlock.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/mii.h>
++#include <linux/ethtool.h>
++#include <linux/phy.h>
++
++#include <asm/io.h>
++#include <asm/irq.h>
++#include <asm/uaccess.h>
++
++MODULE_DESCRIPTION("Dummy Ethernet switch driver for MPC8313ERDB platform");
++MODULE_AUTHOR("Tony Li");
++MODULE_LICENSE("GPL");
++
++static int vitesse_7385_config_init(struct phy_device *phydev)
++{
++	return 0;
++}
++
++static int vitesse_7385_ack_interrupt(struct phy_device *phydev)
++{
++	return 0;
++}
++
++static int vitesse_7385_config_intr(struct phy_device *phydev)
++{
++	return 0;
++}
++
++static int vitesse_7385_config_aneg(struct phy_device *phydev)
++{
++	return 0;
++}
++
++static int vitesse_7385_read_status(struct phy_device *phydev)
++{
++	/* Switch is always assumed to be up */
++	phydev->speed = SPEED_1000;
++	phydev->duplex = DUPLEX_FULL;
++	phydev->pause = phydev->asym_pause = 0;
++//	phydev->link = 1;
++//	phydev->state = PHY_RUNNING;
++//	netif_carrier_on(phydev->attached_dev);
++
++	return 0;
++}
++
++
++
++/* Dummy Ethernet switch driver for MPC8313ERDB platform */
++static struct phy_driver vitesse_7385_driver = {
++	.phy_id		= MPC8313ERDB_SWITCHID,
++	.name		= "MPC8313ERDB Ethernet Switch",
++	.phy_id_mask	= 0x0000FFFF,
++	.features	= PHY_GBIT_FEATURES,
++	.flags		= 0,
++	.config_init	= &vitesse_7385_config_init,
++	.config_aneg	= &vitesse_7385_config_aneg,
++	.read_status	= &vitesse_7385_read_status,
++	.ack_interrupt	= &vitesse_7385_ack_interrupt,
++	.config_intr	= &vitesse_7385_config_intr,
++	.driver 	= { .owner = THIS_MODULE,},
++};
++
++static int __init vitesse_7385_init(void)
++{
++	return phy_driver_register(&vitesse_7385_driver);
++}
++
++static void __exit vitesse_7385_exit(void)
++{
++	phy_driver_unregister(&vitesse_7385_driver);
++}
++
++module_init(vitesse_7385_init);
++module_exit(vitesse_7385_exit);
+diff --git a/drivers/usb/host/ehci-fsl.c b/drivers/usb/host/ehci-fsl.c
+index 1a915e9..b63c034 100644
+--- a/drivers/usb/host/ehci-fsl.c
++++ b/drivers/usb/host/ehci-fsl.c
+@@ -2,6 +2,11 @@
+  * (C) Copyright David Brownell 2000-2002
+  * Copyright (c) 2005 MontaVista Software
+  *
++ * Copyright (C) Freescale Semiconductor, Inc. 2006. All rights reserved.
++ *
++ * 2006: Lo Wilson (r43300@freescale.com)
++ *           Added support for USB UTMI mode on-chip PHY.
++ *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; either version 2 of the License, or (at your
+@@ -113,6 +118,9 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
+ 		goto err3;
+ 	}
+ 
++	/* apply initialization to select and enable phy */
++	out_be32(hcd->regs + 0x500, pdata->control_init);
++
+ 	/* Enable USB controller */
+ 	temp = in_be32(hcd->regs + 0x500);
+ 	out_be32(hcd->regs + 0x500, temp | 0x4);
+@@ -185,12 +193,14 @@ static void mpc83xx_usb_setup(struct usb_hcd *hcd)
+ 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+ 	struct fsl_usb2_platform_data *pdata;
+ 	void __iomem *non_ehci = hcd->regs;
++	u32 temp;
+ 
+ 	pdata =
+ 	    (struct fsl_usb2_platform_data *)hcd->self.controller->
+ 	    platform_data;
+ 	/* Enable PHY interface in the control reg. */
+-	out_be32(non_ehci + FSL_SOC_USB_CTRL, 0x00000004);
++	temp = in_be32(hcd->regs + 0x500);
++	out_be32(non_ehci + FSL_SOC_USB_CTRL, temp | 0x00000004);
+ 	out_be32(non_ehci + FSL_SOC_USB_SNOOP1, 0x0000001b);
+ 
+ 	if (pdata->operating_mode == FSL_USB2_DR_HOST)
+diff --git a/drivers/usb/host/ehci-hcd.c b/drivers/usb/host/ehci-hcd.c
+index 025d333..f2549f7 100644
+--- a/drivers/usb/host/ehci-hcd.c
++++ b/drivers/usb/host/ehci-hcd.c
+@@ -889,7 +889,7 @@ MODULE_LICENSE ("GPL");
+ #define	PCI_DRIVER		ehci_pci_driver
+ #endif
+ 
+-#ifdef CONFIG_MPC834x
++#if defined(CONFIG_MPC834x) || defined(CONFIG_PPC_MPC831x)
+ #include "ehci-fsl.c"
+ #define	PLATFORM_DRIVER		ehci_fsl_driver
+ #endif
+diff --git a/include/asm-ppc/reg_booke.h b/include/asm-ppc/reg_booke.h
+index a263fc1..ada7b15 100644
+--- a/include/asm-ppc/reg_booke.h
++++ b/include/asm-ppc/reg_booke.h
+@@ -83,11 +83,19 @@
+ #define MSR_PMM		(1<<2)	/* Performance monitor mark bit */
+ 
+ /* Default MSR for kernel mode. */
++#if defined (CONFIG_DEBUG_CW)
++#if defined (CONFIG_40x)
++#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_IR|MSR_DR|MSR_CE|MSR_BE)
++#elif defined(CONFIG_BOOKE)
++#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_BE)
++#endif
++#else
+ #if defined (CONFIG_40x)
+ #define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_IR|MSR_DR|MSR_CE)
+ #elif defined(CONFIG_BOOKE)
+ #define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE)
+ #endif
++#endif
+ 
+ /* Special Purpose Registers (SPRNs)*/
+ #define SPRN_DECAR	0x036	/* Decrementer Auto Reload Register */
+diff --git a/include/linux/fsl_devices.h b/include/linux/fsl_devices.h
+index abb64c4..0bae7f1 100644
+--- a/include/linux/fsl_devices.h
++++ b/include/linux/fsl_devices.h
+@@ -6,7 +6,10 @@
+  *
+  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
+  *
+- * Copyright 2004 Freescale Semiconductor, Inc
++ * Copyright (C) 2004-2006 Freescale Semiconductor, Inc.
++ *
++ * 2006: Lo Wilson (r43300@freescale.com)
++ *           Added support for USB UTMI mode on-chip PHY.
+  *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+@@ -103,6 +106,7 @@ struct fsl_usb2_platform_data {
+ 	enum fsl_usb2_operating_modes	operating_mode;
+ 	enum fsl_usb2_phy_modes		phy_mode;
+ 	unsigned int			port_enables;
++	unsigned int			control_init;
+ };
+ 
+ /* Flags in fsl_usb2_mph_platform_data */
+diff --git a/include/linux/mtd/fsl_elbc.h b/include/linux/mtd/fsl_elbc.h
+new file mode 100644
+index 0000000..7e4a08f
+--- /dev/null
++++ b/include/linux/mtd/fsl_elbc.h
+@@ -0,0 +1,313 @@
++/*
++ * (C) Copyright 2004-2006 Freescale Semiconductor, Inc.
++ *
++ * Freescale Enhanced Local Bus Controller Internal Memory Map
++ *
++ * History :
++ * 20061010 : Extracted fomr immap_83xx.h
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of
++ * the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
++ * MA 02111-1307 USA
++ *
++ */
++#ifdef __KERNEL__
++#ifndef __FSL_ELBC__
++#define __FSL_ELBC__
++
++/*
++ * Local Bus Controller Registers
++ */
++typedef struct lbus_bank{
++	u32 br;             /**< Base Register  */
++#define BR0 0x5000
++#define BR1 0x5008
++#define BR2 0x5010
++#define BR3 0x5018
++#define BR4 0x5020
++#define BR5 0x5028
++#define BR6 0x5030
++#define BR7 0x5038
++
++#define BR_BA           0xFFFF8000
++#define BR_BA_SHIFT             15
++#define BR_PS           0x00001800
++#define BR_PS_SHIFT             11
++#define BR_PS_8         0x00000800  /* Port Size 8 bit */
++#define BR_PS_16        0x00001000  /* Port Size 16 bit */
++#define BR_PS_32        0x00001800  /* Port Size 32 bit */
++#define BR_DECC         0x00000600
++#define BR_DECC_SHIFT            9
++#define BR_DECC_OFF     0x00000000  /* HW ECC checking and generation off */
++#define BR_DECC_CHK     0x00000200  /* HW ECC checking on, generation off */
++#define BR_DECC_CHK_GEN 0x00000400  /* HW ECC checking and generation on */
++#define BR_WP           0x00000100
++#define BR_WP_SHIFT              8
++#define BR_MSEL         0x000000E0
++#define BR_MSEL_SHIFT            5
++#define BR_MS_GPCM      0x00000000  /* GPCM */
++#define BR_MS_FCM       0x00000020  /* FCM */
++#define BR_MS_SDRAM     0x00000060  /* SDRAM */
++#define BR_MS_UPMA      0x00000080  /* UPMA */
++#define BR_MS_UPMB      0x000000A0  /* UPMB */
++#define BR_MS_UPMC      0x000000C0  /* UPMC */
++#define BR_V            0x00000001
++#define BR_V_SHIFT               0
++#define BR_RES          ~(BR_BA|BR_PS|BR_DECC|BR_WP|BR_MSEL|BR_V)
++
++	u32 or;             /**< Base Register  */
++#define OR0 0x5004
++#define OR1 0x500C
++#define OR2 0x5014
++#define OR3 0x501C
++#define OR4 0x5024
++#define OR5 0x502C
++#define OR6 0x5034
++#define OR7 0x503C
++
++#define OR_GPCM_AM              0xFFFF8000
++#define OR_GPCM_AM_SHIFT                15
++#define OR_GPCM_BCTLD           0x00001000
++#define OR_GPCM_BCTLD_SHIFT             12
++#define OR_GPCM_CSNT            0x00000800
++#define OR_GPCM_CSNT_SHIFT              11
++#define OR_GPCM_ACS             0x00000600
++#define OR_GPCM_ACS_SHIFT                9
++#define OR_GPCM_ACS_0b10        0x00000400
++#define OR_GPCM_ACS_0b11        0x00000600
++#define OR_GPCM_XACS            0x00000100
++#define OR_GPCM_XACS_SHIFT               8
++#define OR_GPCM_SCY             0x000000F0
++#define OR_GPCM_SCY_SHIFT                4
++#define OR_GPCM_SCY_1           0x00000010
++#define OR_GPCM_SCY_2           0x00000020
++#define OR_GPCM_SCY_3           0x00000030
++#define OR_GPCM_SCY_4           0x00000040
++#define OR_GPCM_SCY_5           0x00000050
++#define OR_GPCM_SCY_6           0x00000060
++#define OR_GPCM_SCY_7           0x00000070
++#define OR_GPCM_SCY_8           0x00000080
++#define OR_GPCM_SCY_9           0x00000090
++#define OR_GPCM_SCY_10          0x000000a0
++#define OR_GPCM_SCY_11          0x000000b0
++#define OR_GPCM_SCY_12          0x000000c0
++#define OR_GPCM_SCY_13          0x000000d0
++#define OR_GPCM_SCY_14          0x000000e0
++#define OR_GPCM_SCY_15          0x000000f0
++#define OR_GPCM_SETA            0x00000008
++#define OR_GPCM_SETA_SHIFT               3
++#define OR_GPCM_TRLX            0x00000004
++#define OR_GPCM_TRLX_SHIFT               2
++#define OR_GPCM_EHTR            0x00000002
++#define OR_GPCM_EHTR_SHIFT               1
++#define OR_GPCM_EAD             0x00000001
++#define OR_GPCM_EAD_SHIFT                0
++
++#define OR_UPM_AM    0xFFFF8000
++#define OR_UPM_AM_SHIFT      15
++#define OR_UPM_XAM   0x00006000
++#define OR_UPM_XAM_SHIFT     13
++#define OR_UPM_BCTLD 0x00001000
++#define OR_UPM_BCTLD_SHIFT   12
++#define OR_UPM_BI    0x00000100
++#define OR_UPM_BI_SHIFT       8
++#define OR_UPM_TRLX  0x00000004
++#define OR_UPM_TRLX_SHIFT     2
++#define OR_UPM_EHTR  0x00000002
++#define OR_UPM_EHTR_SHIFT     1
++#define OR_UPM_EAD   0x00000001
++#define OR_UPM_EAD_SHIFT      0
++
++#define OR_SDRAM_AM    0xFFFF8000
++#define OR_SDRAM_AM_SHIFT      15
++#define OR_SDRAM_XAM   0x00006000
++#define OR_SDRAM_XAM_SHIFT     13
++#define OR_SDRAM_COLS  0x00001C00
++#define OR_SDRAM_COLS_SHIFT    10
++#define OR_SDRAM_ROWS  0x000001C0
++#define OR_SDRAM_ROWS_SHIFT     6
++#define OR_SDRAM_PMSEL 0x00000020
++#define OR_SDRAM_PMSEL_SHIFT    5
++#define OR_SDRAM_EAD   0x00000001
++#define OR_SDRAM_EAD_SHIFT      0
++
++#define OR_FCM_AM               0xFFFF8000
++#define OR_FCM_AM_SHIFT                 15
++#define OR_FCM_BCTLD            0x00001000
++#define OR_FCM_BCTLD_SHIFT              12
++#define OR_FCM_PGS              0x00000400
++#define OR_FCM_PGS_SHIFT                10
++#define OR_FCM_CSCT             0x00000200
++#define OR_FCM_CSCT_SHIFT                9
++#define OR_FCM_CST              0x00000100
++#define OR_FCM_CST_SHIFT                 8
++#define OR_FCM_CHT              0x00000080
++#define OR_FCM_CHT_SHIFT                 7
++#define OR_FCM_SCY              0x00000070
++#define OR_FCM_SCY_SHIFT                 4
++#define OR_FCM_SCY_1            0x00000010
++#define OR_FCM_SCY_2            0x00000020
++#define OR_FCM_SCY_3            0x00000030
++#define OR_FCM_SCY_4            0x00000040
++#define OR_FCM_SCY_5            0x00000050
++#define OR_FCM_SCY_6            0x00000060
++#define OR_FCM_SCY_7            0x00000070
++#define OR_FCM_RST              0x00000008
++#define OR_FCM_RST_SHIFT                 3
++#define OR_FCM_TRLX             0x00000004
++#define OR_FCM_TRLX_SHIFT                2
++#define OR_FCM_EHTR             0x00000002
++#define OR_FCM_EHTR_SHIFT                1
++} lbus_bank_t;
++
++typedef struct lbus83xx {
++	lbus_bank_t bank[8];
++	u8 res0[0x28];
++	u32 mar;                /**< UPM Address Register */
++	u8 res1[0x4];
++	u32 mamr;               /**< UPMA Mode Register */
++	u32 mbmr;               /**< UPMB Mode Register */
++	u32 mcmr;               /**< UPMC Mode Register */
++	u8 res2[0x8];
++	u32 mrtpr;              /**< Memory Refresh Timer Prescaler Register */
++	u32 mdr;                /**< UPM Data Register */
++	u8 res3[0x4];
++	u32 lsor;               /**< Special Operation Initiation Register */
++	u32 lsdmr;              /**< SDRAM Mode Register */
++	u8 res4[0x8];
++	u32 lurt;               /**< UPM Refresh Timer */
++	u32 lsrt;               /**< SDRAM Refresh Timer */
++	u8 res5[0x8];
++	u32 ltesr;              /**< Transfer Error Status Register */
++#define LTESR_BM   0x80000000
++#define LTESR_FCT  0x40000000
++#define LTESR_PAR  0x20000000
++#define LTESR_WP   0x04000000
++#define LTESR_ATMW 0x00800000
++#define LTESR_ATMR 0x00400000
++#define LTESR_CS   0x00080000
++#define LTESR_CC   0x00000001
++	u32 ltedr;              /**< Transfer Error Disable Register */
++	u32 lteir;              /**< Transfer Error Interrupt Register */
++	u32 lteatr;             /**< Transfer Error Attributes Register */
++	u32 ltear;              /**< Transfer Error Address Register */
++	u8 res6[0xC];
++	u32 lbcr;               /**< Configuration Register */
++#define LBCR_LDIS  0x80000000
++#define LBCR_LDIS_SHIFT    31
++#define LBCR_BCTLC 0x00C00000
++#define LBCR_BCTLC_SHIFT   22
++#define LBCR_AHD   0x00200000
++#define LBCR_LPBSE 0x00020000
++#define LBCR_LPBSE_SHIFT   17
++#define LBCR_EPAR  0x00010000
++#define LBCR_EPAR_SHIFT    16
++#define LBCR_BMT   0x0000FF00
++#define LBCR_BMT_SHIFT      8
++#define LBCR_INIT  0x00040000
++	u32 lcrr;               /**< Clock Ratio Register */
++#define LCRR_DBYP    0x80000000
++#define LCRR_DBYP_SHIFT      31
++#define LCRR_BUFCMDC 0x30000000
++#define LCRR_BUFCMDC_SHIFT   28
++#define LCRR_ECL     0x03000000
++#define LCRR_ECL_SHIFT       24
++#define LCRR_EADC    0x00030000
++#define LCRR_EADC_SHIFT      16
++#define LCRR_CLKDIV  0x0000000F
++#define LCRR_CLKDIV_SHIFT     0
++	u8 res7[0x8];
++	u32 fmr;               /**< Flash Mode Register */
++#define FMR_CWTO     0x0000F000
++#define FMR_CWTO_SHIFT       12
++#define FMR_BOOT     0x00000800
++#define FMR_ECCM     0x00000100
++#define FMR_AL       0x00000030
++#define FMR_AL_SHIFT          4
++#define FMR_OP       0x00000003
++#define FMR_OP_SHIFT          0
++	u32 fir;               /**< Flash Instruction Register */
++#define FIR_OP0      0xF0000000
++#define FIR_OP0_SHIFT        28
++#define FIR_OP1      0x0F000000
++#define FIR_OP1_SHIFT        24
++#define FIR_OP2      0x00F00000
++#define FIR_OP2_SHIFT        20
++#define FIR_OP3      0x000F0000
++#define FIR_OP3_SHIFT        16
++#define FIR_OP4      0x0000F000
++#define FIR_OP4_SHIFT        12
++#define FIR_OP5      0x00000F00
++#define FIR_OP5_SHIFT         8
++#define FIR_OP6      0x000000F0
++#define FIR_OP6_SHIFT         4
++#define FIR_OP7      0x0000000F
++#define FIR_OP7_SHIFT         0
++#define FIR_OP_NOP   0x0	/* No operation and end of sequence */
++#define FIR_OP_CA    0x1        /* Issue current column address */
++#define FIR_OP_PA    0x2        /* Issue current block+page address */
++#define FIR_OP_UA    0x3        /* Issue user defined address */
++#define FIR_OP_CM0   0x4        /* Issue command from FCR[CMD0] */
++#define FIR_OP_CM1   0x5        /* Issue command from FCR[CMD1] */
++#define FIR_OP_CM2   0x6        /* Issue command from FCR[CMD2] */
++#define FIR_OP_CM3   0x7        /* Issue command from FCR[CMD3] */
++#define FIR_OP_WB    0x8        /* Write FBCR bytes from FCM buffer */
++#define FIR_OP_WS    0x9        /* Write 1 or 2 bytes from MDR[AS] */
++#define FIR_OP_RB    0xA        /* Read FBCR bytes to FCM buffer */
++#define FIR_OP_RS    0xB        /* Read 1 or 2 bytes to MDR[AS] */
++#define FIR_OP_CW0   0xC        /* Wait then issue FCR[CMD0] */
++#define FIR_OP_CW1   0xD        /* Wait then issue FCR[CMD1] */
++#define FIR_OP_RBW   0xE        /* Wait then read FBCR bytes */
++#define FIR_OP_RSW   0xE        /* Wait then read 1 or 2 bytes */
++	u32 fcr;               /**< Flash Command Register */
++#define FCR_CMD0     0xFF000000
++#define FCR_CMD0_SHIFT       24
++#define FCR_CMD1     0x00FF0000
++#define FCR_CMD1_SHIFT       16
++#define FCR_CMD2     0x0000FF00
++#define FCR_CMD2_SHIFT        8
++#define FCR_CMD3     0x000000FF
++#define FCR_CMD3_SHIFT        0
++	u32 fbar;              /**< Flash Block Address Register */
++#define FBAR_BLK     0x00FFFFFF
++	u32 fpar;              /**< Flash Page Address Register */
++#define FPAR_SP_PI   0x00007C00
++#define FPAR_SP_PI_SHIFT     10
++#define FPAR_SP_MS   0x00000200
++#define FPAR_SP_CI   0x000001FF
++#define FPAR_SP_CI_SHIFT      0
++#define FPAR_LP_PI   0x0003F000
++#define FPAR_LP_PI_SHIFT     12
++#define FPAR_LP_MS   0x00000800
++#define FPAR_LP_CI   0x000007FF
++#define FPAR_LP_CI_SHIFT      0
++	u32 fbcr;              /**< Flash Byte Count Register */
++#define FBCR_BC      0x00000FFF
++	u8 res11[0x8];
++	u8 res8[0xF00];
++} lbus83xx_t;
++
++struct platform_fsl_nand_chip {
++	const char	*name;
++	int		nr_chips;
++	const char 	*partitions_str;
++	unsigned int	options;
++};
++
++/* Setting this option prevents the command line from being parsed
++ * for MTD partitions. */
++#define FSL_ELBC_NO_CMDLINE_PARTITIONS	0x10000000
++
++#endif /* __FSL_ELBC__ */
++#endif /* __KERNEL__ */
+diff --git a/include/linux/phy.h b/include/linux/phy.h
+index edd4c88..e27e185 100644
+--- a/include/linux/phy.h
++++ b/include/linux/phy.h
+@@ -6,7 +6,10 @@
+  *
+  * Author: Andy Fleming
+  *
+- * Copyright (c) 2004 Freescale Semiconductor, Inc.
++ * Copyright (c) 2004-2006 Freescale Semiconductor, Inc.
++ * CHANGLOG:
++ *	2006: Tony Li(Tony.Li@freescale.com)
++ *		Add MPC8313ERDB specific phy support
+  *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+@@ -25,6 +28,11 @@
+ #include <linux/timer.h>
+ #include <linux/workqueue.h>
+ 
++#ifdef CONFIG_MPC8313_RDB	/* TSEC2 (switch) PHY hack  */
++#define MPC8313ERDB_SWITCHADDR	0x1	/* PHY Address 1*/
++#define MPC8313ERDB_SWITCHID	0x8349	/* PHY ID */
++#endif /* CONFIG_MPC8313_RDB */
++
+ #define PHY_BASIC_FEATURES	(SUPPORTED_10baseT_Half | \
+ 				 SUPPORTED_10baseT_Full | \
+ 				 SUPPORTED_100baseT_Half | \
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 14f4d45..bf0937b 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -44,6 +44,7 @@ obj-$(CONFIG_KPROBES) += kprobes.o
+ obj-$(CONFIG_SYSFS) += ksysfs.o
+ obj-$(CONFIG_DETECT_SOFTLOCKUP) += softlockup.o
+ obj-$(CONFIG_GENERIC_HARDIRQS) += irq/
++obj-$(CONFIG_CODETEST) += codetest.o
+ obj-$(CONFIG_SECCOMP) += seccomp.o
+ obj-$(CONFIG_RCU_TORTURE_TEST) += rcutorture.o
+ obj-$(CONFIG_RELAY) += relay.o
+diff --git a/kernel/codetest.c b/kernel/codetest.c
+new file mode 100644
+index 0000000..49a5640
+--- /dev/null
++++ b/kernel/codetest.c
+@@ -0,0 +1,737 @@
++/*******************************************************************
++ * codetest.c
++ *
++ * Implementation of CodeTEST RTOS event hooks
++ *
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the
++ * Free Software Foundation; either version 2 of the License, or (at your
++ * option) any later version.
++ *
++ ********************************************************************/
++
++#include <linux/kernel.h>
++#include <asm/io.h>
++#include <asm/page.h>
++#include <linux/sched.h>
++#include <asm/current.h>
++#include <linux/module.h>
++#include <linux/string.h>
++#include <asm/system.h>
++#include <linux/mm.h>
++#include <asm/pgalloc.h>
++#include <linux/autoconf.h>
++#ifdef CONFIG_ARM
++#include <linux/time.h>
++#endif
++
++
++/* 
++** HWIC definitions 
++*/
++#define CT_TASK_CREATE    (0x2a100000)
++#define CT_TASK_ENTER     (0x2a200000)
++#define CT_TASK_DELETE    (0x2a300000)
++#define CT_TASK_EXIT      (0x2a400000)
++#define CT_ISR_ENTER      (0x2a500000)
++#define CT_ISR_EXIT       (0x2a600000)
++
++#define CT_TASK_NAMES     	(0x00020000)
++#define CT_TASK_IDS       	(0x00010000)
++#define CT_TPP_OVERRUN_TAG	(0x2c400000)	
++
++#ifdef CONFIG_CT_USEPCI
++#include <linux/pci.h>
++
++#ifdef CodeTEST
++#pragma no_tagging ctTag
++#endif
++
++#define CT_VENDOR_ID           (0x11ab)
++#define CT_DEVICE_ID           (0xf007)
++
++enum
++{
++  CT_BAR_0,
++  CT_BAR_1,
++  CT_BAR_2,
++  CT_BAR_3,
++  CT_BAR_4,
++  CT_BAR_5,
++  CT_NUM_RESOURCES
++};
++
++#endif /* CONFIG_CT_USEPCI */
++
++volatile unsigned long * ct_ctrl_port_ptr = NULL;
++volatile unsigned long * ct_data_port_ptr = NULL;
++void	 ct_enable_pid_task_name(void);
++void	 ct_disable_pid_task_name(void);
++void     ct_enable_hooks(void);
++void     ct_disable_hooks(void);
++extern unsigned long 	ct_get_phys_addr(void);
++extern void 		ct_set_phys_addr( unsigned long addr );
++int ctTag( unsigned long );
++int ctDataTag( unsigned long tagID );
++
++
++#ifndef CONFIG_CT_HOOKS_ENABLED
++#define CONFIG_CT_HOOKS_ENABLED  (0)
++#endif
++
++#ifdef CONFIG_CT_USEMICTOR
++#define CT_PHYS_ADDR CONFIG_CT_ADDR
++#else
++#define CT_PHYS_ADDR 0
++#endif
++
++#ifndef CONFIG_CT_BIG_ENDIAN
++#define _LITTLE_ENDIAN
++#endif
++
++static unsigned long            ct_phys_addr = CT_PHYS_ADDR;
++static unsigned long            ct_hooks_enabled = CONFIG_CT_HOOKS_ENABLED;
++
++unsigned	ct_pid_task_name_enabled = 0;
++/* 
++**    SWIC definitions
++*/
++#include "ctswic.h"
++
++/* the kernel event tags are placed in SWIC buffer*/
++unsigned ct_swic_enabled = 0;
++/* the ISR event tags are ignored */
++unsigned ct_filter_events = 1;
++/* DEBUG -  force tags output to HWIC ports when SWIC enabled */
++unsigned ct_force_hwic_enabled = 0;
++/* reference to ring buffer defined in ctdriver */
++struct Hook_Buffer * ct_hook_buffer = NULL;
++
++static spinlock_t hook_buffer_lock = SPIN_LOCK_UNLOCKED;
++static unsigned long lock_flags;
++
++#define HI_BIT_ONLY 0x80000000
++#define HOOK_INC(x)  ((x) = (((x)+1) & (HOOK_BUFFER_SIZE-1)))
++
++unsigned task_tag_count = 0 ;
++static unsigned dropped = 0 ;
++static pid_t deleted_thread_id = -1;
++
++
++typedef unsigned long long U64;
++
++
++void ctWriteSWICTaskTags(unsigned n_dtags, const u32 dtags[], u32 tag);
++int ct_encode_taskname(const char* name, u32 buffer[8], u32 pid);
++u32 ctTagClock(void);
++
++EXPORT_SYMBOL(ct_enable_pid_task_name);
++EXPORT_SYMBOL(ct_disable_pid_task_name);
++
++/* HWIC kernel exports */
++EXPORT_SYMBOL(ct_enable_hooks);
++EXPORT_SYMBOL(ct_disable_hooks);
++EXPORT_SYMBOL(ct_get_phys_addr);
++EXPORT_SYMBOL(ct_set_phys_addr);
++EXPORT_SYMBOL(ctTag);
++EXPORT_SYMBOL(ctDataTag);
++
++
++
++
++/* SWIC kernel exports */
++EXPORT_SYMBOL(ct_swic_enabled);
++EXPORT_SYMBOL(ct_filter_events);
++EXPORT_SYMBOL(ct_force_hwic_enabled);
++EXPORT_SYMBOL(ct_hook_buffer);
++
++/*
++-------------------------------------------------------------------------------|
++|
++| ct_init() - perform physical -> kernel virtual mapping for the tag ports
++|
++-------------------------------------------------------------------------------|
++*/
++int ct_init( void )
++{
++#ifdef CONFIG_CT_USEPCI
++  struct pci_dev * ct;
++#endif
++  int i;
++  static int printed = 0;
++
++
++  /*
++  ** Check to see if the tag pointers have been initialized
++  */
++  if( ct_ctrl_port_ptr == NULL )
++    {
++#ifdef CONFIG_CT_USEPCI
++      /*
++      ** Check to see if the CodeTEST PCI adapter has been found
++      */
++      if( (ct = pci_find_device(CT_VENDOR_ID, CT_DEVICE_ID, 0)) == 0 )
++	{
++	  /*
++	  ** Be polite and only print once every 4 billion tries
++	  */
++	  if( !printed++ )
++	    {
++	      printk( "CODETEST: PCI device not located\n" );
++	    }
++	  return -1;
++	}
++      if(pci_enable_device(ct) < 0 )
++	{
++	    printk( "CODETEST: fail to enable PCI device\n" );
++	    return -1;
++	}
++      /*printk( "CODETEST: found device \"%s\"\n", ct->name );*/
++      printk( "CODETEST: resource \"%s\", start 0x%08x, end 0x%08x, flags 0x%08x\n",
++	      ct->resource[CT_BAR_2].name,
++	      ct->resource[CT_BAR_2].start,
++	      ct->resource[CT_BAR_2].end,
++	      ct->resource[CT_BAR_2].flags );
++      /*
++      ** Store the address of the PCI adapter tag port window
++      */
++      ct_phys_addr = ct->resource[CT_BAR_2].start;
++#endif
++
++      /*
++      ** Map the physical addresses of the ports to kernel virtual addresses
++      */
++      printk( "CODETEST: attempting to map physical address 0x%08lx\n",(unsigned long) ct_phys_addr );
++      ct_ctrl_port_ptr = (unsigned long *)ioremap_nocache( ct_phys_addr, PAGE_SIZE );
++      if (ct_ctrl_port_ptr != NULL){
++        ct_data_port_ptr = ct_ctrl_port_ptr + 1;
++        printk( "CODETEST: physical address 0x%08lx mapped to kernel virtual address 0x%08lx\n",
++	      ct_phys_addr, (unsigned long)ct_ctrl_port_ptr );
++      }
++      else{
++        printk( "CODETEST: ioremap cannot map physical address 0x%08lx to a kernel virtual address\n",
++	      ct_phys_addr );
++        ct_hooks_enabled = 0;	              	      
++      }    
++
++    }
++
++  return 0;
++}
++
++
++
++/***************************************************************************/
++int ctTag( unsigned long tagID )
++{
++    if ( ct_ctrl_port_ptr == NULL )
++        return 0;
++
++    *ct_ctrl_port_ptr = tagID;
++    return( tagID );
++
++} /* ctTag */
++
++/***************************************************************************/
++int ctDataTag( unsigned long tagID )
++{
++    if ( ct_data_port_ptr == NULL )
++        return 0;
++
++    *ct_data_port_ptr = tagID;
++    return( tagID );
++
++} /* ctDataTag */
++
++
++void ctWriteHWICTaskTags( unsigned n_dtags,  const u32 dtags[], u32 tag )
++{
++  int i=0;
++  
++  /*
++  ** If enabled, check to see if the tag pointers have been initialized
++  */
++
++  if( ((ct_hooks_enabled == 0)&&(ct_force_hwic_enabled == 0)) ||
++      ((ct_ctrl_port_ptr == NULL) && (ct_init() == -1)) )
++    {
++      return;
++    }
++    
++  while(i<n_dtags){
++  	*ct_data_port_ptr = dtags[i];
++  	i++;
++  }
++  *ct_ctrl_port_ptr = tag;
++
++  return;
++}
++
++/*
++-------------------------------------------------------------------------------|
++|
++| Accessor functions
++|
++-------------------------------------------------------------------------------|
++*/
++
++void ct_enable_pid_task_name(void)
++{
++ ct_pid_task_name_enabled = 1;
++}
++
++void ct_disable_pid_task_name(void)
++{
++ ct_pid_task_name_enabled = 0;
++}
++
++void ct_enable_hooks(void)
++{
++  ct_hooks_enabled = 1;
++}
++
++
++void ct_disable_hooks(void)
++{
++  ct_hooks_enabled = 0;
++}
++
++
++unsigned long ct_get_phys_addr(void)
++{
++  return ct_phys_addr;
++}
++
++
++void ct_set_phys_addr( unsigned long addr )
++{
++  ct_phys_addr = addr;
++}
++
++
++/*
++ This function is called to insert a Kernel event tags in the ring buffer
++ Arguments: 	n_dtags - number of data tags for this event
++		dtags 	- the data tags vector
++		tag	- the control tag for this event    
++*/
++void ctWriteSWICTaskTags(unsigned n_dtags, const u32 dtags[], u32 tag)
++{
++  struct Hook_Buffer* hb = ct_hook_buffer ;
++  u32* pdtags = (u32*)dtags;
++  Q_Tag* qp ;
++  /*unsigned long x;*/    
++    
++  task_tag_count++ ; /* statistic gathering */
++  /* 
++     hb should not be null, but this may be a kernal task
++     so we are being extra careful
++  */
++  if (hb) {
++    int n_tags = n_dtags + 1 ;
++    /* compute number of empty slots in the ring buffer */
++    int slots;
++
++    struct page *ppage;
++    size_t hb_size = (sizeof(struct Hook_Buffer)+ PAGE_SIZE)/PAGE_SIZE * PAGE_SIZE;
++
++    spin_lock_irqsave(&hook_buffer_lock, lock_flags);
++
++#ifdef CT_SWIC_BUFFER_NOCACHE
++    /* update cache from physical memory */
++    for (ppage = virt_to_page((char*)hb); ppage < virt_to_page( (char*)hb + hb_size); ppage++){
++	flush_dcache_page(ppage); 
++    }
++#endif
++
++    slots = ((hb->head-hb->tail) & (HOOK_BUFFER_SIZE-1)) ;
++    
++    if (slots == 0) {
++      slots = HOOK_BUFFER_SIZE-1 ;
++    }
++    else
++      slots-- ;
++      
++    /* 
++       Disable hardware interrupts while writing tags to the hook buffer. Otherwise, with the 
++       ISR hooks enabled, task and ISR tags could be interleaved.  
++    */
++    /*local_irq_save(x);*/
++
++    if (slots < n_tags) {
++      /* not enough room, flush all but first tag as its
++	 not safe to mess with tag at head */
++      int x = hb->head ;
++      while(hb->buffer[x].a_time == HI_BIT_ONLY) {
++	/* skip over data tags */
++	HOOK_INC(x) ;
++      }
++      HOOK_INC(x) ; /* keep this control tag */
++      hb->tail = x ;
++      
++      /* 
++	 Insert a TPP OVERRUN tag to mark the drop of the full buffer
++      */
++      qp = &hb->buffer[hb->tail] ;
++      qp->tag =  CT_TPP_OVERRUN_TAG; /* the control tag */
++      qp->a_time = ctTagClock() & ~HI_BIT_ONLY ;
++
++      HOOK_INC(hb->tail) ;
++      
++      dropped++ ;  /* stats */
++    }
++
++    {
++      while(n_dtags > 0) 
++	{
++	  qp = &hb->buffer[hb->tail] ;
++	  qp->tag = *pdtags ;
++	  qp->a_time = HI_BIT_ONLY ;
++
++	  HOOK_INC(hb->tail) ;
++	  pdtags++ ;
++	  n_dtags-- ;
++	}
++      qp = &hb->buffer[hb->tail] ;
++      qp->tag = tag ; /* the control tag */
++      qp->a_time = ctTagClock() & ~HI_BIT_ONLY ;
++
++      HOOK_INC(hb->tail) ;
++    }
++    /* 
++       Reenable hardware interrupts 
++    */
++    /*local_irq_restore(x);*/
++
++#ifdef CT_SWIC_BUFFER_NOCACHE
++    /* write cache into physical memory */
++    for (ppage = virt_to_page((char*)hb); ppage < virt_to_page( (char*)hb + hb_size); ppage++){
++	flush_dcache_page(ppage); 
++    }
++#endif
++
++    spin_unlock_irqrestore(&hook_buffer_lock, lock_flags);
++
++  }
++}
++
++/* -------------------------------------------
++int ct_encode_taskname(const char* name, u32 buffer[8])
++
++ packs name into buffer as required for output as codetest tags.
++ (TBD, find and reference appropriate doc)
++ 
++  name is truncated to 32 chars.
++  
++   return value is number of words written into buffer[]
++   
++	
++------------------------------------------------------- */
++
++
++int ct_encode_taskname(const char* name_recv, u32 buffer[8], u32 pid)
++{
++  size_t len ;
++  int ret ; /* return value, number of words written into buffer */
++  int index ; /* index for buffer [] */
++  const char* p ;  /* walks name backwards in multiples of 4 */
++  char pid_string[32];
++  int x,i,j;
++  char name[100];
++  
++  strcpy(name,name_recv);
++  len = strlen(name);
++  if(ct_pid_task_name_enabled){
++    /*sprintf(pid_string,"%d",pid);
++    printk("CODETEST: %s\n",pid_string);
++    strcat(name,pid_string);*/
++    pid_string[0]='0';
++    for(x=pid,i=0;x>0;i++){
++	pid_string[i] = (x%10) + '0';
++	x = x/10;
++    }
++    pid_string[i] = '\0';
++    //printk("CODETEST: p=%s\n",pid_string);
++    if(i==0)
++	i++;
++    name[len]='_';
++    len++;
++    name[len]='\0';
++    for(x=i-1,j=0;x>=0;x--,j++)
++	name[len+j] = pid_string[x];
++    name[len+j] = '\0';
++    len = strlen(name);
++    //printk("CODETEST: n=%s\n",name);
++  }
++  if (len > 31) len = 31 ;  /* truncate if name is too long */
++  ret = (len+3)/4 ;
++	
++  p = name + (ret-1)*4;
++	
++  /* The first word is special as it is null padded if
++     len is not a multiple of 4 */
++	
++  buffer[0] = 0 ;
++  switch(len%4) {
++  case 0 :
++    p += 4 ;
++    ret += 1 ;
++    break ;
++  case 3 :
++    buffer[0] += p[2] << 8 ;
++  case 2 :
++    buffer[0] += p[1] << 16 ;
++  case 1 :
++    buffer[0] += p[0] << 24 ;
++  }
++  p -= 4 ;
++	
++  for(index = 1; index < ret ; index++, p -= 4) {
++    buffer[index] = (p[0] << 24) + (p[1] << 16)
++      + (p[2] << 8) + p[3] ;
++  }
++	
++  return ret ;
++}
++
++#if defined(CONFIG_X86)
++
++static U64 rawClock(void)	/* Linux version */
++{
++    register U64 result asm ("eax");  /* this works, placing upper bits in edx! */
++    asm( "rdtsc") ; /* long long value in edx:eax */
++    return result;
++}
++
++
++/* 
++Only 31 bits of the clock are used in a CodeTEST tag.
++The absolute time to delta time computation in swtpp.c{.w},
++assumes two adjacent tags have absolute times with difference less than
++2^31, so it is desirable that the clock not roll over quickly.
++Shifting the 64 bit clock by 11, will give a clock rate of
++about 2^20 ticks per second on a 2GHz cpu. So, the 31 bit clock will
++roll over in 34 minutes.
++*/
++
++#define CLOCKSHIFT   11
++
++u32 ctTagClock(void) 
++{
++    return (rawClock()) >> CLOCKSHIFT;
++}
++
++
++#elif defined(CONFIG_PPC)
++
++
++static u32 rawClock(void) 
++{
++    register unsigned long low  asm("%r3");
++    register unsigned long high asm("%r4");
++
++    asm("mftb %r3 ");	/* Return value for PPC */
++    asm("mftbu %r4");	/* Return upper value for PPC */
++
++    return low & 0x7fffffff;
++}
++
++u32 ctTagClock(void) 
++{
++    return rawClock(); 
++}
++
++#else
++
++#define MICROS_PER_SECOND  1000000
++
++static u32 rawClock(void) 
++{
++    struct timeval tv ;
++    do_gettimeofday(&tv) ;
++    return (tv.tv_sec*MICROS_PER_SECOND + tv.tv_usec);
++}
++
++u32 ctTagClock(void) 
++{
++    return rawClock();
++}
++
++
++#endif
++
++/*
++-------------------------------------------------------------------------------|
++|
++| Thread event hooks
++|
++-------------------------------------------------------------------------------|
++*/
++
++/*
++    These functions are called from kernel for task context changes and ISR events
++*/
++void ct_thread_create( struct task_struct * p )
++{
++  u32 count;
++  u32 tagBuf[9];
++    
++  count = ct_encode_taskname( p->comm, tagBuf, p->pid );
++  tagBuf[count] = p->pid;
++  
++  if( ct_hooks_enabled || ct_force_hwic_enabled ) 
++   ctWriteHWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_CREATE) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++    
++  if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0))
++    ctWriteSWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_CREATE) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++}
++
++void ct_thread_delete( struct task_struct * p )
++{
++  u32 count;
++  u32 tagBuf[9];
++  deleted_thread_id = p->pid;
++    
++  count = ct_encode_taskname( p->comm, tagBuf, p->pid );
++  tagBuf[count] = p->pid;    
++  
++  if( ct_hooks_enabled || ct_force_hwic_enabled ) 
++    ctWriteHWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_DELETE) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++    
++  if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0))
++    ctWriteSWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_DELETE) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++}
++
++void ct_thread_enter( struct task_struct * next )
++{
++  u32 count;
++  u32 tagBuf[9];
++    
++  count = ct_encode_taskname( next->comm, tagBuf, next->pid );
++  tagBuf[count] = next->pid;
++  
++  if( ct_hooks_enabled || ct_force_hwic_enabled ) 
++    ctWriteHWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_ENTER) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++    
++  if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0))
++    ctWriteSWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_ENTER) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++}
++
++void ct_thread_exit( struct task_struct * prev )
++{
++  u32 count;
++  u32 tagBuf[9];
++  
++  /*
++  ** If this exit comes after the thread have been deleted ignore this tag  
++  ** This algorithm assumes that after a delete event always comes comes an 
++  ** exit event for the deleted thread
++  */
++  if (prev->pid != deleted_thread_id) {
++    count = ct_encode_taskname( prev->comm, tagBuf, prev->pid );
++    tagBuf[count] = prev->pid;
++  
++    if( ct_hooks_enabled || ct_force_hwic_enabled ) 
++       ctWriteHWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_EXIT) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++    
++    if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0))
++       ctWriteSWICTaskTags( count + 1, tagBuf, 
++	      (CT_TASK_EXIT) | 
++	      (CT_TASK_NAMES) |
++	      ((count - 0x01)&0xffff) );
++  }
++  else{
++    /* ignore the exit event */
++    deleted_thread_id = -1;
++  }
++}
++
++
++/*
++-------------------------------------------------------------------------------|
++|
++| ISR hooks
++|
++-------------------------------------------------------------------------------|
++*/
++void ct_isr_enter( int irq )
++{
++  if( irq == 0 ) return;
++  if( ct_hooks_enabled || ct_force_hwic_enabled ) 
++    {
++      /*
++      ** Check to see if the tag pointers have been initialized
++      */
++      /*
++      ** Initialization call removed because, on some xscale platforms,
++      ** interrupts start before virtual memory has been initialized.
++      ** JCG 12/2/02
++      **
++      if( ct_ctrl_port_ptr == NULL && ct_init() == -1 )
++      */
++      if( ct_ctrl_port_ptr == NULL )
++	{
++	  return;
++	}
++
++      *ct_ctrl_port_ptr = CT_ISR_ENTER | (irq & 0xffff);
++    }
++  if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0) && (ct_filter_events == 0))
++    {
++      ctWriteSWICTaskTags(0,NULL,(CT_ISR_ENTER)|(irq & 0xffff));
++    }
++      
++}
++
++
++void ct_isr_exit( int irq )
++{
++  if( irq == 0 ) return;
++  
++  if( ct_hooks_enabled || ct_force_hwic_enabled )      
++    {
++      /*
++      ** Check to see if the tag pointers have been initialized
++      */
++      /*
++      ** Initialization call removed because interrupts start before
++      ** virtual memory has been initialized on some platforms
++      ** JCG 12/2/02
++      **
++      if( ct_ctrl_port_ptr == NULL && ct_init() == -1 )
++      */
++      if( ct_ctrl_port_ptr == NULL )
++	{
++	  return;
++	}
++
++      *ct_ctrl_port_ptr = CT_ISR_EXIT | (irq & 0xffff);
++    }
++  if ((ct_hook_buffer != NULL) && (ct_swic_enabled != 0) && (ct_filter_events == 0))
++    {
++      ctWriteSWICTaskTags(0, NULL, (CT_ISR_EXIT)|(irq & 0xffff));
++    }          
++}
+diff --git a/kernel/ctswic.h b/kernel/ctswic.h
+new file mode 100644
+index 0000000..cf22a0d
+--- /dev/null
++++ b/kernel/ctswic.h
+@@ -0,0 +1,40 @@
++/*******************************************************************
++ * ctswic.h
++ *
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the
++ * Free Software Foundation; either version 2 of the License, or (at your
++ * option) any later version.
++ *
++ ********************************************************************/
++
++/*
++* $Source: /u/bothell/cttarget/rtos/linux/common/src/ct_files/ctswic.h,v $
++* $Revision: 1.7 $
++* $Author: rionescu $
++* $Date: 2005/05/23 16:11:06 $
++*/
++#ifndef CT_SWIC_H_
++#define CT_SWIC_H_
++
++/* define this if you disabled in ctdriver.c */
++#ifdef CONFIG_ARM
++#define CT_SWIC_BUFFER_NOCACHE
++#endif
++
++typedef struct Q_Tag {
++  u32 tag ;
++  u32 a_time ;
++} Q_Tag ;
++
++#define HOOK_BUFFER_SIZE  2048  /* must be a power of two */
++
++struct Hook_Buffer {
++  int head ;
++  volatile int tail ;
++  Q_Tag buffer[HOOK_BUFFER_SIZE] ;
++} ;
++
++#endif
+diff --git a/kernel/exit.c b/kernel/exit.c
+index fec12eb..cfe09a5 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -48,6 +48,13 @@
+ #include <asm/pgtable.h>
+ #include <asm/mmu_context.h>
+ 
++#ifdef CONFIG_CODETEST
++/*
++** CodeTEST mods
++*/
++extern void ct_thread_delete( struct task_struct * p );
++#endif /* CONFIG_CODETEST */
++
+ extern void sem_exit (void);
+ 
+ static void exit_mm(struct task_struct * tsk);
+@@ -771,6 +778,10 @@ static void exit_notify(struct task_struct *tsk)
+ 	 *	jobs, send them a SIGHUP and then a SIGCONT.  (POSIX 3.2.2.2)
+ 	 */
+ 
++#ifdef CONFIG_CODETEST
++	ct_thread_delete( current );
++#endif /* CONFIG_CODETEST */
++
+ 	INIT_LIST_HEAD(&ptrace_dead);
+ 	forget_original_parent(tsk, &ptrace_dead);
+ 	BUG_ON(!list_empty(&tsk->children));
+diff --git a/kernel/fork.c b/kernel/fork.c
+index d57118d..e99fa16 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -57,6 +57,13 @@
+ #include <asm/cacheflush.h>
+ #include <asm/tlbflush.h>
+ 
++#ifdef CONFIG_CODETEST
++/*
++** CodeTEST mods
++*/
++extern void ct_thread_create( struct task_struct * p );
++#endif /* CONFIG_CODETEST */
++
+ /*
+  * Protected counters by write_lock_irq(&tasklist_lock)
+  */
+@@ -1394,6 +1401,10 @@ long do_fork(unsigned long clone_flags,
+ 		else
+ 			p->state = TASK_STOPPED;
+ 
++#ifdef CONFIG_CODETEST
++	ct_thread_create( p );
++#endif /* CONFIG_CODETEST */
++
+ 		if (unlikely (trace)) {
+ 			current->ptrace_message = nr;
+ 			ptrace_notify ((trace << 8) | SIGTRAP);
+diff --git a/kernel/irq/handle.c b/kernel/irq/handle.c
+index aff1f0f..7545612 100644
+--- a/kernel/irq/handle.c
++++ b/kernel/irq/handle.c
+@@ -18,6 +18,15 @@
+ 
+ #include "internals.h"
+ 
++#ifdef CONFIG_CODETEST
++/*
++** CodeTEST mods
++*/
++extern void ct_isr_enter( int irq );
++extern void ct_isr_exit( int irq );
++
++#endif /* CONFIG_CODETEST */
++
+ /**
+  * handle_bad_irq - handle spurious and unhandled irqs
+  * @irq:       the interrupt number
+@@ -177,14 +186,29 @@ fastcall unsigned int __do_IRQ(unsigned int irq)
+ 		/*
+ 		 * No locking required for CPU-local interrupts:
+ 		 */
++
++#ifdef CONFIG_CODETEST
++               ct_isr_enter( irq );
++#endif /* CONFIG_CODETEST */
++
+ 		if (desc->chip->ack)
+ 			desc->chip->ack(irq);
+ 		action_ret = handle_IRQ_event(irq, desc->action);
+ 		desc->chip->end(irq);
++
++#ifdef CONFIG_CODETEST
++               ct_isr_exit( irq );
++#endif /* CONFIG_CODETEST */
++
+ 		return 1;
+ 	}
+ 
+ 	spin_lock(&desc->lock);
++
++#ifdef CONFIG_CODETEST
++       ct_isr_enter( irq );
++#endif /* CONFIG_CODETEST */
++
+ 	if (desc->chip->ack)
+ 		desc->chip->ack(irq);
+ 	/*
+@@ -247,6 +271,11 @@ out:
+ 	 * disabled while the handler was running.
+ 	 */
+ 	desc->chip->end(irq);
++
++#ifdef CONFIG_CODETEST
++       ct_isr_exit( irq );
++#endif /* CONFIG_CODETEST */
++
+ 	spin_unlock(&desc->lock);
+ 
+ 	return 1;
+diff --git a/kernel/sched.c b/kernel/sched.c
+index cca93cc..f5e802b 100644
+--- a/kernel/sched.c
++++ b/kernel/sched.c
+@@ -56,6 +56,16 @@
+ 
+ #include <asm/unistd.h>
+ 
++#ifdef CONFIG_CODETEST
++/*
++** CodeTEST mods
++*/
++extern void ct_thread_enter( struct task_struct * next );
++extern void ct_thread_exit( struct task_struct * prev );
++
++#endif /* CONFIG_CODETEST */
++
++
+ /*
+  * Convert user-nice values [ -20 ... 0 ... 19 ]
+  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
+@@ -1855,6 +1865,11 @@ context_switch(struct rq *rq, struct task_struct *prev,
+ 		WARN_ON(rq->prev_mm);
+ 		rq->prev_mm = oldmm;
+ 	}
++
++#ifdef CONFIG_CODETEST
++       ct_thread_enter( next );
++#endif /* CONFIG_CODETEST */
++
+ 	/*
+ 	 * Since the runqueue lock will be released by the next
+ 	 * task (which is an invalid locking op but in the case
+@@ -3548,6 +3563,11 @@ switch_tasks:
+ 	sched_info_switch(prev, next);
+ 	if (likely(prev != next)) {
+ 		next->timestamp = now;
++
++#ifdef CONFIG_CODETEST
++               ct_thread_exit( prev );
++#endif /* CONFIG_CODETEST */
++
+ 		rq->nr_switches++;
+ 		rq->curr = next;
+ 		++*switch_count;
+diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
+index 5c26818..57e470a 100644
+--- a/lib/Kconfig.debug
++++ b/lib/Kconfig.debug
+@@ -165,6 +165,12 @@ config RT_MUTEX_TESTER
+ 	help
+ 	  This option enables a rt-mutex tester.
+ 
++config DEBUG_CW
++	bool "Include CodeWarrior kernel debugging"
++	depends on DEBUG_KERNEL && PPC32
++	help
++	  Say Y here to enable CodeWarrior kernel debugging.
++
+ config DEBUG_SPINLOCK
+ 	bool "Spinlock and rw-lock debugging: basic checks"
+ 	depends on DEBUG_KERNEL
+-- 
+1.5.0
+

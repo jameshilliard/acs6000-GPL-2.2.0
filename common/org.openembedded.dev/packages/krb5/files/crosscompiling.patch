@@ -1,0 +1,325 @@
+diff -r -u -N ./appl/bsd/configure ./appl/bsd/configure
+--- ./appl/bsd/configure	2007-04-20 19:40:12.000000000 -0400
++++ ./appl/bsd/configure	2007-05-31 20:49:47.000000000 -0400
+@@ -4795,7 +4795,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -10385,7 +10386,8 @@
+   if test "$cross_compiling" = yes; then
+     { { echo "$as_me:$LINENO: error: Cannot check for file existence when cross compiling" >&5
+ echo "$as_me: error: Cannot check for file existence when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   if test -r $ac_file; then
+     eval "ac_cv_file_$ac_safe=yes"
+@@ -10998,7 +11000,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./appl/configure ./appl/configure
+--- ./appl/configure	2007-04-20 19:40:32.000000000 -0400
++++ ./appl/configure	2007-05-31 20:47:05.000000000 -0400
+@@ -4793,7 +4793,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -7395,7 +7396,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./appl/gssftp/configure ./appl/gssftp/configure
+--- ./appl/gssftp/configure	2007-04-20 19:40:20.000000000 -0400
++++ ./appl/gssftp/configure	2007-05-31 20:50:47.000000000 -0400
+@@ -4792,7 +4792,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -8939,7 +8940,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./appl/gssftp/ftp/domacro.c ./appl/gssftp/ftp/domacro.c
+--- ./appl/gssftp/ftp/domacro.c	2001-06-15 14:58:55.000000000 -0400
++++ ./appl/gssftp/ftp/domacro.c	2007-05-31 21:50:55.000000000 -0400
+@@ -37,13 +37,13 @@
+ 
+ #include <stdio.h>
+ 
+-#include "ftp_var.h"
+-
+ #include <signal.h>
+ #include <errno.h>
+ #include <ctype.h>
+ #include <string.h>
+ 
++#include "ftp_var.h"
++
+ void domacro(argc, argv)
+ 	int argc;
+ 	char *argv[];
+diff -r -u -N ./appl/gssftp/ftp/ftp_var.h ./appl/gssftp/ftp/ftp_var.h
+--- ./appl/gssftp/ftp/ftp_var.h	2003-06-16 15:02:01.000000000 -0400
++++ ./appl/gssftp/ftp/ftp_var.h	2007-05-31 21:44:57.000000000 -0400
+@@ -57,6 +57,7 @@
+ typedef void (*sig_t)(int);
+ typedef void sigtype;
+ #else
++#undef sig_t
+ #define sig_t my_sig_t
+ #define sigtype krb5_sigtype
+ typedef sigtype (*sig_t)();
+diff -r -u -N ./appl/gssftp/ftp/main.c ./appl/gssftp/ftp/main.c
+--- ./appl/gssftp/ftp/main.c	2002-11-08 20:35:21.000000000 -0500
++++ ./appl/gssftp/ftp/main.c	2007-05-31 21:54:31.000000000 -0400
+@@ -52,7 +52,6 @@
+ #endif
+ 
+ #include <stdio.h>
+-#include "ftp_var.h"
+ #ifndef _WIN32
+ #ifndef KRB5_KRB4_COMPAT
+ /* krb.h gets this, and Ultrix doesn't protect vs multiple inclusion */
+@@ -83,6 +82,8 @@
+ #include <mswsock.h>
+ #endif
+ 
++#include "ftp_var.h"
++
+ #ifndef _WIN32
+ uid_t	getuid();
+ #endif
+diff -r -u -N ./appl/libpty/configure ./appl/libpty/configure
+--- ./appl/libpty/configure	2007-04-20 19:40:01.000000000 -0400
++++ ./appl/libpty/configure	2007-05-31 20:48:03.000000000 -0400
+@@ -4792,7 +4792,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -9636,7 +9637,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./appl/telnet/configure ./appl/telnet/configure
+--- ./appl/telnet/configure	2007-04-20 19:40:31.000000000 -0400
++++ ./appl/telnet/configure	2007-05-31 20:51:34.000000000 -0400
+@@ -4792,7 +4792,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -9648,7 +9649,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./configure ./configure
+--- ./configure	2007-04-20 19:40:48.000000000 -0400
++++ ./configure	2007-05-31 20:42:47.000000000 -0400
+@@ -4826,7 +4826,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -7728,7 +7729,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -16960,7 +16962,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for printf positional argument support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for printf positional argument support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./include/k5-platform.h ./include/k5-platform.h
+--- ./include/k5-platform.h	2006-06-13 11:18:04.000000000 -0400
++++ ./include/k5-platform.h	2007-05-31 21:01:00.000000000 -0400
+@@ -375,7 +375,7 @@
+ 
+ #else
+ 
+-# error "Don't know how to do unload-time finalization for this configuration."
++//# error "Don't know how to do unload-time finalization for this configuration."
+ 
+ #endif
+ 
+diff -r -u -N ./plugins/kdb/db2/configure ./plugins/kdb/db2/configure
+--- ./plugins/kdb/db2/configure	2007-04-20 19:39:30.000000000 -0400
++++ ./plugins/kdb/db2/configure	2007-05-31 20:43:57.000000000 -0400
+@@ -4795,7 +4795,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -6516,7 +6517,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./plugins/kdb/db2/libdb2/configure ./plugins/kdb/db2/libdb2/configure
+--- ./plugins/kdb/db2/libdb2/configure	2007-04-20 19:39:28.000000000 -0400
++++ ./plugins/kdb/db2/libdb2/configure	2007-05-31 20:44:50.000000000 -0400
+@@ -4795,7 +4795,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -8107,7 +8108,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./plugins/preauth/cksum_body/configure ./plugins/preauth/cksum_body/configure
+--- ./plugins/preauth/cksum_body/configure	2007-04-20 19:39:44.000000000 -0400
++++ ./plugins/preauth/cksum_body/configure	2007-05-31 20:46:24.000000000 -0400
+@@ -4794,7 +4794,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -6274,7 +6275,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./plugins/preauth/wpse/configure ./plugins/preauth/wpse/configure
+--- ./plugins/preauth/wpse/configure	2007-04-20 19:39:37.000000000 -0400
++++ ./plugins/preauth/wpse/configure	2007-05-31 20:45:38.000000000 -0400
+@@ -4794,7 +4794,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test for constructor/destructor support when cross compiling" >&5
+ echo "$as_me: error: Cannot test for constructor/destructor support when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -6274,7 +6275,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+diff -r -u -N ./tests/configure ./tests/configure
+--- ./tests/configure	2007-04-20 19:40:39.000000000 -0400
++++ ./tests/configure	2007-05-31 20:53:12.000000000 -0400
+@@ -6119,7 +6119,8 @@
+ if test "$cross_compiling" = yes; then
+   { { echo "$as_me:$LINENO: error: Cannot test regcomp when cross compiling" >&5
+ echo "$as_me: error: Cannot test regcomp when cross compiling" >&2;}
+-   { (exit 1); exit 1; }; }
++#   { (exit 1); exit 1; }; 
++}
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */

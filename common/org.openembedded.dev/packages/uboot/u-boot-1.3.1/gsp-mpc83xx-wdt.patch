@@ -1,0 +1,194 @@
+Index: u-boot-1.3.1/cpu/mpc83xx/cpu.c
+===================================================================
+--- u-boot-1.3.1.orig/cpu/mpc83xx/cpu.c
++++ u-boot-1.3.1/cpu/mpc83xx/cpu.c
+@@ -148,6 +148,9 @@ int checkcpu(void)
+ 	case SPR_8313E_REV10:
+ 		puts("MPC8313E, ");
+ 		break;
++	case SPR_8313E_REV21:
++		puts("MPC8313E, ");
++		break;
+ 	default:
+ 		printf("Rev: Unknown revision number:%08x\n"
+ 			"Warning: Unsupported cpu revision!\n",spridr);
+@@ -308,6 +311,7 @@ unsigned long get_tbclk(void)
+ 	return tbclk;
+ }
+ 
++#ifndef CONFIG_AVOCENT_GSP
+ 
+ #if defined(CONFIG_WATCHDOG)
+ void watchdog_reset (void)
+@@ -324,6 +328,54 @@ void watchdog_reset (void)
+ }
+ #endif
+ 
++#else
++static unsigned char watchdog_enable = 0;
++void watchdog_reset(void)
++{
++	if (watchdog_enable) {
++		int re_enable = disable_interrupts();
++
++		/* Reset the 83xx watchdog */
++		volatile immap_t *immr = (immap_t *) CFG_IMMR;
++		immr->wdt.swsrr = 0x556c;
++		immr->wdt.swsrr = 0xaa39;
++
++		if (re_enable)
++			enable_interrupts ();
++	}
++}
++
++void watchdog_stop(void)
++{
++	int re_enable = disable_interrupts();
++
++	/* Reset the 83xx watchdog */
++	volatile immap_t *immr = (immap_t *) CFG_IMMR;
++	immr->wdt.swcrr = 0xffff0003;
++
++	if (re_enable)
++		enable_interrupts ();
++	watchdog_enable = 0;
++}
++
++void watchdog_start(void)
++{
++	int re_enable = disable_interrupts();
++
++	/* Reset the 83xx watchdog */
++	volatile immap_t *immr = (immap_t *) CFG_IMMR;
++	immr->wdt.swcrr = CFG_WATCHDOG_VALUE * 0x10000 + 5; //Machine exception
++
++	if (re_enable)
++		enable_interrupts ();
++	watchdog_enable = 1;
++}
++
++int watchdog_enabled(void) {
++	return watchdog_enable;
++}
++#endif
++
+ #if defined(CONFIG_OF_LIBFDT)
+ 
+ /*
+Index: u-boot-1.3.1/lib_ppc/board.c
+===================================================================
+--- u-boot-1.3.1.orig/lib_ppc/board.c
++++ u-boot-1.3.1/lib_ppc/board.c
+@@ -252,8 +252,10 @@ static int init_func_i2c (void)
+ #if defined(CONFIG_WATCHDOG)
+ static int init_func_watchdog_init (void)
+ {
++#ifndef CONFIG_AVOCENT_GSP
+ 	puts ("       Watchdog enabled\n");
+ 	WATCHDOG_RESET ();
++#endif
+ 	return (0);
+ }
+ # define INIT_FUNC_WATCHDOG_INIT	init_func_watchdog_init,
+Index: u-boot-1.3.1/board/avocent/gsp/gsp-config-wdt.c
+===================================================================
+--- /dev/null
++++ u-boot-1.3.1/board/avocent/gsp/gsp-config-wdt.c
+@@ -0,0 +1,41 @@
++#include <common.h>
++#include <asm/processor.h>
++#include "gsp-config-wdt.h"
++
++#ifdef CONFIG_AVOCENT_GSP
++int gsp_config_wdt(void)
++{
++	DECLARE_GLOBAL_DATA_PTR;
++	bd_t *bd = gd->bd;
++	int set = 0;
++	char *tmp;
++
++        if ((tmp = getenv("wdt")) == NULL) {
++                setenv("wdt", "yes");
++		set = 1;
++                bd->wdt = 1;
++        } else if (strcmp(tmp, "yes") == 0  || strcmp(tmp, "YES") == 0 ||
++        	strcmp(tmp, "on") == 0  || strcmp(tmp, "ON") == 0) {
++                bd->wdt = 1;
++        } else if (strcmp(tmp, "no") == 0 || strcmp(tmp, "NO") == 0 ||
++        	strcmp(tmp, "off") == 0 || strcmp(tmp, "OFF") == 0) {
++                bd->wdt = 0;
++	} else {
++                setenv("wdt", "yes");
++		set = 1;
++                bd->wdt = 1;
++	}
++	if (bd->wdt) {
++#ifdef CONFIG_MPC83XX
++		watchdog_start();
++#endif
++		puts ("       Watchdog enabled\n");
++	} else {
++#ifdef CONFIG_MPC83XX
++		watchdog_stop();
++#endif
++		puts ("       Watchdog disabled\n");
++	}
++	return set;
++}
++#endif
+Index: u-boot-1.3.1/board/avocent/gsp/gsp-config-wdt.h
+===================================================================
+--- /dev/null
++++ u-boot-1.3.1/board/avocent/gsp/gsp-config-wdt.h
+@@ -0,0 +1 @@
++int gsp_config_wdt(void);
+Index: u-boot-1.3.1/include/asm-ppc/u-boot.h
+===================================================================
+--- u-boot-1.3.1.orig/include/asm-ppc/u-boot.h
++++ u-boot-1.3.1/include/asm-ppc/u-boot.h
+@@ -92,6 +92,11 @@ typedef struct bd_info {
+ 	unsigned int	bi_pci_busfreq;	/* PCI Bus speed, in Hz */
+ 	unsigned char	bi_pci_enetaddr[6];	/* PCI Ethernet MAC address */
+ #endif
++
++#ifdef CONFIG_AVOCENT_GSP
++	unsigned char   wdt;
++#endif
++
+ #if defined(CONFIG_HYMOD)
+ 	hymod_conf_t	bi_hymod_conf;	/* hymod configuration information */
+ #endif
+Index: u-boot-1.3.1/cpu/mpc83xx/start.S
+===================================================================
+--- u-boot-1.3.1.orig/cpu/mpc83xx/start.S
++++ u-boot-1.3.1/cpu/mpc83xx/start.S
+@@ -451,6 +451,8 @@ init_e300_core: /* time t 10 */
+ 
+ 
+ 	lis	r3, CFG_IMMR@h
++#if defined(CONFIG_AVOCENT_GSP)
++#else
+ #if defined(CONFIG_WATCHDOG)
+ 	/* Initialise the Wathcdog values and reset it (if req) */
+ 	/*------------------------------------------------------*/
+@@ -476,6 +478,7 @@ init_e300_core: /* time t 10 */
+ 	stw r4, SWCRR(r3)
+ 1:
+ #endif /* CONFIG_WATCHDOG */
++#endif /* CONFIG_AVOCENT_GSP*/
+ 
+ 	/* Initialize the Hardware Implementation-dependent Registers */
+ 	/* HID0 also contains cache control			*/
+Index: u-boot-1.3.1/include/watchdog.h
+===================================================================
+--- u-boot-1.3.1.orig/include/watchdog.h
++++ u-boot-1.3.1/include/watchdog.h
+@@ -89,4 +89,8 @@
+ 	void reset_4xx_watchdog(void);
+ #endif
+ 
++#if defined(CONFIG_AVOCENT_GSP) && !defined(__ASSEMBLY__) && defined(CONFIG_MPC83XX)
++	void watchdog_stop(void);
++	void watchdog_start(void);
++#endif
+ #endif /* _WATCHDOG_H_ */

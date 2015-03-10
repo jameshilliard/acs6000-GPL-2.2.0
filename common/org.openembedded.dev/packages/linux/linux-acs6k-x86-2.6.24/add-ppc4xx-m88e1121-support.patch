@@ -1,0 +1,49 @@
+Index: linux-2.6-denx/drivers/net/ibm_emac/ibm_emac_phy.c
+===================================================================
+--- linux-2.6-denx.orig/drivers/net/ibm_emac/ibm_emac_phy.c	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/drivers/net/ibm_emac/ibm_emac_phy.c	2008-06-05 10:53:56.000000000 -0700
+@@ -356,6 +356,36 @@
+ 	.ops		= &m88e1111_phy_ops,
+ };
+ 
++static int m88e1121_init(struct mii_phy *phy)
++{
++	phy_write (phy, 22, 2);
++	phy_write (phy, 21, 0x1070);
++	phy_write (phy, 22, 0);
++	phy_write (phy, 16, 0x6060);
++	phy_write (phy, 22, 3);
++	phy_write (phy, 16, 0x101e);
++	phy_write (phy, 9, 0x0e00);
++	phy_write (phy, 4, 0x01e1);
++	phy_write(phy, 0x00, 0x9140);
++	phy_write(phy, 0x00, 0x1140);
++	return  0;
++}
++
++static struct mii_phy_ops m88e1121_phy_ops = {
++	.init           = m88e1121_init,
++	.setup_aneg     = genmii_setup_aneg,
++	.setup_forced   = genmii_setup_forced,
++	.poll_link      = genmii_poll_link,
++	.read_link      = genmii_read_link
++};
++
++static struct mii_phy_def m88e1121_phy_def = {
++       .phy_id         = 0x01410CB0,
++       .phy_id_mask    = 0x0ffffff0,
++       .name           = "Marvell 88E1121 Ethernet",
++       .ops            = &m88e1121_phy_ops,
++};
++
+ static int et1011c_init(struct mii_phy *phy)
+ {
+ 	u16 reg_short;
+@@ -391,6 +414,7 @@
+ static struct mii_phy_def *mii_phy_table[] = {
+ 	&cis8201_phy_def,
+ 	&m88e1111_phy_def,
++	&m88e1121_phy_def,
+ 	&et1011c_phy_def,
+ 	&genmii_phy_def,
+ 	NULL

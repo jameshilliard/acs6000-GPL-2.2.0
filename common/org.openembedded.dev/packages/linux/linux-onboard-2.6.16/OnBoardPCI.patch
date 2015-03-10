@@ -1,0 +1,407 @@
+diff -ruNp linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.c OnBoardPCI/arch/ppc/platforms/85xx/mpc85xx_cds_common.c
+--- linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.c	2006-04-27 18:55:31.456816128 -0700
++++ OnBoardPCI/arch/ppc/platforms/85xx/mpc85xx_cds_common.c	2006-04-27 18:55:37.360918568 -0700
+@@ -115,6 +115,19 @@ static u_char mpc85xx_cds_openpic_initse
+ 	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 9: USB C */
+ 	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 10: Compact Flash */
+ 	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 11: UART */
++#elif defined(CONFIG_ALTERPATH_ONBOARD)
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 0: PHY #1 */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 1: NATSEMI FOE*/
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 2: PCI1520*/
++	0x0,
++	0x0,
++	0x0,
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 6: Marvell */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 7: Marvell */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 8: Marvell */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 9: Marvell */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 10: Marvell */
++	(IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE),      /* External 11: CF */
+ #endif
+ };
+ 
+@@ -133,12 +146,15 @@ mpc85xx_cds_show_cpuinfo(struct seq_file
+ 	pvid = mfspr(SPRN_PVR);
+ 	svid = mfspr(SPRN_SVR);
+ 
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
+-	seq_printf(m, "Vendor\t\t: Freescale Semiconductor\n");
+-	seq_printf(m, "Machine\t\t: CDS - MPC%s (%x)\n", cur_ppc_sys_spec->ppc_sys_name, cadmus[CM_VER]);
+-#else
++#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_Alterpath_KVMMAXV2)
+ 	seq_printf(m, "Vendor\t\t: Cyclades Corporation\n");
+ 	seq_printf(m, "Machine\t\t: AlterPath-KVM/max - MPC%s\n", cur_ppc_sys_spec->ppc_sys_name);
++#elif defined(CONFIG_ALTERPATH_ONBOARD)
++	seq_printf(m, "Vendor\t\t: Cyclades Corporation\n");
++	seq_printf(m, "Machine\t\t: AlterPath-OnBoard - MPC%s\n", cur_ppc_sys_spec->ppc_sys_name);
++#else
++	seq_printf(m, "Vendor\t\t: Freescale Semiconductor\n");
++	seq_printf(m, "Machine\t\t: CDS - MPC%s (%x)\n", cur_ppc_sys_spec->ppc_sys_name, cadmus[CM_VER]);
+ #endif
+ 	seq_printf(m, "clock\t\t: %dMHz\n", freq / 1000000);
+ 	seq_printf(m, "PVR\t\t: 0x%x\n", pvid);
+@@ -280,6 +296,16 @@ mpc85xx_map_irq(struct pci_dev *dev, uns
+ 		}
+ 	}
+ 	return 0;
++#elif defined(CONFIG_ALTERPATH_ONBOARD)
++	if (!hose->index) {
++		switch (idsel) {
++			case 0x10:
++				return MPC85xx_IRQ_EXT2;
++			case 0x11:
++				return MPC85xx_IRQ_EXT1;
++		}
++	}
++	return 0;
+ #else
+ 	if (!hose->index)
+ 	{
+@@ -329,15 +355,16 @@ mpc85xx_map_irq(struct pci_dev *dev, uns
+ #endif
+ }
+ 
+-//#define ARCADIA_HOST_BRIDGE_IDSEL	17
+-//#define ARCADIA_2ND_BRIDGE_IDSEL	3
++#define ARCADIA_HOST_BRIDGE_IDSEL	17
++#define ARCADIA_2ND_BRIDGE_IDSEL	3
+ 
+ extern int mpc85xx_pci1_last_busno;
+ 
+ int
+ mpc85xx_exclude_device(u_char bus, u_char devfn)
+ {
+-#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_Alterpath_KVMMAXV2)
++#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_Alterpath_KVMMAXV2) || \
++			defined(CONFIG_Alterpath_ONBOARD_V1)
+ 	return PCIBIOS_SUCCESSFUL;
+ #else
+ 	if (bus == 0 && PCI_SLOT(devfn) == 0)
+@@ -388,7 +415,8 @@ mpc85xx_cds_enable_via(struct pci_contro
+ void __init
+ mpc85xx_cds_fixup_via(struct pci_controller *hose)
+ {
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) && \
++			!defined(CONFIG_ALTERPATH_ONBOARD)
+ 	u32 pci_class;
+ 	u16 vid, did;
+ 
+@@ -442,7 +470,8 @@ mpc85xx_cds_fixup_via(struct pci_control
+ #endif
+ }
+ 
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) && \
++			!defined(CONFIG_ALTERPATH_ONBOARD)
+ void __init
+ mpc85xx_cds_pcibios_fixup(void)
+ {
+@@ -515,7 +544,68 @@ mpc85xx_cds_setup_arch(void)
+ 	cpm2_reset();
+ #endif
+ 
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	{
++		volatile cpm2_map_t *immap = cpm2_immr;
++		volatile iop_cpm2_t *iop = &immap->im_ioport;
++		unsigned long tmp;
++
++		/*
++		 * set PC29 as interrupt for UART1's DCD(I).
++		 * no need to set CPM's interrupt registers, the
++		 * default value for PC29 works as we want.
++		 */
++		iop->iop_pdirc &= ~(CPM_PC_29); /* direction = 0, input */
++		iop->iop_pparc &= ~(CPM_PC_29); /* pin assignment = 0, general IO */
++		iop->iop_podrc &= ~(CPM_PC_29); /* =0, NOT open-drain */
++		iop->iop_pdatc |=  (CPM_PC_29); /* init to be deasserted (=1) */
++
++
++		/* set PA13(PA22 in 1st spin), PC29, PA20(PA31 in 1st spin) as UART1's
++		 * DTR(O), DCD(I), DSR(I) to support PM and MODEM.
++		 */
++
++		/* PA13/22: DTR(O) */
++		if (binfo->board_ver_rev >= 0x02) { /* 2nd spin and later on */
++			iop->iop_pdira |=  (CPM_PA_13); /* direction=1: output */
++			iop->iop_ppara &= ~(CPM_PA_13); /* pin assign=0: general IO */
++			iop->iop_podra &= ~(CPM_PA_13); /* OD=0: regular */
++			iop->iop_pdata |=  (CPM_PA_13); /* init to be deasserted (=1) */
++		} else if (binfo->board_ver_rev == 0x01) { /* 1st spin */
++			iop->iop_pdira |=  (CPM_PA_22); /* direction=1: output */
++			iop->iop_ppara &= ~(CPM_PA_22); /* pin assign=0: general IO */
++			iop->iop_podra &= ~(CPM_PA_22); /* OD=0: regular */
++			iop->iop_pdata |=  (CPM_PA_22); /* init to be deasserted (=1) */
++		}
++
++		/* PA20/31: DSR(I) */
++		if (binfo->board_ver_rev >= 0x02) { /* 2nd spin and later on */
++			iop->iop_pdira &= ~(CPM_PA_20); /* direction=0: input */
++			iop->iop_ppara &= ~(CPM_PA_20); /* pin assign=0: general IO */
++			iop->iop_podra &= ~(CPM_PA_20); /* OD=0: regular */
++			iop->iop_pdata |=  (CPM_PA_20); /* init to be deasserted (=1) */
++		} else if (binfo->board_ver_rev == 0x01) { /* 1st spin */
++			iop->iop_pdira &= ~(CPM_PA_31); /* direction=0: input */
++			iop->iop_ppara &= ~(CPM_PA_31); /* pin assign=0: general IO */
++			iop->iop_podra &= ~(CPM_PA_31); /* OD=0: regular */
++			iop->iop_pdata |=  (CPM_PA_31); /* init to be deasserted (=1) */
++		}
++
++		/* The following 2 lines should be at the LAST.
++		 * To ensure set value really done, two more steps:
++		 *
++		 *    1. read the final config register just written,
++		 *    2. do SYNC instruction right away.
++		 *
++		 */
++		tmp = iop->iop_pdata;
++		asm("sync");
++	}
++
++#endif
++
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) && \
++				!defined(CONFIG_ALTERPATH_ONBOARD)
+ 	cadmus = ioremap(CADMUS_BASE, CADMUS_SIZE);
+ 	cds_pci_slot = ((cadmus[CM_CSR] >> 6) & 0x3) + 1;
+ 	printk("CDS Version = %x in PCI slot %d\n", cadmus[CM_VER], cds_pci_slot);
+@@ -533,7 +623,8 @@ mpc85xx_cds_setup_arch(void)
+ 	loops_per_jiffy = freq / HZ;
+ 
+ #ifdef CONFIG_PCI
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) && \
++				!defined(CONFIG_ALTERPATH_ONBOARD)
+ 	/* VIA IDE configuration */
+         ppc_md.pcibios_fixup = mpc85xx_cds_pcibios_fixup;
+ #endif
+@@ -692,7 +783,8 @@ platform_init(unsigned long r3, unsigned
+ 
+ 	ppc_md.calibrate_decr = mpc85xx_calibrate_decr;
+ 
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) && \
++				!defined(CONFIG_ALTERPATH_ONBOARD)
+ 	ppc_md.time_init = todc_time_init;
+ 	ppc_md.set_rtc_time = todc_set_rtc_time;
+ 	ppc_md.get_rtc_time = todc_get_rtc_time;
+@@ -714,9 +806,9 @@ platform_init(unsigned long r3, unsigned
+ 	return;
+ }
+ 
+-#ifdef CONFIG_Alterpath_KVMMAX
++#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
+ #define ALTERPATH_FPGA_BASE_ADDR		0xc0000000
+-#define ALTERPATH_FPGA_SIZE				0x200
++#define ALTERPATH_FPGA_SIZE			0x200
+ #endif
+ #ifdef CONFIG_Alterpath_KVMMAXV2
+ #define ALTERPATH_FPGA_BASE_ADDR		0xc4000000
+@@ -729,7 +821,7 @@ platform_init(unsigned long r3, unsigned
+ 
+ static void cyc_memory_init(void)
+ {
+-#ifdef CONFIG_Alterpath_KVMMAX
++#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
+ 	fpga_base = cf_base = (unsigned long)ioremap(ALTERPATH_FPGA_BASE_ADDR, ALTERPATH_FPGA_SIZE);
+ #endif
+ #ifdef CONFIG_Alterpath_KVMMAXV2
+@@ -756,11 +848,14 @@ int cyc_get_ide_CF_irq(void)
+ #ifdef CONFIG_Alterpath_KVMMAXV2
+ 	return (MPC85xx_IRQ_EXT10);
+ #endif
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	return (MPC85xx_IRQ_EXT11);
++#endif
+ }
+ 
+ void cyc_reset_ide_CF(void)
+ {
+-#ifdef CONFIG_Alterpath_KVMMAX
++#if defined(CONFIG_Alterpath_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
+ 	fpga_regs_t *fpga = (fpga_regs_t *)fpga_base;
+ #endif
+ #ifdef CONFIG_Alterpath_KVMMAXV2
+@@ -788,6 +883,12 @@ void cyc_reset_ide_CF(void)
+ 	fpga->Int_En_2 |= 0x2000;
+ 	udelay(100000);
+ #endif
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	/* Set up CF interrupt */
++	fpga_reg1_value |= 0x4000;
++	fpga->reg1 = fpga_reg1_value;
++	udelay(100000);
++#endif
+ }
+ 
+ #ifdef CONFIG_BLK_DEV_CYC_IDE
+@@ -844,7 +945,11 @@ static int bdinfo_read_proc(char *page, 
+ 		CYC_CF_FS,
+ 		k26);
+ #endif
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	strcpy(page, "ONBOARD!1:0:0:2!ONBD!33!Cycladess!OnBoard!OnBoard!1!V_1.1.0-Apr/06/05!533!256!128!UnKnow!1!0!0!00:60:2e:00:01:02!1!1!\n");
++#else
+ 	strcpy(page, "KVMMAX!2:16:0:0!KVMM!33!Cycladess!KVMMAX!KVMMAX!0!V_1.0.0-Dec/01/05!533!256!128!UnKnow!1!0!0!00:60:2e:00:01:02!1!1!\n");
++#endif
+ 	len = strlen(page);
+ 	return proc_calc_metrics(page, start, off, count, eof, len);
+ }
+@@ -880,7 +985,7 @@ late_initcall(cyc_rtc_hookup);
+ 
+ char *cyc_get_version(void)
+ {
+-	return("KVMMAX V_1.0.0 (Dec/07/05) #1\n");
++	return("OnBoard V_1.1.0 (Apr/06/05) #1\n");
+ }
+ 
+ void cyc_reset_osd(void)
+@@ -1000,8 +1105,70 @@ static void mpc85xx_wdt_do_hreset(void)
+ 	
+ 	for (;;) ;
+ }
++
++/*
++ * Cyclades: for DEBV1 2nd spin board, a HW patch can do HRESET
++ */
++static void
++mpc85xx_debmax_hreset_patch(void)
++{
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++ 	/*
++ 	 * On DEB 2nd spin HW, we did a HW patch to do HRESET.
++ 	 * From MPC85xx's DS, setting MSR[DE], DBCR0[IDM|RST]
++ 	 * does NOT cause HRESET_REQ pin to be asserted.
++ 	 *
++ 	 * Use PC26 output a 0 to HRESET the system
++ 	 */
++ 	volatile cpm2_map_t *immap = cpm2_immr;
++ 	volatile iop_cpm2_t *iop = &immap->im_ioport;
++
++ 	/* set general IO =0 */
++ 	iop->iop_pparc &= ~(CPM_PC_26);
++
++ 	/* no need to change PSORx because of general IO */
++
++ 	/* set open drain to be regular =0 */
++ 	iop->iop_podrc &= ~(CPM_PC_26);
++
++ 	/* set direction to be output =1 */
++ 	iop->iop_pdirc |= (CPM_PC_26);
++
++ 	asm("sync;isync;msync");
++ 	udelay(50);
++
++ 	iop->iop_pdatc &= ~(CPM_PC_26);
++
++ 	asm("sync;isync;msync");
++ 	udelay(10);
++#endif
++}
++
+ static void mpc85xx_alterpath_restart(char *cmd)
+ {
++#ifdef CONFIG_ALTERPATH_ONBOARD
++ 	{
++ 		bd_t *binfo;
++
++ 		binfo = (bd_t *) __res;
++
++ 		/*
++ 		 * we need to do HW patch way for HRESET on 1st and 2nd spin
++ 		 * because WDT support is missing on these two spins(no
++ 		 * HRESET_REQ connects back to reset circuit). But for 3rd
++ 		 * spin and later on revisions, we can and should do WDT
++ 		 * way.
++ 		 *
++ 		 * Using HW patch way may result incomplete HRESET sometime
++ 		 * due to no enough current from CPM PC-26 pin.
++ 		 */
++ 		if (binfo->board_ver_rev < 0x03) {
++ 			mpc85xx_debmax_hreset_patch();
++ 			do{} while(1);
++ 		}
++ 	}
++#endif
++
+ 	mpc85xx_wdt_do_hreset();
+ }
+ 
+diff -ruNp linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.h OnBoardPCI/arch/ppc/platforms/85xx/mpc85xx_cds_common.h
+--- linux-2.6.16/arch/ppc/platforms/85xx/mpc85xx_cds_common.h	2006-04-27 18:55:31.458815824 -0700
++++ OnBoardPCI/arch/ppc/platforms/85xx/mpc85xx_cds_common.h	2006-04-27 18:55:37.365917808 -0700
+@@ -26,7 +26,8 @@
+ #define BOARD_CCSRBAR           ((uint)0xe0000000)
+ #define CCSRBAR_SIZE            ((uint)1024*1024)
+ 
+-#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2)
++#if !defined(CONFIG_Alterpath_KVMMAX) && !defined(CONFIG_Alterpath_KVMMAXV2) \
++		&& !defined(CONFIG_ALTERPATH_ONBOARD)
+ 
+ /* CADMUS info */
+ #define CADMUS_BASE (0xf8004000)
+@@ -83,7 +84,22 @@
+ #define MPC85XX_PCI2_IO_BASE         0xc2000000
+ #define MPC85XX_PCI2_IO_SIZE         0x02000000
+ 
+-#else
++#else /* !CONFIG_Alterpath_KVMMAXV2 */
++#ifdef CONFIG_ALTERPATH_ONBOARD
++/* PCI 1 I/O map */
++#define MPC85XX_PCI1_LOWER_IO        0x00000000
++#define MPC85XX_PCI1_UPPER_IO        0x00ffffff
++
++#define MPC85XX_PCI1_IO_BASE         0xe2000000
++#define MPC85XX_PCI1_IO_SIZE         0x01000000
++
++/* PCI 2 I/O map */
++#define MPC85XX_PCI2_LOWER_IO        0x01000000
++#define MPC85XX_PCI2_UPPER_IO        0x01ffffff
++
++#define MPC85XX_PCI2_IO_BASE         0xe3000000
++#define MPC85XX_PCI2_IO_SIZE         0x01000000
++#else /* !CONFIG_ALTERPATH_ONBOARD */
+ /* PCI 1 I/O map */
+ #define MPC85XX_PCI1_LOWER_IO        0x01000000
+ #define MPC85XX_PCI1_UPPER_IO        0x01ffffff
+@@ -97,7 +113,8 @@
+ 
+ #define MPC85XX_PCI2_IO_BASE         0xe3000000
+ #define MPC85XX_PCI2_IO_SIZE         0x01000000
+-#endif
++#endif /* #ifdef CONFIG_ALTERPATH_ONBOARD */
++#endif /* #ifdef CONFIG_Alterpath_KVMMAXV2 */
+ 
+ /* PCI 2 memory map */
+ /* Note: the standard PPC fixups will cause IO space to get bumped by
+@@ -120,6 +137,14 @@ void cyc_reset_osd(void);
+ 
+ extern unsigned short fpga_reg1_value;
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD
++typedef struct fpga_regs {
++ 	unsigned short reserved[0x10];  /* IDE registers */
++ 	unsigned short reg1;            /* 0x20 */
++ 	unsigned short reg2;            /* 0x22 */
++} fpga_regs_t;
++#endif
++
+ #ifdef CONFIG_Alterpath_KVMMAX
+ typedef struct fpga_regs {
+ 	unsigned short reserved[0x10];		/* IDE registers */
+@@ -166,6 +191,12 @@ typedef struct fpga_regs {
+ #define ALTERPATH_TSEC2_PHY_INTERRUPT	SIU_INT_PC29
+ #define ALTERPATH_TSEC2_PHY_ID		3
+ #endif
++#ifdef CONFIG_ALTERPATH_ONBOARD
++#define ALTERPATH_TSEC1_PHY_INTERRUPT	MPC85xx_IRQ_EXT0
++#define ALTERPATH_TSEC1_PHY_ID		0
++#define ALTERPATH_TSEC2_PHY_INTERRUPT	0
++#define ALTERPATH_TSEC2_PHY_ID		(GFAR_ALWAYS_LINK_UP | GFAR_1000MBPS | GFAR_FULL_DPLX)
++#endif
+ 
+ #endif
+ 

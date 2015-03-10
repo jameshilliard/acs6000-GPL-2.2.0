@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# variable used by PREMIRRORS etc
+export GSP_REPOS="fre-svn.corp.avocent.com/svn/avocent-gsp"
+# variable referenced by avocent modules 
+export AVCT_GSP_SVN="svn://${GSP_REPOS}"
+#
+#export CYC_CVS_USER="anonymous"
+#
+
+if [ -d ${OEDIR}/../bitbake/bin ]
+then
+    export PATH=$(REALPATH ${OEDIR}/../bitbake/bin):$PATH
+fi
+
+# vim: syntax=sh

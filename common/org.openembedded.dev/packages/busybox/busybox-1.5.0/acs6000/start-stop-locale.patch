@@ -1,0 +1,32 @@
+Index: busybox-1.5.0/debianutils/start_stop_daemon.c
+===================================================================
+--- busybox-1.5.0.orig/debianutils/start_stop_daemon.c
++++ busybox-1.5.0/debianutils/start_stop_daemon.c
+@@ -298,6 +298,27 @@ int start_stop_daemon_main(int argc, cha
+ 			printf("%s already running\n%d\n", execname, found->pid);
+ 		return !(opt & OPT_OKNODO);
+ 	}
++
++#ifdef AVCT_MULTI_CHAR
++    {
++		FILE * temp;
++		char lang[100];
++
++		system("llconf shell -i /etc/profile get LC_ALL >/tmp/lang.temp");
++		if ( temp = fopen("/tmp/lang.temp","r") ) {
++			if (!fscanf(temp,"%s",lang)) {
++				strcpy(lang,"en_US.UTF-8");
++			}
++			fclose(temp);
++			system("rm -f /tmp/lang.temp");
++		} else {
++			strcpy(lang,"en_US.UTF-8");
++		}
++		setenv("LC_ALL",lang,1);
++        setenv("LANG",lang,1);
++	}
++#endif
++
+ 	*--argv = startas;
+ 	if (opt & OPT_BACKGROUND) {
+ 		setsid();

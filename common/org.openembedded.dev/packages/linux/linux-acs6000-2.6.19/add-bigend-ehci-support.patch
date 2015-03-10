@@ -1,0 +1,2880 @@
+diff --git a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
+index 6271187..a8faff6 100644
+Index: linux-2.6.19/drivers/usb/host/Kconfig
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/Kconfig
++++ linux-2.6.19/drivers/usb/host/Kconfig
+@@ -67,6 +67,16 @@ config USB_EHCI_TT_NEWSCHED
+ 
+ 	  If unsure, say N.
+ 
++config USB_EHCI_BIG_ENDIAN_MMIO
++	bool
++	depends on USB_EHCI_HCD && (PPC_CELLEB || PPC_PS3 || 440EPX)
++	default y
++
++config USB_EHCI_BIG_ENDIAN_DESC
++	bool
++	depends on USB_EHCI_HCD && 440EPX
++	default y
++
+ config USB_ISP116X_HCD
+ 	tristate "ISP116X HCD support"
+ 	depends on USB
+Index: linux-2.6.19/drivers/usb/host/ehci-dbg.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-dbg.c
++++ linux-2.6.19/drivers/usb/host/ehci-dbg.c
+@@ -43,7 +43,7 @@
+  */
+ static void dbg_hcs_params (struct ehci_hcd *ehci, char *label)
+ {
+-	u32	params = readl (&ehci->caps->hcs_params);
++	u32	params = ehci_readl(ehci, &ehci->caps->hcs_params);
+ 
+ 	ehci_dbg (ehci,
+ 		"%s hcs_params 0x%x dbg=%d%s cc=%d pcc=%d%s%s ports=%d\n",
+@@ -87,7 +87,7 @@ static inline void dbg_hcs_params (struc
+  * */
+ static void dbg_hcc_params (struct ehci_hcd *ehci, char *label)
+ {
+-	u32	params = readl (&ehci->caps->hcc_params);
++	u32	params = ehci_readl(ehci, &ehci->caps->hcc_params);
+ 
+ 	if (HCC_ISOC_CACHE (params)) {
+ 		ehci_dbg (ehci,
+@@ -119,16 +119,16 @@ static void __attribute__((__unused__))
+ dbg_qtd (const char *label, struct ehci_hcd *ehci, struct ehci_qtd *qtd)
+ {
+ 	ehci_dbg (ehci, "%s td %p n%08x %08x t%08x p0=%08x\n", label, qtd,
+-		le32_to_cpup (&qtd->hw_next),
+-		le32_to_cpup (&qtd->hw_alt_next),
+-		le32_to_cpup (&qtd->hw_token),
+-		le32_to_cpup (&qtd->hw_buf [0]));
++		  hc32_to_cpup (ehci, &qtd->hw_next),
++		  hc32_to_cpup (ehci, &qtd->hw_alt_next),
++		  hc32_to_cpup (ehci, &qtd->hw_token),
++		  hc32_to_cpup (ehci, &qtd->hw_buf [0]));
+ 	if (qtd->hw_buf [1])
+ 		ehci_dbg (ehci, "  p1=%08x p2=%08x p3=%08x p4=%08x\n",
+-			le32_to_cpup (&qtd->hw_buf [1]),
+-			le32_to_cpup (&qtd->hw_buf [2]),
+-			le32_to_cpup (&qtd->hw_buf [3]),
+-			le32_to_cpup (&qtd->hw_buf [4]));
++			  hc32_to_cpup (ehci, &qtd->hw_buf [1]),
++			  hc32_to_cpup (ehci, &qtd->hw_buf [2]),
++			  hc32_to_cpup (ehci, &qtd->hw_buf [3]),
++			  hc32_to_cpup (ehci, &qtd->hw_buf [4]));
+ }
+ 
+ static void __attribute__((__unused__))
+@@ -144,26 +144,26 @@ static void __attribute__((__unused__))
+ dbg_itd (const char *label, struct ehci_hcd *ehci, struct ehci_itd *itd)
+ {
+ 	ehci_dbg (ehci, "%s [%d] itd %p, next %08x, urb %p\n",
+-		label, itd->frame, itd, le32_to_cpu(itd->hw_next), itd->urb);
++		label, itd->frame, itd, hc32_to_cpu(ehci, itd->hw_next), itd->urb);
+ 	ehci_dbg (ehci,
+ 		"  trans: %08x %08x %08x %08x %08x %08x %08x %08x\n",
+-		le32_to_cpu(itd->hw_transaction[0]),
+-		le32_to_cpu(itd->hw_transaction[1]),
+-		le32_to_cpu(itd->hw_transaction[2]),
+-		le32_to_cpu(itd->hw_transaction[3]),
+-		le32_to_cpu(itd->hw_transaction[4]),
+-		le32_to_cpu(itd->hw_transaction[5]),
+-		le32_to_cpu(itd->hw_transaction[6]),
+-		le32_to_cpu(itd->hw_transaction[7]));
++		hc32_to_cpu(ehci, itd->hw_transaction[0]),
++		hc32_to_cpu(ehci, itd->hw_transaction[1]),
++		hc32_to_cpu(ehci, itd->hw_transaction[2]),
++		hc32_to_cpu(ehci, itd->hw_transaction[3]),
++		hc32_to_cpu(ehci, itd->hw_transaction[4]),
++		hc32_to_cpu(ehci, itd->hw_transaction[5]),
++		hc32_to_cpu(ehci, itd->hw_transaction[6]),
++		hc32_to_cpu(ehci, itd->hw_transaction[7]));
+ 	ehci_dbg (ehci,
+ 		"  buf:   %08x %08x %08x %08x %08x %08x %08x\n",
+-		le32_to_cpu(itd->hw_bufp[0]),
+-		le32_to_cpu(itd->hw_bufp[1]),
+-		le32_to_cpu(itd->hw_bufp[2]),
+-		le32_to_cpu(itd->hw_bufp[3]),
+-		le32_to_cpu(itd->hw_bufp[4]),
+-		le32_to_cpu(itd->hw_bufp[5]),
+-		le32_to_cpu(itd->hw_bufp[6]));
++		hc32_to_cpu(ehci, itd->hw_bufp[0]),
++		hc32_to_cpu(ehci, itd->hw_bufp[1]),
++		hc32_to_cpu(ehci, itd->hw_bufp[2]),
++		hc32_to_cpu(ehci, itd->hw_bufp[3]),
++		hc32_to_cpu(ehci, itd->hw_bufp[4]),
++		hc32_to_cpu(ehci, itd->hw_bufp[5]),
++		hc32_to_cpu(ehci, itd->hw_bufp[6]));
+ 	ehci_dbg (ehci, "  index: %d %d %d %d %d %d %d %d\n",
+ 		itd->index[0], itd->index[1], itd->index[2],
+ 		itd->index[3], itd->index[4], itd->index[5],
+@@ -174,14 +174,14 @@ static void __attribute__((__unused__))
+ dbg_sitd (const char *label, struct ehci_hcd *ehci, struct ehci_sitd *sitd)
+ {
+ 	ehci_dbg (ehci, "%s [%d] sitd %p, next %08x, urb %p\n",
+-		label, sitd->frame, sitd, le32_to_cpu(sitd->hw_next), sitd->urb);
++		label, sitd->frame, sitd, hc32_to_cpu(ehci, sitd->hw_next), sitd->urb);
+ 	ehci_dbg (ehci,
+ 		"  addr %08x sched %04x result %08x buf %08x %08x\n",
+-		le32_to_cpu(sitd->hw_fullspeed_ep),
+-		le32_to_cpu(sitd->hw_uframe),
+-		le32_to_cpu(sitd->hw_results),
+-		le32_to_cpu(sitd->hw_buf [0]),
+-		le32_to_cpu(sitd->hw_buf [1]));
++		hc32_to_cpu(ehci, sitd->hw_fullspeed_ep),
++		hc32_to_cpu(ehci, sitd->hw_uframe),
++		hc32_to_cpu(ehci, sitd->hw_results),
++		hc32_to_cpu(ehci, sitd->hw_buf [0]),
++		hc32_to_cpu(ehci, sitd->hw_buf [1]));
+ }
+ 
+ static int __attribute__((__unused__))
+@@ -322,7 +322,7 @@ static inline void remove_debug_files (s
+ 
+ #else
+ 
+-/* troubleshooting help: expose state in driverfs */
++/* troubleshooting help: expose state in sysfs */
+ 
+ #define speed_char(info1) ({ char tmp; \
+ 		switch (info1 & (3 << 12)) { \
+@@ -332,9 +332,9 @@ static inline void remove_debug_files (s
+ 		default: tmp = '?'; break; \
+ 		}; tmp; })
+ 
+-static inline char token_mark (__le32 token)
++static inline char token_mark (struct ehci_hcd *ehci, __hc32 token)
+ {
+-	__u32 v = le32_to_cpu (token);
++	__u32 v = hc32_to_cpu (ehci, token);
+ 	if (v & QTD_STS_ACTIVE)
+ 		return '*';
+ 	if (v & QTD_STS_HALT)
+@@ -364,7 +364,7 @@ static void qh_lines (
+ 	if (qh->hw_qtd_next == EHCI_LIST_END)	/* NEC does this */
+ 		mark = '@';
+ 	else
+-		mark = token_mark (qh->hw_token);
++		mark = token_mark (ehci, qh->hw_token);
+ 	if (mark == '/') {	/* qh_alt_next controls qh advance? */
+ 		if ((qh->hw_alt_next & QTD_MASK) == ehci->async->hw_alt_next)
+ 			mark = '#';	/* blocked */
+@@ -372,29 +372,29 @@ static void qh_lines (
+ 			mark = '.';	/* use hw_qtd_next */
+ 		/* else alt_next points to some other qtd */
+ 	}
+-	scratch = le32_to_cpup (&qh->hw_info1);
+-	hw_curr = (mark == '*') ? le32_to_cpup (&qh->hw_current) : 0;
++	scratch = hc32_to_cpup (ehci, &qh->hw_info1);
++	hw_curr = (mark == '*') ? hc32_to_cpup (ehci, &qh->hw_current) : 0;
+ 	temp = scnprintf (next, size,
+ 			"qh/%p dev%d %cs ep%d %08x %08x (%08x%c %s nak%d)",
+ 			qh, scratch & 0x007f,
+ 			speed_char (scratch),
+ 			(scratch >> 8) & 0x000f,
+-			scratch, le32_to_cpup (&qh->hw_info2),
+-			le32_to_cpup (&qh->hw_token), mark,
+-			(__constant_cpu_to_le32 (QTD_TOGGLE) & qh->hw_token)
++			scratch, hc32_to_cpup (ehci, &qh->hw_info2),
++			hc32_to_cpup (ehci, &qh->hw_token), mark,
++			(cpu_to_hc32 (ehci, QTD_TOGGLE) & qh->hw_token)
+ 				? "data1" : "data0",
+-			(le32_to_cpup (&qh->hw_alt_next) >> 1) & 0x0f);
++			(hc32_to_cpup (ehci, &qh->hw_alt_next) >> 1) & 0x0f);
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	/* hc may be modifying the list as we read it ... */
+ 	list_for_each (entry, &qh->qtd_list) {
+ 		td = list_entry (entry, struct ehci_qtd, qtd_list);
+-		scratch = le32_to_cpup (&td->hw_token);
++		scratch = hc32_to_cpup (ehci, &td->hw_token);
+ 		mark = ' ';
+ 		if (hw_curr == td->qtd_dma)
+ 			mark = '*';
+-		else if (qh->hw_qtd_next == cpu_to_le32(td->qtd_dma))
++		else if (qh->hw_qtd_next == cpu_to_hc32(ehci, td->qtd_dma))
+ 			mark = '+';
+ 		else if (QTD_LENGTH (scratch)) {
+ 			if (td->hw_alt_next == ehci->async->hw_alt_next)
+@@ -490,9 +490,9 @@ show_periodic (struct class_device *clas
+ 	unsigned		temp, size, seen_count;
+ 	char			*next;
+ 	unsigned		i;
+-	__le32			tag;
++	__hc32			tag;
+ 
+-	if (!(seen = kmalloc (DBG_SCHED_LIMIT * sizeof *seen, SLAB_ATOMIC)))
++	if (!(seen = kmalloc (DBG_SCHED_LIMIT * sizeof *seen, GFP_ATOMIC)))
+ 		return 0;
+ 	seen_count = 0;
+ 
+@@ -521,11 +521,11 @@ show_periodic (struct class_device *clas
+ 		next += temp;
+ 
+ 		do {
+-			switch (tag) {
++			switch (hc32_to_cpu(ehci, tag)) {
+ 			case Q_TYPE_QH:
+ 				temp = scnprintf (next, size, " qh%d-%04x/%p",
+ 						p.qh->period,
+-						le32_to_cpup (&p.qh->hw_info2)
++						hc32_to_cpup (ehci, &p.qh->hw_info2)
+ 							/* uframe masks */
+ 							& (QH_CMASK | QH_SMASK),
+ 						p.qh);
+@@ -543,7 +543,7 @@ show_periodic (struct class_device *clas
+ 				}
+ 				/* show more info the first time around */
+ 				if (temp == seen_count && p.ptr) {
+-					u32	scratch = le32_to_cpup (
++					u32	scratch = hc32_to_cpup (ehci,
+ 							&p.qh->hw_info1);
+ 					struct ehci_qtd	*qtd;
+ 					char		*type = "";
+@@ -554,7 +554,7 @@ show_periodic (struct class_device *clas
+ 							&p.qh->qtd_list,
+ 							qtd_list) {
+ 						temp++;
+-						switch (0x03 & (le32_to_cpu (
++						switch (0x03 & (hc32_to_cpu (ehci,
+ 							qtd->hw_token) >> 8)) {
+ 						case 0: type = "out"; continue;
+ 						case 1: type = "in"; continue;
+@@ -597,7 +597,7 @@ show_periodic (struct class_device *clas
+ 				temp = scnprintf (next, size,
+ 					" sitd%d-%04x/%p",
+ 					p.sitd->stream->interval,
+-					le32_to_cpup (&p.sitd->hw_uframe)
++					hc32_to_cpup (ehci, &p.sitd->hw_uframe)
+ 						& 0x0000ffff,
+ 					p.sitd);
+ 				tag = Q_NEXT_TYPE (p.sitd->hw_next);
+@@ -653,7 +653,7 @@ show_registers (struct class_device *cla
+ 	}
+ 
+ 	/* Capability Registers */
+-	i = HC_VERSION(readl (&ehci->caps->hc_capbase));
++	i = HC_VERSION(ehci_readl(ehci, &ehci->caps->hc_capbase));
+ 	temp = scnprintf (next, size,
+ 		"bus %s, device %s (driver " DRIVER_VERSION ")\n"
+ 		"%s\n"
+@@ -673,7 +673,7 @@ show_registers (struct class_device *cla
+ 		unsigned	count = 256/4;
+ 
+ 		pdev = to_pci_dev(ehci_to_hcd(ehci)->self.controller);
+-		offset = HCC_EXT_CAPS (readl (&ehci->caps->hcc_params));
++		offset = HCC_EXT_CAPS (ehci_readl(ehci, &ehci->caps->hcc_params));
+ 		while (offset && count--) {
+ 			pci_read_config_dword (pdev, offset, &cap);
+ 			switch (cap & 0xff) {
+@@ -704,50 +704,50 @@ show_registers (struct class_device *cla
+ #endif
+ 
+ 	// FIXME interpret both types of params
+-	i = readl (&ehci->caps->hcs_params);
++	i = ehci_readl(ehci, &ehci->caps->hcs_params);
+ 	temp = scnprintf (next, size, "structural params 0x%08x\n", i);
+ 	size -= temp;
+ 	next += temp;
+ 
+-	i = readl (&ehci->caps->hcc_params);
++	i = ehci_readl(ehci, &ehci->caps->hcc_params);
+ 	temp = scnprintf (next, size, "capability params 0x%08x\n", i);
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	/* Operational Registers */
+ 	temp = dbg_status_buf (scratch, sizeof scratch, label,
+-			readl (&ehci->regs->status));
++			ehci_readl(ehci, &ehci->regs->status));
+ 	temp = scnprintf (next, size, fmt, temp, scratch);
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	temp = dbg_command_buf (scratch, sizeof scratch, label,
+-			readl (&ehci->regs->command));
++			ehci_readl(ehci, &ehci->regs->command));
+ 	temp = scnprintf (next, size, fmt, temp, scratch);
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	temp = dbg_intr_buf (scratch, sizeof scratch, label,
+-			readl (&ehci->regs->intr_enable));
++			ehci_readl(ehci, &ehci->regs->intr_enable));
+ 	temp = scnprintf (next, size, fmt, temp, scratch);
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	temp = scnprintf (next, size, "uframe %04x\n",
+-			readl (&ehci->regs->frame_index));
++			ehci_readl(ehci, &ehci->regs->frame_index));
+ 	size -= temp;
+ 	next += temp;
+ 
+ 	for (i = 1; i <= HCS_N_PORTS (ehci->hcs_params); i++) {
+ 		temp = dbg_port_buf (scratch, sizeof scratch, label, i,
+-				readl (&ehci->regs->port_status [i - 1]));
++				ehci_readl(ehci, &ehci->regs->port_status [i - 1]));
+ 		temp = scnprintf (next, size, fmt, temp, scratch);
+ 		size -= temp;
+ 		next += temp;
+ 		if (i == HCS_DEBUG_PORT(ehci->hcs_params) && ehci->debug) {
+ 			temp = scnprintf (next, size,
+ 					"    debug control %08x\n",
+-					readl (&ehci->debug->control));
++					ehci_readl(ehci, &ehci->debug->control));
+ 			size -= temp;
+ 			next += temp;
+ 		}
+@@ -803,3 +803,4 @@ static inline void remove_debug_files (s
+ 
+ #endif /* STUB_DEBUG_FILES */
+ 
++
+Index: linux-2.6.19/drivers/usb/host/ehci-hcd.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-hcd.c
++++ linux-2.6.19/drivers/usb/host/ehci-hcd.c
+@@ -126,6 +126,11 @@ static unsigned park = 0;
+ module_param (park, uint, S_IRUGO);
+ MODULE_PARM_DESC (park, "park setting; 1-3 back-to-back async packets");
+ 
++/* for flakey hardware, ignore overcurrent indicators */
++static int ignore_oc = 0;
++module_param (ignore_oc, bool, S_IRUGO);
++MODULE_PARM_DESC (ignore_oc, "ignore bogus hardware overcurrent indications");
++
+ #define	INTR_MASK (STS_IAA | STS_FATAL | STS_PCD | STS_ERR | STS_INT)
+ 
+ /*-------------------------------------------------------------------------*/
+@@ -152,12 +157,13 @@ MODULE_PARM_DESC (park, "park setting; 1
+  * before driver shutdown. But it also seems to be caused by bugs in cardbus
+  * bridge shutdown:  shutting down the bridge before the devices using it.
+  */
+-static int handshake (void __iomem *ptr, u32 mask, u32 done, int usec)
++static int handshake (struct ehci_hcd *ehci, void __iomem *ptr,
++		      u32 mask, u32 done, int usec)
+ {
+ 	u32	result;
+ 
+ 	do {
+-		result = readl (ptr);
++		result = ehci_readl(ehci, ptr);
+ 		if (result == ~(u32)0)		/* card removed */
+ 			return -ENODEV;
+ 		result &= mask;
+@@ -172,18 +178,19 @@ static int handshake (void __iomem *ptr,
+ /* force HC to halt state from unknown (EHCI spec section 2.3) */
+ static int ehci_halt (struct ehci_hcd *ehci)
+ {
+-	u32	temp = readl (&ehci->regs->status);
++	u32	temp = ehci_readl(ehci, &ehci->regs->status);
+ 
+ 	/* disable any irqs left enabled by previous code */
+-	writel (0, &ehci->regs->intr_enable);
++	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
+ 
+ 	if ((temp & STS_HALT) != 0)
+ 		return 0;
+ 
+-	temp = readl (&ehci->regs->command);
++	temp = ehci_readl(ehci, &ehci->regs->command);
+ 	temp &= ~CMD_RUN;
+-	writel (temp, &ehci->regs->command);
+-	return handshake (&ehci->regs->status, STS_HALT, STS_HALT, 16 * 125);
++	ehci_writel(ehci, temp, &ehci->regs->command);
++	return handshake (ehci, &ehci->regs->status,
++			  STS_HALT, STS_HALT, 16 * 125);
+ }
+ 
+ /* put TDI/ARC silicon into EHCI mode */
+@@ -193,23 +200,24 @@ static void tdi_reset (struct ehci_hcd *
+ 	u32		tmp;
+ 
+ 	reg_ptr = (u32 __iomem *)(((u8 __iomem *)ehci->regs) + 0x68);
+-	tmp = readl (reg_ptr);
++	tmp = ehci_readl(ehci, reg_ptr);
+ 	tmp |= 0x3;
+-	writel (tmp, reg_ptr);
++	ehci_writel(ehci, tmp, reg_ptr);
+ }
+ 
+ /* reset a non-running (STS_HALT == 1) controller */
+ static int ehci_reset (struct ehci_hcd *ehci)
+ {
+ 	int	retval;
+-	u32	command = readl (&ehci->regs->command);
++	u32	command = ehci_readl(ehci, &ehci->regs->command);
+ 
+ 	command |= CMD_RESET;
+ 	dbg_cmd (ehci, "reset", command);
+-	writel (command, &ehci->regs->command);
++	ehci_writel(ehci, command, &ehci->regs->command);
+ 	ehci_to_hcd(ehci)->state = HC_STATE_HALT;
+ 	ehci->next_statechange = jiffies;
+-	retval = handshake (&ehci->regs->command, CMD_RESET, 0, 250 * 1000);
++	retval = handshake (ehci, &ehci->regs->command,
++			    CMD_RESET, 0, 250 * 1000);
+ 
+ 	if (retval)
+ 		return retval;
+@@ -231,21 +239,21 @@ static void ehci_quiesce (struct ehci_hc
+ #endif
+ 
+ 	/* wait for any schedule enables/disables to take effect */
+-	temp = readl (&ehci->regs->command) << 10;
++	temp = ehci_readl(ehci, &ehci->regs->command) << 10;
+ 	temp &= STS_ASS | STS_PSS;
+-	if (handshake (&ehci->regs->status, STS_ASS | STS_PSS,
++	if (handshake (ehci, &ehci->regs->status, STS_ASS | STS_PSS,
+ 				temp, 16 * 125) != 0) {
+ 		ehci_to_hcd(ehci)->state = HC_STATE_HALT;
+ 		return;
+ 	}
+ 
+ 	/* then disable anything that's still active */
+-	temp = readl (&ehci->regs->command);
++	temp = ehci_readl(ehci, &ehci->regs->command);
+ 	temp &= ~(CMD_ASE | CMD_IAAD | CMD_PSE);
+-	writel (temp, &ehci->regs->command);
++	ehci_writel(ehci, temp, &ehci->regs->command);
+ 
+ 	/* hardware can take 16 microframes to turn off ... */
+-	if (handshake (&ehci->regs->status, STS_ASS | STS_PSS,
++	if (handshake (ehci, &ehci->regs->status, STS_ASS | STS_PSS,
+ 				0, 16 * 125) != 0) {
+ 		ehci_to_hcd(ehci)->state = HC_STATE_HALT;
+ 		return;
+@@ -272,11 +280,11 @@ static void ehci_watchdog (unsigned long
+ 
+ 	/* lost IAA irqs wedge things badly; seen with a vt8235 */
+ 	if (ehci->reclaim) {
+-		u32		status = readl (&ehci->regs->status);
++		u32		status = ehci_readl(ehci, &ehci->regs->status);
+ 		if (status & STS_IAA) {
+ 			ehci_vdbg (ehci, "lost IAA\n");
+ 			COUNT (ehci->stats.lost_iaa);
+-			writel (STS_IAA, &ehci->regs->status);
++			ehci_writel(ehci, STS_IAA, &ehci->regs->status);
+ 			ehci->reclaim_ready = 1;
+ 		}
+ 	}
+@@ -291,6 +299,19 @@ static void ehci_watchdog (unsigned long
+ 	spin_unlock_irqrestore (&ehci->lock, flags);
+ }
+ 
++/* On some systems, leaving remote wakeup enabled prevents system shutdown.
++ * The firmware seems to think that powering off is a wakeup event!
++ * This routine turns off remote wakeup and everything else, on all ports.
++ */
++static void ehci_turn_off_all_ports(struct ehci_hcd *ehci)
++{
++	int	port = HCS_N_PORTS(ehci->hcs_params);
++
++	while (port--)
++		ehci_writel(ehci, PORT_RWC_BITS,
++				&ehci->regs->port_status[port]);
++}
++
+ /* ehci_shutdown kick in for silicon on any bus (not just pci, etc).
+  * This forcibly disables dma and IRQs, helping kexec and other cases
+  * where the next system software may expect clean state.
+@@ -302,9 +323,13 @@ ehci_shutdown (struct usb_hcd *hcd)
+ 
+ 	ehci = hcd_to_ehci (hcd);
+ 	(void) ehci_halt (ehci);
++	ehci_turn_off_all_ports(ehci);
+ 
+ 	/* make BIOS/etc use companion controller during reboot */
+-	writel (0, &ehci->regs->configured_flag);
++	ehci_writel(ehci, 0, &ehci->regs->configured_flag);
++
++	/* unblock posted writes */
++	ehci_readl(ehci, &ehci->regs->configured_flag);
+ }
+ 
+ static void ehci_port_power (struct ehci_hcd *ehci, int is_on)
+@@ -374,12 +399,13 @@ static void ehci_stop (struct usb_hcd *h
+ 		ehci_quiesce (ehci);
+ 
+ 	ehci_reset (ehci);
+-	writel (0, &ehci->regs->intr_enable);
++	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
+ 	spin_unlock_irq(&ehci->lock);
+ 
+ 	/* let companion controllers work when we aren't */
+-	writel (0, &ehci->regs->configured_flag);
++	ehci_writel(ehci, 0, &ehci->regs->configured_flag);
+ 
++	remove_companion_file(ehci);
+ 	remove_debug_files (ehci);
+ 
+ 	/* root hub is shut down separately (first, when possible) */
+@@ -397,7 +423,8 @@ static void ehci_stop (struct usb_hcd *h
+ 		ehci->stats.complete, ehci->stats.unlink);
+ #endif
+ 
+-	dbg_status (ehci, "ehci_stop completed", readl (&ehci->regs->status));
++	dbg_status (ehci, "ehci_stop completed",
++		    ehci_readl(ehci, &ehci->regs->status));
+ }
+ 
+ /* one-time init, only for memory state */
+@@ -423,7 +450,7 @@ static int ehci_init(struct usb_hcd *hcd
+ 		return retval;
+ 
+ 	/* controllers may cache some of the periodic schedule ... */
+-	hcc_params = readl(&ehci->caps->hcc_params);
++	hcc_params = ehci_readl(ehci, &ehci->caps->hcc_params);
+ 	if (HCC_ISOC_CACHE(hcc_params))		// full frame cache
+ 		ehci->i_thresh = 8;
+ 	else					// N microframes cached
+@@ -441,12 +468,12 @@ static int ehci_init(struct usb_hcd *hcd
+ 	 * from automatically advancing to the next td after short reads.
+ 	 */
+ 	ehci->async->qh_next.qh = NULL;
+-	ehci->async->hw_next = QH_NEXT(ehci->async->qh_dma);
+-	ehci->async->hw_info1 = cpu_to_le32(QH_HEAD);
+-	ehci->async->hw_token = cpu_to_le32(QTD_STS_HALT);
++	ehci->async->hw_next = QH_NEXT(ehci, ehci->async->qh_dma);
++	ehci->async->hw_info1 = cpu_to_hc32(ehci, QH_HEAD);
++	ehci->async->hw_token = cpu_to_hc32(ehci, QTD_STS_HALT);
+ 	ehci->async->hw_qtd_next = EHCI_LIST_END;
+ 	ehci->async->qh_state = QH_STATE_LINKED;
+-	ehci->async->hw_alt_next = QTD_NEXT(ehci->async->dummy->qtd_dma);
++	ehci->async->hw_alt_next = QTD_NEXT(ehci, ehci->async->dummy->qtd_dma);
+ 
+ 	/* clear interrupt enables, set irq latency */
+ 	if (log2_irq_thresh < 0 || log2_irq_thresh > 6)
+@@ -491,13 +518,16 @@ static int ehci_run (struct usb_hcd *hcd
+ 	u32			temp;
+ 	u32			hcc_params;
+ 
++	hcd->uses_new_polling = 1;
++	hcd->poll_rh = 0;
++
+ 	/* EHCI spec section 4.1 */
+ 	if ((retval = ehci_reset(ehci)) != 0) {
+ 		ehci_mem_cleanup(ehci);
+ 		return retval;
+ 	}
+-	writel(ehci->periodic_dma, &ehci->regs->frame_list);
+-	writel((u32)ehci->async->qh_dma, &ehci->regs->async_next);
++	ehci_writel(ehci, ehci->periodic_dma, &ehci->regs->frame_list);
++	ehci_writel(ehci, (u32)ehci->async->qh_dma, &ehci->regs->async_next);
+ 
+ 	/*
+ 	 * hcc_params controls whether ehci->regs->segment must (!!!)
+@@ -511,9 +541,9 @@ static int ehci_run (struct usb_hcd *hcd
+ 	 * Scsi_Host.highmem_io, and so forth.  It's readonly to all
+ 	 * host side drivers though.
+ 	 */
+-	hcc_params = readl(&ehci->caps->hcc_params);
++	hcc_params = ehci_readl(ehci, &ehci->caps->hcc_params);
+ 	if (HCC_64BIT_ADDR(hcc_params)) {
+-		writel(0, &ehci->regs->segment);
++		ehci_writel(ehci, 0, &ehci->regs->segment);
+ #if 0
+ // this is deeply broken on almost all architectures
+ 		if (!dma_set_mask(hcd->self.controller, DMA_64BIT_MASK))
+@@ -526,7 +556,7 @@ static int ehci_run (struct usb_hcd *hcd
+ 	// root hub will detect new devices (why?); NEC doesn't
+ 	ehci->command &= ~(CMD_LRESET|CMD_IAAD|CMD_PSE|CMD_ASE|CMD_RESET);
+ 	ehci->command |= CMD_RUN;
+-	writel (ehci->command, &ehci->regs->command);
++	ehci_writel(ehci, ehci->command, &ehci->regs->command);
+ 	dbg_cmd (ehci, "init", ehci->command);
+ 
+ 	/*
+@@ -536,22 +566,25 @@ static int ehci_run (struct usb_hcd *hcd
+ 	 * and there's no companion controller unless maybe for USB OTG.)
+ 	 */
+ 	hcd->state = HC_STATE_RUNNING;
+-	writel (FLAG_CF, &ehci->regs->configured_flag);
+-	readl (&ehci->regs->command);	/* unblock posted writes */
++	ehci_writel(ehci, FLAG_CF, &ehci->regs->configured_flag);
++	ehci_readl(ehci, &ehci->regs->command);	/* unblock posted writes */
+ 
+-	temp = HC_VERSION(readl (&ehci->caps->hc_capbase));
++	temp = HC_VERSION(ehci_readl(ehci, &ehci->caps->hc_capbase));
+ 	ehci_info (ehci,
+-		"USB %x.%x started, EHCI %x.%02x, driver %s\n",
++		"USB %x.%x started, EHCI %x.%02x, driver %s%s\n",
+ 		((ehci->sbrn & 0xf0)>>4), (ehci->sbrn & 0x0f),
+-		temp >> 8, temp & 0xff, DRIVER_VERSION);
++		temp >> 8, temp & 0xff, DRIVER_VERSION,
++		ignore_oc ? ", overcurrent ignored" : "");
+ 
+-	writel (INTR_MASK, &ehci->regs->intr_enable); /* Turn On Interrupts */
++	ehci_writel(ehci, INTR_MASK,
++		    &ehci->regs->intr_enable); /* Turn On Interrupts */
+ 
+ 	/* GRR this is run-once init(), being done every time the HC starts.
+ 	 * So long as they're part of class devices, we can't do it init()
+ 	 * since the class device isn't created that early.
+ 	 */
+ 	create_debug_files(ehci);
++	create_companion_file(ehci);
+ 
+ 	return 0;
+ }
+@@ -561,12 +594,12 @@ static int ehci_run (struct usb_hcd *hcd
+ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
+ {
+ 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+-	u32			status;
++	u32			status, pcd_status = 0;
+ 	int			bh;
+ 
+ 	spin_lock (&ehci->lock);
+ 
+-	status = readl (&ehci->regs->status);
++	status = ehci_readl(ehci, &ehci->regs->status);
+ 
+ 	/* e.g. cardbus physical eject */
+ 	if (status == ~(u32) 0) {
+@@ -581,8 +614,8 @@ static irqreturn_t ehci_irq (struct usb_
+ 	}
+ 
+ 	/* clear (just) interrupts */
+-	writel (status, &ehci->regs->status);
+-	readl (&ehci->regs->command);	/* unblock posted write */
++	ehci_writel(ehci, status, &ehci->regs->status);
++	ehci_readl(ehci, &ehci->regs->command);	/* unblock posted write */
+ 	bh = 0;
+ 
+ #ifdef	EHCI_VERBOSE_DEBUG
+@@ -611,14 +644,15 @@ static irqreturn_t ehci_irq (struct usb_
+ 	/* remote wakeup [4.3.1] */
+ 	if (status & STS_PCD) {
+ 		unsigned	i = HCS_N_PORTS (ehci->hcs_params);
++		pcd_status = status;
+ 
+ 		/* resume root hub? */
+-		status = readl (&ehci->regs->command);
+-		if (!(status & CMD_RUN))
+-			writel (status | CMD_RUN, &ehci->regs->command);
++		if (!(ehci_readl(ehci, &ehci->regs->command) & CMD_RUN))
++			usb_hcd_resume_root_hub(hcd);
+ 
+ 		while (i--) {
+-			int pstatus = readl (&ehci->regs->port_status [i]);
++			int pstatus = ehci_readl(ehci,
++						 &ehci->regs->port_status [i]);
+ 
+ 			if (pstatus & PORT_OWNER)
+ 				continue;
+@@ -632,21 +666,22 @@ static irqreturn_t ehci_irq (struct usb_
+ 			 */
+ 			ehci->reset_done [i] = jiffies + msecs_to_jiffies (20);
+ 			ehci_dbg (ehci, "port %d remote wakeup\n", i + 1);
+-			usb_hcd_resume_root_hub(hcd);
++			mod_timer(&hcd->rh_timer, ehci->reset_done[i]);
+ 		}
+ 	}
+ 
+ 	/* PCI errors [4.15.2.4] */
+ 	if (unlikely ((status & STS_FATAL) != 0)) {
+ 		/* bogus "fatal" IRQs appear on some chips... why?  */
+-		status = readl (&ehci->regs->status);
+-		dbg_cmd (ehci, "fatal", readl (&ehci->regs->command));
++		status = ehci_readl(ehci, &ehci->regs->status);
++		dbg_cmd (ehci, "fatal", ehci_readl(ehci,
++						   &ehci->regs->command));
+ 		dbg_status (ehci, "fatal", status);
+ 		if (status & STS_HALT) {
+ 			ehci_err (ehci, "fatal error\n");
+ dead:
+ 			ehci_reset (ehci);
+-			writel (0, &ehci->regs->configured_flag);
++			ehci_writel(ehci, 0, &ehci->regs->configured_flag);
+ 			/* generic layer kills/unlinks all urbs, then
+ 			 * uses ehci_stop to clean up the rest
+ 			 */
+@@ -657,6 +692,8 @@ dead:
+ 	if (bh)
+ 		ehci_work (ehci);
+ 	spin_unlock (&ehci->lock);
++	if (pcd_status & STS_PCD)
++		usb_hcd_poll_rh_status(hcd);
+ 	return IRQ_HANDLED;
+ }
+ 
+@@ -869,7 +906,8 @@ done:
+ static int ehci_get_frame (struct usb_hcd *hcd)
+ {
+ 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+-	return (readl (&ehci->regs->frame_index) >> 3) % ehci->periodic_size;
++	return (ehci_readl(ehci, &ehci->regs->frame_index) >> 3) %
++		ehci->periodic_size;
+ }
+ 
+ /*-------------------------------------------------------------------------*/
+@@ -895,6 +933,11 @@ MODULE_LICENSE ("GPL");
+ #define	PLATFORM_DRIVER		ehci_hcd_au1xxx_driver
+ #endif
+ 
++#ifdef CONFIG_440EPX
++#include "ehci-ppc-soc.c"
++#define	PLATFORM_DRIVER		ehci_ppc_soc_driver
++#endif
++
+ #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER)
+ #error "missing bus glue for ehci-hcd"
+ #endif
+@@ -920,6 +963,7 @@ static int __init ehci_hcd_init(void)
+ #ifdef PLATFORM_DRIVER
+ 		platform_driver_unregister(&PLATFORM_DRIVER);
+ #endif
++		return retval;
+ 	}
+ #endif
+ 
+@@ -938,3 +982,4 @@ static void __exit ehci_hcd_cleanup(void
+ }
+ module_exit(ehci_hcd_cleanup);
+ 
++
+Index: linux-2.6.19/drivers/usb/host/ehci-mem.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-mem.c
++++ linux-2.6.19/drivers/usb/host/ehci-mem.c
+@@ -35,7 +35,8 @@
+ 
+ /* Allocate the key transfer structures from the previously allocated pool */
+ 
+-static inline void ehci_qtd_init (struct ehci_qtd *qtd, dma_addr_t dma)
++static inline void ehci_qtd_init (struct ehci_hcd *ehci, struct ehci_qtd *qtd,
++				  dma_addr_t dma)
+ {
+ 	memset (qtd, 0, sizeof *qtd);
+ 	qtd->qtd_dma = dma;
+@@ -52,7 +53,7 @@ static struct ehci_qtd *ehci_qtd_alloc (
+ 
+ 	qtd = dma_pool_alloc (ehci->qtd_pool, flags, &dma);
+ 	if (qtd != NULL) {
+-		ehci_qtd_init (qtd, dma);
++		ehci_qtd_init (ehci, qtd, dma);
+ 	}
+ 	return qtd;
+ }
+@@ -229,3 +230,4 @@ fail:
+ 	ehci_mem_cleanup (ehci);
+ 	return -ENOMEM;
+ }
++
+Index: linux-2.6.19/drivers/usb/host/ehci-q.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-q.c
++++ linux-2.6.19/drivers/usb/host/ehci-q.c
+@@ -43,15 +43,15 @@
+ /* fill a qtd, returning how much of the buffer we were able to queue up */
+ 
+ static int
+-qtd_fill (struct ehci_qtd *qtd, dma_addr_t buf, size_t len,
+-		int token, int maxpacket)
++qtd_fill (struct ehci_hcd *ehci, struct ehci_qtd *qtd, dma_addr_t buf,
++	  size_t len, int token, int maxpacket)
+ {
+ 	int	i, count;
+ 	u64	addr = buf;
+ 
+ 	/* one buffer entry per 4K ... first might be short or unaligned */
+-	qtd->hw_buf [0] = cpu_to_le32 ((u32)addr);
+-	qtd->hw_buf_hi [0] = cpu_to_le32 ((u32)(addr >> 32));
++	qtd->hw_buf [0] = cpu_to_hc32 (ehci, (u32)addr);
++	qtd->hw_buf_hi [0] = cpu_to_hc32 (ehci, (u32)(addr >> 32));
+ 	count = 0x1000 - (buf & 0x0fff);	/* rest of that page */
+ 	if (likely (len < count))		/* ... iff needed */
+ 		count = len;
+@@ -62,8 +62,8 @@ qtd_fill (struct ehci_qtd *qtd, dma_addr
+ 		/* per-qtd limit: from 16K to 20K (best alignment) */
+ 		for (i = 1; count < len && i < 5; i++) {
+ 			addr = buf;
+-			qtd->hw_buf [i] = cpu_to_le32 ((u32)addr);
+-			qtd->hw_buf_hi [i] = cpu_to_le32 ((u32)(addr >> 32));
++			qtd->hw_buf [i] = cpu_to_hc32 (ehci, (u32)addr);
++			qtd->hw_buf_hi [i] = cpu_to_hc32 (ehci, (u32)(addr >> 32));
+ 			buf += 0x1000;
+ 			if ((count + 0x1000) < len)
+ 				count += 0x1000;
+@@ -75,7 +75,7 @@ qtd_fill (struct ehci_qtd *qtd, dma_addr
+ 		if (count != len)
+ 			count -= (count % maxpacket);
+ 	}
+-	qtd->hw_token = cpu_to_le32 ((count << 16) | token);
++	qtd->hw_token = cpu_to_hc32 (ehci, (count << 16) | token);
+ 	qtd->length = count;
+ 
+ 	return count;
+@@ -89,7 +89,7 @@ qh_update (struct ehci_hcd *ehci, struct
+ 	/* writes to an active overlay are unsafe */
+ 	BUG_ON(qh->qh_state != QH_STATE_IDLE);
+ 
+-	qh->hw_qtd_next = QTD_NEXT (qtd->qtd_dma);
++	qh->hw_qtd_next = QTD_NEXT (ehci, qtd->qtd_dma);
+ 	qh->hw_alt_next = EHCI_LIST_END;
+ 
+ 	/* Except for control endpoints, we make hardware maintain data
+@@ -97,20 +97,20 @@ qh_update (struct ehci_hcd *ehci, struct
+ 	 * and set the pseudo-toggle in udev. Only usb_clear_halt() will
+ 	 * ever clear it.
+ 	 */
+-	if (!(qh->hw_info1 & cpu_to_le32(1 << 14))) {
++	if (!(qh->hw_info1 & cpu_to_hc32(ehci, 1 << 14))) {
+ 		unsigned	is_out, epnum;
+ 
+-		is_out = !(qtd->hw_token & cpu_to_le32(1 << 8));
+-		epnum = (le32_to_cpup(&qh->hw_info1) >> 8) & 0x0f;
++		is_out = !(qtd->hw_token & cpu_to_hc32(ehci, 1 << 8));
++		epnum = (hc32_to_cpup(ehci, &qh->hw_info1) >> 8) & 0x0f;
+ 		if (unlikely (!usb_gettoggle (qh->dev, epnum, is_out))) {
+-			qh->hw_token &= ~__constant_cpu_to_le32 (QTD_TOGGLE);
++			qh->hw_token &= ~cpu_to_hc32 (ehci, QTD_TOGGLE);
+ 			usb_settoggle (qh->dev, epnum, is_out, 1);
+ 		}
+ 	}
+ 
+ 	/* HC must see latest qtd and qh data before we clear ACTIVE+HALT */
+ 	wmb ();
+-	qh->hw_token &= __constant_cpu_to_le32 (QTD_TOGGLE | QTD_STS_PING);
++	qh->hw_token &= cpu_to_hc32 (ehci, QTD_TOGGLE | QTD_STS_PING);
+ }
+ 
+ /* if it weren't for a common silicon quirk (writing the dummy into the qh
+@@ -128,7 +128,7 @@ qh_refresh (struct ehci_hcd *ehci, struc
+ 		qtd = list_entry (qh->qtd_list.next,
+ 				struct ehci_qtd, qtd_list);
+ 		/* first qtd may already be partially processed */
+-		if (cpu_to_le32 (qtd->qtd_dma) == qh->hw_current)
++		if (cpu_to_hc32 (ehci, qtd->qtd_dma) == qh->hw_current)
+ 			qtd = NULL;
+ 	}
+ 
+@@ -222,7 +222,7 @@ __acquires(ehci->lock)
+ 		struct ehci_qh	*qh = (struct ehci_qh *) urb->hcpriv;
+ 
+ 		/* S-mask in a QH means it's an interrupt urb */
+-		if ((qh->hw_info2 & __constant_cpu_to_le32 (QH_SMASK)) != 0) {
++		if ((qh->hw_info2 & cpu_to_hc32 (ehci, QH_SMASK)) != 0) {
+ 
+ 			/* ... update hc-wide periodic stats (for usbfs) */
+ 			ehci_to_hcd(ehci)->self.bandwidth_int_reqs--;
+@@ -277,7 +277,7 @@ static int qh_schedule (struct ehci_hcd 
+  * Chases up to qh->hw_current.  Returns number of completions called,
+  * indicating how much "real" work we did.
+  */
+-#define HALT_BIT __constant_cpu_to_le32(QTD_STS_HALT)
++#define HALT_BIT cpu_to_hc32(ehci, QTD_STS_HALT)
+ static unsigned
+ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
+ {
+@@ -330,7 +330,7 @@ qh_completions (struct ehci_hcd *ehci, s
+ 
+ 		/* hardware copies qtd out of qh overlay */
+ 		rmb ();
+-		token = le32_to_cpu (qtd->hw_token);
++		token = hc32_to_cpu (ehci, qtd->hw_token);
+ 
+ 		/* always clean up qtds the hc de-activated */
+ 		if ((token & QTD_STS_ACTIVE) == 0) {
+@@ -374,9 +374,9 @@ qh_completions (struct ehci_hcd *ehci, s
+ 
+ 			/* token in overlay may be most current */
+ 			if (state == QH_STATE_IDLE
+-					&& cpu_to_le32 (qtd->qtd_dma)
++					&& cpu_to_hc32 (ehci, qtd->qtd_dma)
+ 						== qh->hw_current)
+-				token = le32_to_cpu (qh->hw_token);
++				token = hc32_to_cpu (ehci, qh->hw_token);
+ 
+ 			/* force halt for unlinked or blocked qh, so we'll
+ 			 * patch the qh later and so that completions can't
+@@ -428,7 +428,7 @@ halt:
+ 			/* should be rare for periodic transfers,
+ 			 * except maybe high bandwidth ...
+ 			 */
+-			if ((__constant_cpu_to_le32 (QH_SMASK)
++			if ((cpu_to_hc32 (ehci, QH_SMASK)
+ 					& qh->hw_info2) != 0) {
+ 				intr_deschedule (ehci, qh);
+ 				(void) qh_schedule (ehci, qh);
+@@ -502,7 +502,7 @@ qh_urb_transaction (
+ 	is_input = usb_pipein (urb->pipe);
+ 	if (usb_pipecontrol (urb->pipe)) {
+ 		/* SETUP pid */
+-		qtd_fill (qtd, urb->setup_dma, sizeof (struct usb_ctrlrequest),
++		qtd_fill (ehci, qtd, urb->setup_dma, sizeof (struct usb_ctrlrequest),
+ 			token | (2 /* "setup" */ << 8), 8);
+ 
+ 		/* ... and always at least one more pid */
+@@ -512,7 +512,7 @@ qh_urb_transaction (
+ 		if (unlikely (!qtd))
+ 			goto cleanup;
+ 		qtd->urb = urb;
+-		qtd_prev->hw_next = QTD_NEXT (qtd->qtd_dma);
++		qtd_prev->hw_next = QTD_NEXT (ehci, qtd->qtd_dma);
+ 		list_add_tail (&qtd->qtd_list, head);
+ 
+ 		/* for zero length DATA stages, STATUS is always IN */
+@@ -539,7 +539,7 @@ qh_urb_transaction (
+ 	for (;;) {
+ 		int this_qtd_len;
+ 
+-		this_qtd_len = qtd_fill (qtd, buf, len, token, maxpacket);
++		this_qtd_len = qtd_fill (ehci, qtd, buf, len, token, maxpacket);
+ 		len -= this_qtd_len;
+ 		buf += this_qtd_len;
+ 		if (is_input)
+@@ -557,7 +557,7 @@ qh_urb_transaction (
+ 		if (unlikely (!qtd))
+ 			goto cleanup;
+ 		qtd->urb = urb;
+-		qtd_prev->hw_next = QTD_NEXT (qtd->qtd_dma);
++		qtd_prev->hw_next = QTD_NEXT (ehci, qtd->qtd_dma);
+ 		list_add_tail (&qtd->qtd_list, head);
+ 	}
+ 
+@@ -590,17 +590,17 @@ qh_urb_transaction (
+ 			if (unlikely (!qtd))
+ 				goto cleanup;
+ 			qtd->urb = urb;
+-			qtd_prev->hw_next = QTD_NEXT (qtd->qtd_dma);
++			qtd_prev->hw_next = QTD_NEXT (ehci, qtd->qtd_dma);
+ 			list_add_tail (&qtd->qtd_list, head);
+ 
+ 			/* never any data in such packets */
+-			qtd_fill (qtd, 0, 0, token, 0);
++			qtd_fill (ehci, qtd, 0, 0, token, 0);
+ 		}
+ 	}
+ 
+ 	/* by default, enable interrupt on urb completion */
+ 	if (likely (!(urb->transfer_flags & URB_NO_INTERRUPT)))
+-		qtd->hw_token |= __constant_cpu_to_le32 (QTD_IOC);
++		qtd->hw_token |= cpu_to_hc32 (ehci, QTD_IOC);
+ 	return head;
+ 
+ cleanup:
+@@ -769,8 +769,8 @@ done:
+ 
+ 	/* init as live, toggle clear, advance to dummy */
+ 	qh->qh_state = QH_STATE_IDLE;
+-	qh->hw_info1 = cpu_to_le32 (info1);
+-	qh->hw_info2 = cpu_to_le32 (info2);
++	qh->hw_info1 = cpu_to_hc32 (ehci, info1);
++	qh->hw_info2 = cpu_to_hc32 (ehci, info2);
+ 	usb_settoggle (urb->dev, usb_pipeendpoint (urb->pipe), !is_input, 1);
+ 	qh_refresh (ehci, qh);
+ 	return qh;
+@@ -782,20 +782,21 @@ done:
+ 
+ static void qh_link_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
+ {
+-	__le32		dma = QH_NEXT (qh->qh_dma);
++	__hc32		dma = QH_NEXT (ehci, qh->qh_dma);
+ 	struct ehci_qh	*head;
+ 
+ 	/* (re)start the async schedule? */
+ 	head = ehci->async;
+ 	timer_action_done (ehci, TIMER_ASYNC_OFF);
+ 	if (!head->qh_next.qh) {
+-		u32	cmd = readl (&ehci->regs->command);
++		u32	cmd = ehci_readl(ehci, &ehci->regs->command);
+ 
+ 		if (!(cmd & CMD_ASE)) {
+ 			/* in case a clear of CMD_ASE didn't take yet */
+-			(void) handshake (&ehci->regs->status, STS_ASS, 0, 150);
++			(void)handshake(ehci, &ehci->regs->status,
++					STS_ASS, 0, 150);
+ 			cmd |= CMD_ASE | CMD_RUN;
+-			writel (cmd, &ehci->regs->command);
++			ehci_writel(ehci, cmd, &ehci->regs->command);
+ 			ehci_to_hcd(ehci)->state = HC_STATE_RUNNING;
+ 			/* posted write need not be known to HC yet ... */
+ 		}
+@@ -819,7 +820,7 @@ static void qh_link_async (struct ehci_h
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+-#define	QH_ADDR_MASK	__constant_cpu_to_le32(0x7f)
++#define	QH_ADDR_MASK	cpu_to_hc32(ehci, 0x7f)
+ 
+ /*
+  * For control/bulk/interrupt, return QH with these TDs appended.
+@@ -866,7 +867,7 @@ static struct ehci_qh *qh_append_tds (
+ 		if (likely (qtd != NULL)) {
+ 			struct ehci_qtd		*dummy;
+ 			dma_addr_t		dma;
+-			__le32			token;
++			__hc32			token;
+ 
+ 			/* to avoid racing the HC, use the dummy td instead of
+ 			 * the first td of our list (becomes new dummy).  both
+@@ -886,14 +887,14 @@ static struct ehci_qh *qh_append_tds (
+ 			list_add (&dummy->qtd_list, qtd_list);
+ 			__list_splice (qtd_list, qh->qtd_list.prev);
+ 
+-			ehci_qtd_init (qtd, qtd->qtd_dma);
++			ehci_qtd_init (ehci, qtd, qtd->qtd_dma);
+ 			qh->dummy = qtd;
+ 
+ 			/* hc must see the new dummy at list end */
+ 			dma = qtd->qtd_dma;
+ 			qtd = list_entry (qh->qtd_list.prev,
+ 					struct ehci_qtd, qtd_list);
+-			qtd->hw_next = QTD_NEXT (dma);
++			qtd->hw_next = QTD_NEXT (ehci, dma);
+ 
+ 			/* let the hc process these next qtds */
+ 			wmb ();
+@@ -969,7 +970,7 @@ static void end_unlink_async (struct ehc
+ 
+ 	timer_action_done (ehci, TIMER_IAA_WATCHDOG);
+ 
+-	// qh->hw_next = cpu_to_le32 (qh->qh_dma);
++	// qh->hw_next = cpu_to_hc32 (qh->qh_dma);
+ 	qh->qh_state = QH_STATE_IDLE;
+ 	qh->qh_next.qh = NULL;
+ 	qh_put (qh);			// refcount from reclaim
+@@ -1007,7 +1008,7 @@ static void end_unlink_async (struct ehc
+ 
+ static void start_unlink_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
+ {
+-	int		cmd = readl (&ehci->regs->command);
++	int		cmd = ehci_readl(ehci, &ehci->regs->command);
+ 	struct ehci_qh	*prev;
+ 
+ #ifdef DEBUG
+@@ -1025,7 +1026,8 @@ static void start_unlink_async (struct e
+ 		if (ehci_to_hcd(ehci)->state != HC_STATE_HALT
+ 				&& !ehci->reclaim) {
+ 			/* ... and CMD_IAAD clear */
+-			writel (cmd & ~CMD_ASE, &ehci->regs->command);
++			ehci_writel(ehci, cmd & ~CMD_ASE,
++				    &ehci->regs->command);
+ 			wmb ();
+ 			// handshake later, if we need to
+ 			timer_action_done (ehci, TIMER_ASYNC_OFF);
+@@ -1054,8 +1056,8 @@ static void start_unlink_async (struct e
+ 
+ 	ehci->reclaim_ready = 0;
+ 	cmd |= CMD_IAAD;
+-	writel (cmd, &ehci->regs->command);
+-	(void) readl (&ehci->regs->command);
++	ehci_writel(ehci, cmd, &ehci->regs->command);
++	(void)ehci_readl(ehci, &ehci->regs->command);
+ 	timer_action (ehci, TIMER_IAA_WATCHDOG);
+ }
+ 
+@@ -1112,3 +1114,4 @@ rescan:
+ 	if (action == TIMER_ASYNC_SHRINK)
+ 		timer_action (ehci, TIMER_ASYNC_SHRINK);
+ }
++
+Index: linux-2.6.19/drivers/usb/host/ehci-sched.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-sched.c
++++ linux-2.6.19/drivers/usb/host/ehci-sched.c
+@@ -44,9 +44,10 @@ static int ehci_get_frame (struct usb_hc
+  * @tag: hardware tag for type of this record
+  */
+ static union ehci_shadow *
+-periodic_next_shadow (union ehci_shadow *periodic, __le32 tag)
++periodic_next_shadow (struct ehci_hcd *ehci, union ehci_shadow *periodic,
++		      __hc32 tag)
+ {
+-	switch (tag) {
++	switch (hc32_to_cpu(ehci, tag)) {
+ 	case Q_TYPE_QH:
+ 		return &periodic->qh->qh_next;
+ 	case Q_TYPE_FSTN:
+@@ -63,12 +64,12 @@ periodic_next_shadow (union ehci_shadow 
+ static void periodic_unlink (struct ehci_hcd *ehci, unsigned frame, void *ptr)
+ {
+ 	union ehci_shadow	*prev_p = &ehci->pshadow [frame];
+-	__le32			*hw_p = &ehci->periodic [frame];
++	__hc32			*hw_p = &ehci->periodic [frame];
+ 	union ehci_shadow	here = *prev_p;
+ 
+ 	/* find predecessor of "ptr"; hw and shadow lists are in sync */
+ 	while (here.ptr && here.ptr != ptr) {
+-		prev_p = periodic_next_shadow (prev_p, Q_NEXT_TYPE (*hw_p));
++		prev_p = periodic_next_shadow (ehci, prev_p, Q_NEXT_TYPE (*hw_p));
+ 		hw_p = here.hw_next;
+ 		here = *prev_p;
+ 	}
+@@ -79,7 +80,7 @@ static void periodic_unlink (struct ehci
+ 	/* update shadow and hardware lists ... the old "next" pointers
+ 	 * from ptr may still be in use, the caller updates them.
+ 	 */
+-	*prev_p = *periodic_next_shadow (&here, Q_NEXT_TYPE (*hw_p));
++	*prev_p = *periodic_next_shadow (ehci, &here, Q_NEXT_TYPE (*hw_p));
+ 	*hw_p = *here.hw_next;
+ }
+ 
+@@ -87,18 +88,18 @@ static void periodic_unlink (struct ehci
+ static unsigned short
+ periodic_usecs (struct ehci_hcd *ehci, unsigned frame, unsigned uframe)
+ {
+-	__le32			*hw_p = &ehci->periodic [frame];
++	__hc32			*hw_p = &ehci->periodic [frame];
+ 	union ehci_shadow	*q = &ehci->pshadow [frame];
+ 	unsigned		usecs = 0;
+ 
+ 	while (q->ptr) {
+-		switch (Q_NEXT_TYPE (*hw_p)) {
++		switch (hc32_to_cpu(ehci, Q_NEXT_TYPE (*hw_p))) {
+ 		case Q_TYPE_QH:
+ 			/* is it in the S-mask? */
+-			if (q->qh->hw_info2 & cpu_to_le32 (1 << uframe))
++			if (q->qh->hw_info2 & cpu_to_hc32 (ehci, 1 << uframe))
+ 				usecs += q->qh->usecs;
+ 			/* ... or C-mask? */
+-			if (q->qh->hw_info2 & cpu_to_le32 (1 << (8 + uframe)))
++			if (q->qh->hw_info2 & cpu_to_hc32 (ehci, 1 << (8 + uframe)))
+ 				usecs += q->qh->c_usecs;
+ 			hw_p = &q->qh->hw_next;
+ 			q = &q->qh->qh_next;
+@@ -121,9 +122,9 @@ periodic_usecs (struct ehci_hcd *ehci, u
+ 			break;
+ 		case Q_TYPE_SITD:
+ 			/* is it in the S-mask?  (count SPLIT, DATA) */
+-			if (q->sitd->hw_uframe & cpu_to_le32 (1 << uframe)) {
++			if (q->sitd->hw_uframe & cpu_to_hc32 (ehci, 1 << uframe)) {
+ 				if (q->sitd->hw_fullspeed_ep &
+-						__constant_cpu_to_le32 (1<<31))
++						cpu_to_hc32 (ehci, 1<<31))
+ 					usecs += q->sitd->stream->usecs;
+ 				else	/* worst case for OUT start-split */
+ 					usecs += HS_USECS_ISO (188);
+@@ -131,7 +132,7 @@ periodic_usecs (struct ehci_hcd *ehci, u
+ 
+ 			/* ... C-mask?  (count CSPLIT, DATA) */
+ 			if (q->sitd->hw_uframe &
+-					cpu_to_le32 (1 << (8 + uframe))) {
++					cpu_to_hc32 (ehci, 1 << (8 + uframe))) {
+ 				/* worst case for IN complete-split */
+ 				usecs += q->sitd->stream->c_usecs;
+ 			}
+@@ -173,9 +174,9 @@ static int same_tt (struct usb_device *d
+  * will cause a transfer in "B-frame" uframe 0.  "B-frames" lag
+  * "H-frames" by 1 uframe.  See the EHCI spec sec 4.5 and figure 4.7.
+  */
+-static inline unsigned char tt_start_uframe(struct ehci_hcd *ehci, __le32 mask)
++static inline unsigned char tt_start_uframe(struct ehci_hcd *ehci, __hc32 mask)
+ {
+-	unsigned char smask = QH_SMASK & le32_to_cpu(mask);
++	unsigned char smask = QH_SMASK & hc32_to_cpu(ehci, mask);
+ 	if (!smask) {
+ 		ehci_err(ehci, "invalid empty smask!\n");
+ 		/* uframe 7 can't have bw so this will indicate failure */
+@@ -217,14 +218,14 @@ periodic_tt_usecs (
+ 	unsigned short tt_usecs[8]
+ )
+ {
+-	__le32			*hw_p = &ehci->periodic [frame];
++	__hc32			*hw_p = &ehci->periodic [frame];
+ 	union ehci_shadow	*q = &ehci->pshadow [frame];
+ 	unsigned char		uf;
+ 
+ 	memset(tt_usecs, 0, 16);
+ 
+ 	while (q->ptr) {
+-		switch (Q_NEXT_TYPE(*hw_p)) {
++		switch (hc32_to_cpu(ehci, Q_NEXT_TYPE(*hw_p))) {
+ 		case Q_TYPE_ITD:
+ 			hw_p = &q->itd->hw_next;
+ 			q = &q->itd->itd_next;
+@@ -368,12 +369,12 @@ static int tt_no_collision (
+ 	 */
+ 	for (; frame < ehci->periodic_size; frame += period) {
+ 		union ehci_shadow	here;
+-		__le32			type;
++		__hc32			type;
+ 
+ 		here = ehci->pshadow [frame];
+ 		type = Q_NEXT_TYPE (ehci->periodic [frame]);
+ 		while (here.ptr) {
+-			switch (type) {
++			switch (hc32_to_cpu(ehci, type)) {
+ 			case Q_TYPE_ITD:
+ 				type = Q_NEXT_TYPE (here.itd->hw_next);
+ 				here = here.itd->itd_next;
+@@ -382,7 +383,7 @@ static int tt_no_collision (
+ 				if (same_tt (dev, here.qh->dev)) {
+ 					u32		mask;
+ 
+-					mask = le32_to_cpu (here.qh->hw_info2);
++					mask = hc32_to_cpu (ehci, here.qh->hw_info2);
+ 					/* "knows" no gap is needed */
+ 					mask |= mask >> 8;
+ 					if (mask & uf_mask)
+@@ -395,7 +396,7 @@ static int tt_no_collision (
+ 				if (same_tt (dev, here.sitd->urb->dev)) {
+ 					u16		mask;
+ 
+-					mask = le32_to_cpu (here.sitd
++					mask = hc32_to_cpu (ehci, here.sitd
+ 								->hw_uframe);
+ 					/* FIXME assumes no gap for IN! */
+ 					mask |= mask >> 8;
+@@ -433,20 +434,20 @@ static int enable_periodic (struct ehci_
+ 	/* did clearing PSE did take effect yet?
+ 	 * takes effect only at frame boundaries...
+ 	 */
+-	status = handshake (&ehci->regs->status, STS_PSS, 0, 9 * 125);
++	status = handshake(ehci, &ehci->regs->status, STS_PSS, 0, 9 * 125);
+ 	if (status != 0) {
+ 		ehci_to_hcd(ehci)->state = HC_STATE_HALT;
+ 		return status;
+ 	}
+ 
+-	cmd = readl (&ehci->regs->command) | CMD_PSE;
+-	writel (cmd, &ehci->regs->command);
++	cmd = ehci_readl(ehci, &ehci->regs->command) | CMD_PSE;
++	ehci_writel(ehci, cmd, &ehci->regs->command);
+ 	/* posted write ... PSS happens later */
+ 	ehci_to_hcd(ehci)->state = HC_STATE_RUNNING;
+ 
+ 	/* make sure ehci_work scans these */
+-	ehci->next_uframe = readl (&ehci->regs->frame_index)
+-				% (ehci->periodic_size << 3);
++	ehci->next_uframe = ehci_readl(ehci, &ehci->regs->frame_index)
++		% (ehci->periodic_size << 3);
+ 	return 0;
+ }
+ 
+@@ -458,14 +459,14 @@ static int disable_periodic (struct ehci
+ 	/* did setting PSE not take effect yet?
+ 	 * takes effect only at frame boundaries...
+ 	 */
+-	status = handshake (&ehci->regs->status, STS_PSS, STS_PSS, 9 * 125);
++	status = handshake(ehci, &ehci->regs->status, STS_PSS, STS_PSS, 9 * 125);
+ 	if (status != 0) {
+ 		ehci_to_hcd(ehci)->state = HC_STATE_HALT;
+ 		return status;
+ 	}
+ 
+-	cmd = readl (&ehci->regs->command) & ~CMD_PSE;
+-	writel (cmd, &ehci->regs->command);
++	cmd = ehci_readl(ehci, &ehci->regs->command) & ~CMD_PSE;
++	ehci_writel(ehci, cmd, &ehci->regs->command);
+ 	/* posted write ... */
+ 
+ 	ehci->next_uframe = -1;
+@@ -487,7 +488,7 @@ static int qh_link_periodic (struct ehci
+ 
+ 	dev_dbg (&qh->dev->dev,
+ 		"link qh%d-%04x/%p start %d [%d/%d us]\n",
+-		period, le32_to_cpup (&qh->hw_info2) & (QH_CMASK | QH_SMASK),
++		period, hc32_to_cpup (ehci, &qh->hw_info2) & (QH_CMASK | QH_SMASK),
+ 		qh, qh->start, qh->usecs, qh->c_usecs);
+ 
+ 	/* high bandwidth, or otherwise every microframe */
+@@ -496,16 +497,16 @@ static int qh_link_periodic (struct ehci
+ 
+ 	for (i = qh->start; i < ehci->periodic_size; i += period) {
+ 		union ehci_shadow	*prev = &ehci->pshadow [i];
+-		__le32			*hw_p = &ehci->periodic [i];
++		__hc32			*hw_p = &ehci->periodic [i];
+ 		union ehci_shadow	here = *prev;
+-		__le32			type = 0;
++		__hc32			type = 0;
+ 
+ 		/* skip the iso nodes at list head */
+ 		while (here.ptr) {
+ 			type = Q_NEXT_TYPE (*hw_p);
+-			if (type == Q_TYPE_QH)
++			if (type == cpu_to_hc32(ehci, Q_TYPE_QH))
+ 				break;
+-			prev = periodic_next_shadow (prev, type);
++			prev = periodic_next_shadow (ehci, prev, type);
+ 			hw_p = &here.qh->hw_next;
+ 			here = *prev;
+ 		}
+@@ -527,7 +528,7 @@ static int qh_link_periodic (struct ehci
+ 				qh->hw_next = *hw_p;
+ 			wmb ();
+ 			prev->qh = qh;
+-			*hw_p = QH_NEXT (qh->qh_dma);
++			*hw_p = QH_NEXT (ehci, qh->qh_dma);
+ 		}
+ 	}
+ 	qh->qh_state = QH_STATE_LINKED;
+@@ -555,7 +556,7 @@ static void qh_unlink_periodic (struct e
+ 	//   and this qh is active in the current uframe
+ 	//   (and overlay token SplitXstate is false?)
+ 	// THEN
+-	//   qh->hw_info1 |= __constant_cpu_to_le32 (1 << 7 /* "ignore" */);
++	//   qh->hw_info1 |= __constant_cpu_to_hc32 (1 << 7 /* "ignore" */);
+ 
+ 	/* high bandwidth, or otherwise part of every microframe */
+ 	if ((period = qh->period) == 0)
+@@ -572,7 +573,7 @@ static void qh_unlink_periodic (struct e
+ 	dev_dbg (&qh->dev->dev,
+ 		"unlink qh%d-%04x/%p start %d [%d/%d us]\n",
+ 		qh->period,
+-		le32_to_cpup (&qh->hw_info2) & (QH_CMASK | QH_SMASK),
++		hc32_to_cpup (ehci, &qh->hw_info2) & (QH_CMASK | QH_SMASK),
+ 		qh, qh->start, qh->usecs, qh->c_usecs);
+ 
+ 	/* qh->qh_next still "live" to HC */
+@@ -598,7 +599,7 @@ static void intr_deschedule (struct ehci
+ 	 * active high speed queues may need bigger delays...
+ 	 */
+ 	if (list_empty (&qh->qtd_list)
+-			|| (__constant_cpu_to_le32 (QH_CMASK)
++			|| (cpu_to_hc32 (ehci, QH_CMASK)
+ 					& qh->hw_info2) != 0)
+ 		wait = 2;
+ 	else
+@@ -663,7 +664,7 @@ static int check_intr_schedule (
+ 	unsigned		frame,
+ 	unsigned		uframe,
+ 	const struct ehci_qh	*qh,
+-	__le32			*c_maskp
++	__hc32			*c_maskp
+ )
+ {
+ 	int		retval = -ENOSPC;
+@@ -695,7 +696,7 @@ static int check_intr_schedule (
+ 
+ 		retval = 0;
+ 
+-		*c_maskp = cpu_to_le32 (mask << 8);
++		*c_maskp = cpu_to_hc32 (ehci, mask << 8);
+ 	}
+ #else
+ 	/* Make sure this tt's buffer is also available for CSPLITs.
+@@ -706,7 +707,7 @@ static int check_intr_schedule (
+ 	 * one smart pass...
+ 	 */
+ 	mask = 0x03 << (uframe + qh->gap_uf);
+-	*c_maskp = cpu_to_le32 (mask << 8);
++	*c_maskp = cpu_to_hc32 (ehci, mask << 8);
+ 
+ 	mask |= 1 << uframe;
+ 	if (tt_no_collision (ehci, qh->period, qh->dev, frame, mask)) {
+@@ -730,7 +731,7 @@ static int qh_schedule (struct ehci_hcd 
+ {
+ 	int		status;
+ 	unsigned	uframe;
+-	__le32		c_mask;
++	__hc32		c_mask;
+ 	unsigned	frame;		/* 0..(qh->period - 1), or NO_FRAME */
+ 
+ 	qh_refresh(ehci, qh);
+@@ -739,7 +740,7 @@ static int qh_schedule (struct ehci_hcd 
+ 
+ 	/* reuse the previous schedule slots, if we can */
+ 	if (frame < qh->period) {
+-		uframe = ffs (le32_to_cpup (&qh->hw_info2) & QH_SMASK);
++		uframe = ffs (hc32_to_cpup (ehci, &qh->hw_info2) & QH_SMASK);
+ 		status = check_intr_schedule (ehci, frame, --uframe,
+ 				qh, &c_mask);
+ 	} else {
+@@ -775,10 +776,10 @@ static int qh_schedule (struct ehci_hcd 
+ 		qh->start = frame;
+ 
+ 		/* reset S-frame and (maybe) C-frame masks */
+-		qh->hw_info2 &= __constant_cpu_to_le32(~(QH_CMASK | QH_SMASK));
++		qh->hw_info2 &= cpu_to_hc32(ehci, ~(QH_CMASK | QH_SMASK));
+ 		qh->hw_info2 |= qh->period
+-			? cpu_to_le32 (1 << uframe)
+-			: __constant_cpu_to_le32 (QH_SMASK);
++			? cpu_to_hc32 (ehci, 1 << uframe)
++			: cpu_to_hc32 (ehci, QH_SMASK);
+ 		qh->hw_info2 |= c_mask;
+ 	} else
+ 		ehci_dbg (ehci, "reused qh %p schedule\n", qh);
+@@ -898,9 +899,9 @@ iso_stream_init (
+ 		buf1 |= maxp;
+ 		maxp *= multi;
+ 
+-		stream->buf0 = cpu_to_le32 ((epnum << 8) | dev->devnum);
+-		stream->buf1 = cpu_to_le32 (buf1);
+-		stream->buf2 = cpu_to_le32 (multi);
++		stream->buf0 = cpu_to_hc32 (ehci, (epnum << 8) | dev->devnum);
++		stream->buf1 = cpu_to_hc32 (ehci, buf1);
++		stream->buf2 = cpu_to_hc32 (ehci, multi);
+ 
+ 		/* usbfs wants to report the average usecs per frame tied up
+ 		 * when transfers on this endpoint are scheduled ...
+@@ -943,7 +944,7 @@ iso_stream_init (
+ 		bandwidth /= 1 << (interval + 2);
+ 
+ 		/* stream->splits gets created from raw_mask later */
+-		stream->address = cpu_to_le32 (addr);
++		stream->address = cpu_to_hc32 (ehci, addr);
+ 	}
+ 	stream->bandwidth = bandwidth;
+ 
+@@ -1078,6 +1079,7 @@ iso_sched_alloc (unsigned packets, gfp_t
+ 
+ static inline void
+ itd_sched_init (
++	struct ehci_hcd		*ehci,
+ 	struct ehci_iso_sched	*iso_sched,
+ 	struct ehci_iso_stream	*stream,
+ 	struct urb		*urb
+@@ -1107,7 +1109,7 @@ itd_sched_init (
+ 				&& !(urb->transfer_flags & URB_NO_INTERRUPT))
+ 			trans |= EHCI_ITD_IOC;
+ 		trans |= length << 16;
+-		uframe->transaction = cpu_to_le32 (trans);
++		uframe->transaction = cpu_to_hc32 (ehci, trans);
+ 
+ 		/* might need to cross a buffer page within a uframe */
+ 		uframe->bufp = (buf & ~(u64)0x0fff);
+@@ -1149,7 +1151,7 @@ itd_urb_transaction (
+ 	if (unlikely (sched == NULL))
+ 		return -ENOMEM;
+ 
+-	itd_sched_init (sched, stream, urb);
++	itd_sched_init (ehci, sched, stream, urb);
+ 
+ 	if (urb->interval < 8)
+ 		num_itds = 1 + (sched->span + 7) / 8;
+@@ -1294,7 +1296,7 @@ sitd_slot_ok (
+ 		uframe += period_uframes;
+ 	} while (uframe < mod);
+ 
+-	stream->splits = cpu_to_le32(stream->raw_mask << (uframe & 7));
++	stream->splits = cpu_to_hc32(ehci, stream->raw_mask << (uframe & 7));
+ 	return 1;
+ }
+ 
+@@ -1336,7 +1338,7 @@ iso_stream_schedule (
+ 		goto fail;
+ 	}
+ 
+-	now = readl (&ehci->regs->frame_index) % mod;
++	now = ehci_readl(ehci, &ehci->regs->frame_index) % mod;
+ 
+ 	/* when's the last uframe this urb could start? */
+ 	max = now + mod;
+@@ -1415,7 +1417,8 @@ ready:
+ /*-------------------------------------------------------------------------*/
+ 
+ static inline void
+-itd_init (struct ehci_iso_stream *stream, struct ehci_itd *itd)
++itd_init (struct ehci_hcd *ehci, struct ehci_iso_stream *stream,
++	  struct ehci_itd *itd)
+ {
+ 	int i;
+ 
+@@ -1433,6 +1436,7 @@ itd_init (struct ehci_iso_stream *stream
+ 
+ static inline void
+ itd_patch (
++	struct ehci_hcd		*ehci,
+ 	struct ehci_itd		*itd,
+ 	struct ehci_iso_sched	*iso_sched,
+ 	unsigned		index,
+@@ -1448,16 +1452,16 @@ itd_patch (
+ 	itd->index [uframe] = index;
+ 
+ 	itd->hw_transaction [uframe] = uf->transaction;
+-	itd->hw_transaction [uframe] |= cpu_to_le32 (pg << 12);
+-	itd->hw_bufp [pg] |= cpu_to_le32 (uf->bufp & ~(u32)0);
+-	itd->hw_bufp_hi [pg] |= cpu_to_le32 ((u32)(uf->bufp >> 32));
++	itd->hw_transaction [uframe] |= cpu_to_hc32 (ehci, pg << 12);
++	itd->hw_bufp [pg] |= cpu_to_hc32 (ehci, uf->bufp & ~(u32)0);
++	itd->hw_bufp_hi [pg] |= cpu_to_hc32 (ehci, (u32)(uf->bufp >> 32));
+ 
+ 	/* iso_frame_desc[].offset must be strictly increasing */
+ 	if (unlikely (uf->cross)) {
+ 		u64	bufp = uf->bufp + 4096;
+ 		itd->pg = ++pg;
+-		itd->hw_bufp [pg] |= cpu_to_le32 (bufp & ~(u32)0);
+-		itd->hw_bufp_hi [pg] |= cpu_to_le32 ((u32)(bufp >> 32));
++		itd->hw_bufp [pg] |= cpu_to_hc32 (ehci, bufp & ~(u32)0);
++		itd->hw_bufp_hi [pg] |= cpu_to_hc32 (ehci, (u32)(bufp >> 32));
+ 	}
+ }
+ 
+@@ -1470,7 +1474,7 @@ itd_link (struct ehci_hcd *ehci, unsigne
+ 	ehci->pshadow [frame].itd = itd;
+ 	itd->frame = frame;
+ 	wmb ();
+-	ehci->periodic [frame] = cpu_to_le32 (itd->itd_dma) | Q_TYPE_ITD;
++	ehci->periodic [frame] = cpu_to_hc32 (ehci, itd->itd_dma | Q_TYPE_ITD);
+ }
+ 
+ /* fit urb's itds into the selected schedule slot; activate as needed */
+@@ -1515,14 +1519,14 @@ itd_link_urb (
+ 			list_move_tail (&itd->itd_list, &stream->td_list);
+ 			itd->stream = iso_stream_get (stream);
+ 			itd->urb = usb_get_urb (urb);
+-			itd_init (stream, itd);
++			itd_init (ehci, stream, itd);
+ 		}
+ 
+ 		uframe = next_uframe & 0x07;
+ 		frame = next_uframe >> 3;
+ 
+ 		itd->usecs [uframe] = stream->usecs;
+-		itd_patch (itd, iso_sched, packet, uframe);
++		itd_patch (ehci, itd, iso_sched, packet, uframe);
+ 
+ 		next_uframe += stream->interval;
+ 		stream->depth += stream->interval;
+@@ -1570,7 +1574,7 @@ itd_complete (
+ 		urb_index = itd->index[uframe];
+ 		desc = &urb->iso_frame_desc [urb_index];
+ 
+-		t = le32_to_cpup (&itd->hw_transaction [uframe]);
++		t = hc32_to_cpup (ehci, &itd->hw_transaction [uframe]);
+ 		itd->hw_transaction [uframe] = 0;
+ 		stream->depth -= stream->interval;
+ 
+@@ -1701,6 +1705,7 @@ done:
+ 
+ static inline void
+ sitd_sched_init (
++	struct ehci_hcd		*ehci,
+ 	struct ehci_iso_sched	*iso_sched,
+ 	struct ehci_iso_stream	*stream,
+ 	struct urb		*urb
+@@ -1729,7 +1734,7 @@ sitd_sched_init (
+ 				&& !(urb->transfer_flags & URB_NO_INTERRUPT))
+ 			trans |= SITD_IOC;
+ 		trans |= length << 16;
+-		packet->transaction = cpu_to_le32 (trans);
++		packet->transaction = cpu_to_hc32 (ehci, trans);
+ 
+ 		/* might need to cross a buffer page within a td */
+ 		packet->bufp = buf;
+@@ -1765,7 +1770,7 @@ sitd_urb_transaction (
+ 	if (iso_sched == NULL)
+ 		return -ENOMEM;
+ 
+-	sitd_sched_init (iso_sched, stream, urb);
++	sitd_sched_init (ehci, iso_sched, stream, urb);
+ 
+ 	/* allocate/init sITDs */
+ 	spin_lock_irqsave (&ehci->lock, flags);
+@@ -1818,6 +1823,7 @@ sitd_urb_transaction (
+ 
+ static inline void
+ sitd_patch (
++	struct ehci_hcd		*ehci,
+ 	struct ehci_iso_stream	*stream,
+ 	struct ehci_sitd	*sitd,
+ 	struct ehci_iso_sched	*iso_sched,
+@@ -1834,13 +1840,13 @@ sitd_patch (
+ 	sitd->hw_backpointer = EHCI_LIST_END;
+ 
+ 	bufp = uf->bufp;
+-	sitd->hw_buf [0] = cpu_to_le32 (bufp);
+-	sitd->hw_buf_hi [0] = cpu_to_le32 (bufp >> 32);
++	sitd->hw_buf [0] = cpu_to_hc32 (ehci, bufp);
++	sitd->hw_buf_hi [0] = cpu_to_hc32 (ehci, bufp >> 32);
+ 
+-	sitd->hw_buf [1] = cpu_to_le32 (uf->buf1);
++	sitd->hw_buf [1] = cpu_to_hc32 (ehci, uf->buf1);
+ 	if (uf->cross)
+ 		bufp += 4096;
+-	sitd->hw_buf_hi [1] = cpu_to_le32 (bufp >> 32);
++	sitd->hw_buf_hi [1] = cpu_to_hc32 (ehci, bufp >> 32);
+ 	sitd->index = index;
+ }
+ 
+@@ -1853,7 +1859,7 @@ sitd_link (struct ehci_hcd *ehci, unsign
+ 	ehci->pshadow [frame].sitd = sitd;
+ 	sitd->frame = frame;
+ 	wmb ();
+-	ehci->periodic [frame] = cpu_to_le32 (sitd->sitd_dma) | Q_TYPE_SITD;
++	ehci->periodic [frame] = cpu_to_hc32 (ehci, sitd->sitd_dma | Q_TYPE_SITD);
+ }
+ 
+ /* fit urb's sitds into the selected schedule slot; activate as needed */
+@@ -1881,7 +1887,7 @@ sitd_link_urb (
+ 			urb->dev->devpath, stream->bEndpointAddress & 0x0f,
+ 			(stream->bEndpointAddress & USB_DIR_IN) ? "in" : "out",
+ 			(next_uframe >> 3) % ehci->periodic_size,
+-			stream->interval, le32_to_cpu (stream->splits));
++			stream->interval, hc32_to_cpu (ehci, stream->splits));
+ 		stream->start = jiffies;
+ 	}
+ 	ehci_to_hcd(ehci)->self.bandwidth_isoc_reqs++;
+@@ -1902,7 +1908,7 @@ sitd_link_urb (
+ 		sitd->stream = iso_stream_get (stream);
+ 		sitd->urb = usb_get_urb (urb);
+ 
+-		sitd_patch (stream, sitd, sched, packet);
++		sitd_patch (ehci, stream, sitd, sched, packet);
+ 		sitd_link (ehci, (next_uframe >> 3) % ehci->periodic_size,
+ 				sitd);
+ 
+@@ -1940,7 +1946,7 @@ sitd_complete (
+ 
+ 	urb_index = sitd->index;
+ 	desc = &urb->iso_frame_desc [urb_index];
+-	t = le32_to_cpup (&sitd->hw_results);
++	t = hc32_to_cpup (ehci, &sitd->hw_results);
+ 
+ 	/* report transfer status */
+ 	if (t & SITD_ERRS) {
+@@ -2088,14 +2094,14 @@ scan_periodic (struct ehci_hcd *ehci)
+ 	 */
+ 	now_uframe = ehci->next_uframe;
+ 	if (HC_IS_RUNNING (ehci_to_hcd(ehci)->state))
+-		clock = readl (&ehci->regs->frame_index);
++		clock = ehci_readl(ehci, &ehci->regs->frame_index);
+ 	else
+ 		clock = now_uframe + mod - 1;
+ 	clock %= mod;
+ 
+ 	for (;;) {
+ 		union ehci_shadow	q, *q_p;
+-		__le32			type, *hw_p;
++		__hc32			type, *hw_p;
+ 		unsigned		uframes;
+ 
+ 		/* don't scan past the live uframe */
+@@ -2122,7 +2128,7 @@ restart:
+ 			int			live;
+ 
+ 			live = HC_IS_RUNNING (ehci_to_hcd(ehci)->state);
+-			switch (type) {
++			switch (hc32_to_cpu(ehci, type)) {
+ 			case Q_TYPE_QH:
+ 				/* handle any completions */
+ 				temp.qh = qh_get (q.qh);
+@@ -2213,7 +2219,7 @@ restart:
+ 			if (!HC_IS_RUNNING (ehci_to_hcd(ehci)->state))
+ 				break;
+ 			ehci->next_uframe = now_uframe;
+-			now = readl (&ehci->regs->frame_index) % mod;
++			now = ehci_readl(ehci, &ehci->regs->frame_index) % mod;
+ 			if (now_uframe == now)
+ 				break;
+ 
+@@ -2225,3 +2231,4 @@ restart:
+ 		}
+ 	}
+ }
++
+Index: linux-2.6.19/drivers/usb/host/ehci.h
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci.h
++++ linux-2.6.19/drivers/usb/host/ehci.h
+@@ -21,6 +21,14 @@
+ 
+ /* definitions used for the EHCI driver */
+ 
++/*
++ * __hc32 and __hc16 are "Host Controller" types, they may be equivalent to
++ * __leXX (normally) or __beXX (given EHCI_BIG_ENDIAN), depending on the
++ * host controller implementation.
++ */
++typedef __u32 __bitwise __hc32;
++typedef __u16 __bitwise __hc16;
++
+ /* statistics can be kept for for tuning/monitoring */
+ struct ehci_stats {
+ 	/* irq usage */
+@@ -64,7 +72,7 @@ struct ehci_hcd {			/* one per controlle
+ 	/* periodic schedule support */
+ #define	DEFAULT_I_TDPS		1024		/* some HCs can do less */
+ 	unsigned		periodic_size;
+-	__le32			*periodic;	/* hw periodic table */
++	__hc32			*periodic;	/* hw periodic table */
+ 	dma_addr_t		periodic_dma;
+ 	unsigned		i_thresh;	/* uframes HC might cache */
+ 
+@@ -74,6 +82,11 @@ struct ehci_hcd {			/* one per controlle
+ 
+ 	/* per root hub port */
+ 	unsigned long		reset_done [EHCI_MAX_ROOT_PORTS];
++	/* bit vectors (one bit per port) */
++	unsigned long		bus_suspended;		/* which ports were
++			already suspended at the start of a bus suspend */
++	unsigned long		companion_ports;	/* which ports are
++			dedicated to the companion controller */
+ 
+ 	/* per-HC memory pools (could be per-bus, but ...) */
+ 	struct dma_pool		*qh_pool;	/* qh per active urb */
+@@ -91,6 +104,8 @@ struct ehci_hcd {			/* one per controlle
+ 	unsigned		is_tdi_rh_tt:1;	/* TDI roothub with TT */
+ 	unsigned		no_selective_suspend:1;
+ 	unsigned		has_fsl_port_bug:1; /* FreeScale */
++	unsigned		big_endian_mmio:1;
++	unsigned		big_endian_desc:1;
+ 
+ 	u8			sbrn;		/* packed release number */
+ 
+@@ -297,7 +312,7 @@ struct ehci_dbg_port {
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+-#define	QTD_NEXT(dma)	cpu_to_le32((u32)dma)
++#define	QTD_NEXT(ehci, dma)	cpu_to_hc32(ehci, (u32)dma)
+ 
+ /*
+  * EHCI Specification 0.95 Section 3.5
+@@ -309,9 +324,9 @@ struct ehci_dbg_port {
+  */
+ struct ehci_qtd {
+ 	/* first part defined by EHCI spec */
+-	__le32			hw_next;	  /* see EHCI 3.5.1 */
+-	__le32			hw_alt_next;      /* see EHCI 3.5.2 */
+-	__le32			hw_token;         /* see EHCI 3.5.3 */
++	__hc32			hw_next;	  /* see EHCI 3.5.1 */
++	__hc32			hw_alt_next;      /* see EHCI 3.5.2 */
++	__hc32			hw_token;         /* see EHCI 3.5.3 */
+ #define	QTD_TOGGLE	(1 << 31)	/* data toggle */
+ #define	QTD_LENGTH(tok)	(((tok)>>16) & 0x7fff)
+ #define	QTD_IOC		(1 << 15)	/* interrupt on complete */
+@@ -325,8 +340,8 @@ struct ehci_qtd {
+ #define	QTD_STS_MMF	(1 << 2)	/* incomplete split transaction */
+ #define	QTD_STS_STS	(1 << 1)	/* split transaction state */
+ #define	QTD_STS_PING	(1 << 0)	/* issue PING? */
+-	__le32			hw_buf [5];        /* see EHCI 3.5.4 */
+-	__le32			hw_buf_hi [5];        /* Appendix B */
++	__hc32			hw_buf [5];        /* see EHCI 3.5.4 */
++	__hc32			hw_buf_hi [5];        /* Appendix B */
+ 
+ 	/* the rest is HCD-private */
+ 	dma_addr_t		qtd_dma;		/* qtd address */
+@@ -336,26 +351,34 @@ struct ehci_qtd {
+ } __attribute__ ((aligned (32)));
+ 
+ /* mask NakCnt+T in qh->hw_alt_next */
+-#define QTD_MASK __constant_cpu_to_le32 (~0x1f)
++#define QTD_MASK cpu_to_hc32 (ehci, ~0x1f)
+ 
+ #define IS_SHORT_READ(token) (QTD_LENGTH (token) != 0 && QTD_PID (token) == 1)
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+ /* type tag from {qh,itd,sitd,fstn}->hw_next */
+-#define Q_NEXT_TYPE(dma) ((dma) & __constant_cpu_to_le32 (3 << 1))
++#define Q_NEXT_TYPE(dma) ((dma) & cpu_to_hc32 (ehci, 3 << 1))
+ 
++/*
++ * Now the following defines are not converted using the
++ * __constant_cpu_to_le32() macro anymore, since we have to support
++ * "dynamic" switching between be and le support, so that the driver
++ * can be used on one system with a be SoC EHCI controller and a
++ * le PCI EHCI controller for example.
++ * Instead the case() input is converted now.
++ */
+ /* values for that type tag */
+-#define Q_TYPE_ITD	__constant_cpu_to_le32 (0 << 1)
+-#define Q_TYPE_QH	__constant_cpu_to_le32 (1 << 1)
+-#define Q_TYPE_SITD	__constant_cpu_to_le32 (2 << 1)
+-#define Q_TYPE_FSTN	__constant_cpu_to_le32 (3 << 1)
++#define Q_TYPE_ITD	(0 << 1)
++#define Q_TYPE_QH	(1 << 1)
++#define Q_TYPE_SITD	(2 << 1)
++#define Q_TYPE_FSTN	(3 << 1)
+ 
+ /* next async queue entry, or pointer to interrupt/periodic QH */
+-#define	QH_NEXT(dma)	(cpu_to_le32(((u32)dma)&~0x01f)|Q_TYPE_QH)
++#define	QH_NEXT(ehci, dma)	(cpu_to_hc32(ehci, ((u32)dma)&~0x01f)|Q_TYPE_QH)
+ 
+ /* for periodic/async schedules and qtd lists, mark end of list */
+-#define	EHCI_LIST_END	__constant_cpu_to_le32(1) /* "null pointer" to hw */
++#define	EHCI_LIST_END	cpu_to_hc32(ehci, 1) /* "null pointer" to hw */
+ 
+ /*
+  * Entries in periodic shadow table are pointers to one of four kinds
+@@ -370,7 +393,7 @@ union ehci_shadow {
+ 	struct ehci_itd		*itd;		/* Q_TYPE_ITD */
+ 	struct ehci_sitd	*sitd;		/* Q_TYPE_SITD */
+ 	struct ehci_fstn	*fstn;		/* Q_TYPE_FSTN */
+-	__le32			*hw_next;	/* (all types) */
++	__hc32			*hw_next;	/* (all types) */
+ 	void			*ptr;
+ };
+ 
+@@ -386,23 +409,23 @@ union ehci_shadow {
+ 
+ struct ehci_qh {
+ 	/* first part defined by EHCI spec */
+-	__le32			hw_next;	 /* see EHCI 3.6.1 */
+-	__le32			hw_info1;        /* see EHCI 3.6.2 */
++	__hc32			hw_next;	 /* see EHCI 3.6.1 */
++	__hc32			hw_info1;        /* see EHCI 3.6.2 */
+ #define	QH_HEAD		0x00008000
+-	__le32			hw_info2;        /* see EHCI 3.6.2 */
++	__hc32			hw_info2;        /* see EHCI 3.6.2 */
+ #define	QH_SMASK	0x000000ff
+ #define	QH_CMASK	0x0000ff00
+ #define	QH_HUBADDR	0x007f0000
+ #define	QH_HUBPORT	0x3f800000
+ #define	QH_MULT		0xc0000000
+-	__le32			hw_current;	 /* qtd list - see EHCI 3.6.4 */
++	__hc32			hw_current;	 /* qtd list - see EHCI 3.6.4 */
+ 
+ 	/* qtd overlay (hardware parts of a struct ehci_qtd) */
+-	__le32			hw_qtd_next;
+-	__le32			hw_alt_next;
+-	__le32			hw_token;
+-	__le32			hw_buf [5];
+-	__le32			hw_buf_hi [5];
++	__hc32			hw_qtd_next;
++	__hc32			hw_alt_next;
++	__hc32			hw_token;
++	__hc32			hw_buf [5];
++	__hc32			hw_buf_hi [5];
+ 
+ 	/* the rest is HCD-private */
+ 	dma_addr_t		qh_dma;		/* address of qh */
+@@ -439,7 +462,7 @@ struct ehci_qh {
+ struct ehci_iso_packet {
+ 	/* These will be copied to iTD when scheduling */
+ 	u64			bufp;		/* itd->hw_bufp{,_hi}[pg] |= */
+-	__le32			transaction;	/* itd->hw_transaction[i] |= */
++	__hc32			transaction;	/* itd->hw_transaction[i] |= */
+ 	u8			cross;		/* buf crosses pages */
+ 	/* for full speed OUT splits */
+ 	u32			buf1;
+@@ -461,8 +484,8 @@ struct ehci_iso_sched {
+  */
+ struct ehci_iso_stream {
+ 	/* first two fields match QH, but info1 == 0 */
+-	__le32			hw_next;
+-	__le32			hw_info1;
++	__hc32			hw_next;
++	__hc32			hw_info1;
+ 
+ 	u32			refcount;
+ 	u8			bEndpointAddress;
+@@ -477,7 +500,7 @@ struct ehci_iso_stream {
+ 	unsigned long		start;		/* jiffies */
+ 	unsigned long		rescheduled;
+ 	int			next_uframe;
+-	__le32			splits;
++	__hc32			splits;
+ 
+ 	/* the rest is derived from the endpoint descriptor,
+ 	 * trusting urb->interval == f(epdesc->bInterval) and
+@@ -491,12 +514,12 @@ struct ehci_iso_stream {
+ 	unsigned		bandwidth;
+ 
+ 	/* This is used to initialize iTD's hw_bufp fields */
+-	__le32			buf0;
+-	__le32			buf1;
+-	__le32			buf2;
++	__hc32			buf0;
++	__hc32			buf1;
++	__hc32			buf2;
+ 
+ 	/* this is used to initialize sITD's tt info */
+-	__le32			address;
++	__hc32			address;
+ };
+ 
+ /*-------------------------------------------------------------------------*/
+@@ -509,8 +532,8 @@ struct ehci_iso_stream {
+  */
+ struct ehci_itd {
+ 	/* first part defined by EHCI spec */
+-	__le32			hw_next;           /* see EHCI 3.3.1 */
+-	__le32			hw_transaction [8]; /* see EHCI 3.3.2 */
++	__hc32			hw_next;           /* see EHCI 3.3.1 */
++	__hc32			hw_transaction [8]; /* see EHCI 3.3.2 */
+ #define EHCI_ISOC_ACTIVE        (1<<31)        /* activate transfer this slot */
+ #define EHCI_ISOC_BUF_ERR       (1<<30)        /* Data buffer error */
+ #define EHCI_ISOC_BABBLE        (1<<29)        /* babble detected */
+@@ -518,10 +541,10 @@ struct ehci_itd {
+ #define	EHCI_ITD_LENGTH(tok)	(((tok)>>16) & 0x0fff)
+ #define	EHCI_ITD_IOC		(1 << 15)	/* interrupt on complete */
+ 
+-#define ITD_ACTIVE	__constant_cpu_to_le32(EHCI_ISOC_ACTIVE)
++#define ITD_ACTIVE	cpu_to_hc32(ehci, EHCI_ISOC_ACTIVE)
+ 
+-	__le32			hw_bufp [7];	/* see EHCI 3.3.3 */
+-	__le32			hw_bufp_hi [7];	/* Appendix B */
++	__hc32			hw_bufp [7];	/* see EHCI 3.3.3 */
++	__hc32			hw_bufp_hi [7];	/* Appendix B */
+ 
+ 	/* the rest is HCD-private */
+ 	dma_addr_t		itd_dma;	/* for this itd */
+@@ -548,11 +571,11 @@ struct ehci_itd {
+  */
+ struct ehci_sitd {
+ 	/* first part defined by EHCI spec */
+-	__le32			hw_next;
++	__hc32			hw_next;
+ /* uses bit field macros above - see EHCI 0.95 Table 3-8 */
+-	__le32			hw_fullspeed_ep;	/* EHCI table 3-9 */
+-	__le32			hw_uframe;		/* EHCI table 3-10 */
+-	__le32			hw_results;		/* EHCI table 3-11 */
++	__hc32			hw_fullspeed_ep;	/* EHCI table 3-9 */
++	__hc32			hw_uframe;		/* EHCI table 3-10 */
++	__hc32			hw_results;		/* EHCI table 3-11 */
+ #define	SITD_IOC	(1 << 31)	/* interrupt on completion */
+ #define	SITD_PAGE	(1 << 30)	/* buffer 0/1 */
+ #define	SITD_LENGTH(x)	(0x3ff & ((x)>>16))
+@@ -564,11 +587,11 @@ struct ehci_sitd {
+ #define	SITD_STS_MMF	(1 << 2)	/* incomplete split transaction */
+ #define	SITD_STS_STS	(1 << 1)	/* split transaction state */
+ 
+-#define SITD_ACTIVE	__constant_cpu_to_le32(SITD_STS_ACTIVE)
++#define SITD_ACTIVE	cpu_to_hc32(ehci, SITD_STS_ACTIVE)
+ 
+-	__le32			hw_buf [2];		/* EHCI table 3-12 */
+-	__le32			hw_backpointer;		/* EHCI table 3-13 */
+-	__le32			hw_buf_hi [2];		/* Appendix B */
++	__hc32			hw_buf [2];		/* EHCI table 3-12 */
++	__hc32			hw_backpointer;		/* EHCI table 3-13 */
++	__hc32			hw_buf_hi [2];		/* Appendix B */
+ 
+ 	/* the rest is HCD-private */
+ 	dma_addr_t		sitd_dma;
+@@ -593,8 +616,8 @@ struct ehci_sitd {
+  * it hits a "restore" FSTN; then it returns to finish other uframe 0/1 work.
+  */
+ struct ehci_fstn {
+-	__le32			hw_next;	/* any periodic q entry */
+-	__le32			hw_prev;	/* qh or EHCI_LIST_END */
++	__hc32			hw_next;	/* any periodic q entry */
++	__hc32			hw_prev;	/* qh or EHCI_LIST_END */
+ 
+ 	/* the rest is HCD-private */
+ 	dma_addr_t		fstn_dma;
+@@ -650,6 +673,91 @@ ehci_port_speed(struct ehci_hcd *ehci, u
+ #define	ehci_has_fsl_portno_bug(e)		(0)
+ #endif
+ 
++/*
++ * While most USB host controllers implement their registers in
++ * little-endian format, a minority (celleb companion chip) implement
++ * them in big endian format.
++ *
++ * This attempts to support either format at compile time without a
++ * runtime penalty, or both formats with the additional overhead
++ * of checking a flag bit.
++ */
++
++#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
++#define ehci_big_endian_mmio(e)		((e)->big_endian_mmio)
++#else
++#define ehci_big_endian_mmio(e)		0
++#endif
++
++/*
++ * Big-endian read/write functions are arch-specific.
++ * Other arches can be added if/when they're needed.
++ *
++ * REVISIT: arch/powerpc now has readl/writel_be, so the
++ * definition below can die once the 4xx support is
++ * finally ported over.
++ */
++#if defined(CONFIG_PPC)
++#define readl_be(addr)		in_be32((__force unsigned *)addr)
++#define writel_be(val, addr)	out_be32((__force unsigned *)addr, val)
++#endif
++
++static inline unsigned int ehci_readl (const struct ehci_hcd *ehci,
++				       __u32 __iomem * regs)
++{
++#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
++	return ehci_big_endian_mmio(ehci) ?
++		readl_be(regs) :
++		readl(regs);
++#else
++	return readl(regs);
++#endif
++}
++
++static inline void ehci_writel (const struct ehci_hcd *ehci,
++				const unsigned int val, __u32 __iomem *regs)
++{
++#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
++	ehci_big_endian_mmio(ehci) ?
++		writel_be(val, regs) :
++		writel(val, regs);
++#else
++	writel(val, regs);
++#endif
++}
++
++/*
++ * The AMCC 440EPx not only implements it's EHCI registers in big-endian
++ * format, but also all data structures (descriptors).
++ */
++#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_DESC
++#define ehci_big_endian_desc(e)		((e)->big_endian_desc)
++#else
++#define ehci_big_endian_desc(e)		0
++#endif
++
++/* cpu to ehci */
++static inline __hc32 cpu_to_hc32 (const struct ehci_hcd *ehci, const u32 x)
++{
++	return ehci_big_endian_desc(ehci) ?
++		(__force __hc32)cpu_to_be32(x) :
++		(__force __hc32)cpu_to_le32(x);
++}
++
++/* ehci to cpu */
++static inline u32 hc32_to_cpu (const struct ehci_hcd *ehci, const __hc32 x)
++{
++	return ehci_big_endian_desc(ehci) ?
++		be32_to_cpu((__force __be32)x) :
++		le32_to_cpu((__force __le32)x);
++}
++
++static inline u32 hc32_to_cpup (const struct ehci_hcd *ehci, const __hc32 *x)
++{
++	return ehci_big_endian_desc(ehci) ?
++		be32_to_cpup((__force __be32 *)x) :
++		le32_to_cpup((__force __le32 *)x);
++}
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+@@ -660,3 +768,4 @@ ehci_port_speed(struct ehci_hcd *ehci, u
+ /*-------------------------------------------------------------------------*/
+ 
+ #endif /* __LINUX_EHCI_HCD_H */
++
+Index: linux-2.6.19/drivers/usb/host/ehci-fsl.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-fsl.c
++++ linux-2.6.19/drivers/usb/host/ehci-fsl.c
+@@ -177,7 +177,7 @@ static void mpc83xx_setup_phy(struct ehc
+ 	case FSL_USB2_PHY_NONE:
+ 		break;
+ 	}
+-	writel(portsc, &ehci->regs->port_status[port_offset]);
++	ehci_writel(ehci, portsc, &ehci->regs->port_status[port_offset]);
+ }
+ 
+ static void mpc83xx_usb_setup(struct usb_hcd *hcd)
+@@ -214,7 +214,7 @@ static void mpc83xx_usb_setup(struct usb
+ 	}
+ 
+ 	/* put controller in host mode. */
+-	writel(0x00000003, non_ehci + FSL_SOC_USB_USBMODE);
++	ehci_writel(ehci, 0x00000003, non_ehci + FSL_SOC_USB_USBMODE);
+ 	out_be32(non_ehci + FSL_SOC_USB_PRICTRL, 0x0000000c);
+ 	out_be32(non_ehci + FSL_SOC_USB_AGECNTTHRSH, 0x00000040);
+ 	out_be32(non_ehci + FSL_SOC_USB_SICTRL, 0x00000001);
+@@ -238,12 +238,12 @@ static int ehci_fsl_setup(struct usb_hcd
+ 	/* EHCI registers start at offset 0x100 */
+ 	ehci->caps = hcd->regs + 0x100;
+ 	ehci->regs = hcd->regs + 0x100 +
+-	    HC_LENGTH(readl(&ehci->caps->hc_capbase));
++	    HC_LENGTH(ehci_readl(ehci, &ehci->caps->hc_capbase));
+ 	dbg_hcs_params(ehci, "reset");
+ 	dbg_hcc_params(ehci, "reset");
+ 
+ 	/* cache this readonly data; minimize chip reads */
+-	ehci->hcs_params = readl(&ehci->caps->hcs_params);
++	ehci->hcs_params = ehci_readl(ehci, &ehci->caps->hcs_params);
+ 
+ 	retval = ehci_halt(ehci);
+ 	if (retval)
+@@ -335,3 +335,4 @@ static struct platform_driver ehci_fsl_d
+ 		   .name = "fsl-ehci",
+ 		   },
+ };
++
+Index: linux-2.6.19/drivers/usb/host/ehci-hub.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-hub.c
++++ linux-2.6.19/drivers/usb/host/ehci-hub.c
+@@ -34,6 +34,9 @@ static int ehci_bus_suspend (struct usb_
+ {
+ 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+ 	int			port;
++	int			mask;
++
++	ehci_dbg(ehci, "suspend root hub\n");
+ 
+ 	if (time_before (jiffies, ehci->next_statechange))
+ 		msleep(5);
+@@ -46,19 +49,30 @@ static int ehci_bus_suspend (struct usb_
+ 		ehci_quiesce (ehci);
+ 		hcd->state = HC_STATE_QUIESCING;
+ 	}
+-	ehci->command = readl (&ehci->regs->command);
++	ehci->command = ehci_readl(ehci, &ehci->regs->command);
+ 	if (ehci->reclaim)
+ 		ehci->reclaim_ready = 1;
+ 	ehci_work(ehci);
+ 
+-	/* suspend any active/unsuspended ports, maybe allow wakeup */
++	/* Unlike other USB host controller types, EHCI doesn't have
++	 * any notion of "global" or bus-wide suspend.  The driver has
++	 * to manually suspend all the active unsuspended ports, and
++	 * then manually resume them in the bus_resume() routine.
++	 */
++	ehci->bus_suspended = 0;
+ 	while (port--) {
+ 		u32 __iomem	*reg = &ehci->regs->port_status [port];
+-		u32		t1 = readl (reg) & ~PORT_RWC_BITS;
++		u32		t1 = ehci_readl(ehci, reg) & ~PORT_RWC_BITS;
+ 		u32		t2 = t1;
+ 
+-		if ((t1 & PORT_PE) && !(t1 & PORT_OWNER))
++		/* keep track of which ports we suspend */
++		if ((t1 & PORT_PE) && !(t1 & PORT_OWNER) &&
++				!(t1 & PORT_SUSPEND)) {
+ 			t2 |= PORT_SUSPEND;
++			set_bit(port, &ehci->bus_suspended);
++		}
++
++		/* enable remote wakeup on all ports */
+ 		if (device_may_wakeup(&hcd->self.root_hub->dev))
+ 			t2 |= PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E;
+ 		else
+@@ -67,7 +81,7 @@ static int ehci_bus_suspend (struct usb_
+ 		if (t1 != t2) {
+ 			ehci_vdbg (ehci, "port %d, %08x -> %08x\n",
+ 				port + 1, t1, t2);
+-			writel (t2, reg);
++			ehci_writel(ehci, t2, reg);
+ 		}
+ 	}
+ 
+@@ -76,6 +90,13 @@ static int ehci_bus_suspend (struct usb_
+ 	ehci_halt (ehci);
+ 	hcd->state = HC_STATE_SUSPENDED;
+ 
++	/* allow remote wakeup */
++	mask = INTR_MASK;
++	if (!device_may_wakeup(&hcd->self.root_hub->dev))
++		mask &= ~STS_PCD;
++	ehci_writel(ehci, mask, &ehci->regs->intr_enable);
++	ehci_readl(ehci, &ehci->regs->intr_enable);
++
+ 	ehci->next_statechange = jiffies + msecs_to_jiffies(10);
+ 	spin_unlock_irq (&ehci->lock);
+ 	return 0;
+@@ -88,7 +109,6 @@ static int ehci_bus_resume (struct usb_h
+ 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
+ 	u32			temp;
+ 	int			i;
+-	int			intr_enable;
+ 
+ 	if (time_before (jiffies, ehci->next_statechange))
+ 		msleep(5);
+@@ -100,47 +120,47 @@ static int ehci_bus_resume (struct usb_h
+ 	 * the last user of the controller, not reset/pm hardware keeping
+ 	 * state we gave to it.
+ 	 */
++	temp = ehci_readl(ehci, &ehci->regs->intr_enable);
++	ehci_dbg(ehci, "resume root hub%s\n", temp ? "" : " after power loss");
+ 
+-	/* re-init operational registers in case we lost power */
+-	if (readl (&ehci->regs->intr_enable) == 0) {
+-		/* at least some APM implementations will try to deliver
+-		 * IRQs right away, so delay them until we're ready.
+-		 */
+-		intr_enable = 1;
+-		writel (0, &ehci->regs->segment);
+-		writel (ehci->periodic_dma, &ehci->regs->frame_list);
+-		writel ((u32)ehci->async->qh_dma, &ehci->regs->async_next);
+-	} else
+-		intr_enable = 0;
+-	ehci_dbg(ehci, "resume root hub%s\n",
+-			intr_enable ? " after power loss" : "");
++	/* at least some APM implementations will try to deliver
++	 * IRQs right away, so delay them until we're ready.
++	 */
++	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
++
++	/* re-init operational registers */
++	ehci_writel(ehci, 0, &ehci->regs->segment);
++	ehci_writel(ehci, ehci->periodic_dma, &ehci->regs->frame_list);
++	ehci_writel(ehci, (u32) ehci->async->qh_dma, &ehci->regs->async_next);
+ 
+ 	/* restore CMD_RUN, framelist size, and irq threshold */
+-	writel (ehci->command, &ehci->regs->command);
++	ehci_writel(ehci, ehci->command, &ehci->regs->command);
+ 
+-	/* take ports out of suspend */
++	/* manually resume the ports we suspended during bus_suspend() */
+ 	i = HCS_N_PORTS (ehci->hcs_params);
+ 	while (i--) {
+-		temp = readl (&ehci->regs->port_status [i]);
++		temp = ehci_readl(ehci, &ehci->regs->port_status [i]);
+ 		temp &= ~(PORT_RWC_BITS
+ 			| PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E);
+-		if (temp & PORT_SUSPEND) {
++		if (test_bit(i, &ehci->bus_suspended) &&
++				(temp & PORT_SUSPEND)) {
+ 			ehci->reset_done [i] = jiffies + msecs_to_jiffies (20);
+ 			temp |= PORT_RESUME;
+ 		}
+-		writel (temp, &ehci->regs->port_status [i]);
++		ehci_writel(ehci, temp, &ehci->regs->port_status [i]);
+ 	}
+ 	i = HCS_N_PORTS (ehci->hcs_params);
+ 	mdelay (20);
+ 	while (i--) {
+-		temp = readl (&ehci->regs->port_status [i]);
+-		if ((temp & PORT_SUSPEND) == 0)
+-			continue;
+-		temp &= ~(PORT_RWC_BITS | PORT_RESUME);
+-		writel (temp, &ehci->regs->port_status [i]);
+-		ehci_vdbg (ehci, "resumed port %d\n", i + 1);
++		temp = ehci_readl(ehci, &ehci->regs->port_status [i]);
++		if (test_bit(i, &ehci->bus_suspended) &&
++				(temp & PORT_SUSPEND)) {
++			temp &= ~(PORT_RWC_BITS | PORT_RESUME);
++			ehci_writel(ehci, temp, &ehci->regs->port_status [i]);
++			ehci_vdbg (ehci, "resumed port %d\n", i + 1);
++		}
+ 	}
+-	(void) readl (&ehci->regs->command);
++	(void) ehci_readl(ehci, &ehci->regs->command);
+ 
+ 	/* maybe re-activate the schedule(s) */
+ 	temp = 0;
+@@ -150,15 +170,14 @@ static int ehci_bus_resume (struct usb_h
+ 		temp |= CMD_PSE;
+ 	if (temp) {
+ 		ehci->command |= temp;
+-		writel (ehci->command, &ehci->regs->command);
++		ehci_writel(ehci, ehci->command, &ehci->regs->command);
+ 	}
+ 
+ 	ehci->next_statechange = jiffies + msecs_to_jiffies(5);
+ 	hcd->state = HC_STATE_RUNNING;
+ 
+ 	/* Now we can safely re-enable irqs */
+-	if (intr_enable)
+-		writel (INTR_MASK, &ehci->regs->intr_enable);
++	ehci_writel(ehci, INTR_MASK, &ehci->regs->intr_enable);
+ 
+ 	spin_unlock_irq (&ehci->lock);
+ 	return 0;
+@@ -173,9 +192,107 @@ static int ehci_bus_resume (struct usb_h
+ 
+ /*-------------------------------------------------------------------------*/
+ 
++/* Display the ports dedicated to the companion controller */
++static ssize_t show_companion(struct class_device *class_dev, char *buf)
++{
++	struct ehci_hcd		*ehci;
++	int			nports, index, n;
++	int			count = PAGE_SIZE;
++	char			*ptr = buf;
++
++	ehci = hcd_to_ehci(bus_to_hcd(class_get_devdata(class_dev)));
++	nports = HCS_N_PORTS(ehci->hcs_params);
++
++	for (index = 0; index < nports; ++index) {
++		if (test_bit(index, &ehci->companion_ports)) {
++			n = scnprintf(ptr, count, "%d\n", index + 1);
++			ptr += n;
++			count -= n;
++		}
++	}
++	return ptr - buf;
++}
++
++/*
++ * Dedicate or undedicate a port to the companion controller.
++ * Syntax is "[-]portnum", where a leading '-' sign means
++ * return control of the port to the EHCI controller.
++ */
++static ssize_t store_companion(struct class_device *class_dev,
++		const char *buf, size_t count)
++{
++	struct ehci_hcd		*ehci;
++	int			portnum, new_owner, try;
++	u32 __iomem		*status_reg;
++	u32			port_status;
++
++	ehci = hcd_to_ehci(bus_to_hcd(class_get_devdata(class_dev)));
++	new_owner = PORT_OWNER;		/* Owned by companion */
++	if (sscanf(buf, "%d", &portnum) != 1)
++		return -EINVAL;
++	if (portnum < 0) {
++		portnum = - portnum;
++		new_owner = 0;		/* Owned by EHCI */
++	}
++	if (portnum <= 0 || portnum > HCS_N_PORTS(ehci->hcs_params))
++		return -ENOENT;
++	status_reg = &ehci->regs->port_status[--portnum];
++	if (new_owner)
++		set_bit(portnum, &ehci->companion_ports);
++	else
++		clear_bit(portnum, &ehci->companion_ports);
++
++	/*
++	 * The controller won't set the OWNER bit if the port is
++	 * enabled, so this loop will sometimes require at least two
++	 * iterations: one to disable the port and one to set OWNER.
++	 */
++
++	for (try = 4; try > 0; --try) {
++		spin_lock_irq(&ehci->lock);
++		port_status = ehci_readl(ehci, status_reg);
++		if ((port_status & PORT_OWNER) == new_owner
++				|| (port_status & (PORT_OWNER | PORT_CONNECT))
++					== 0)
++			try = 0;
++		else {
++			port_status ^= PORT_OWNER;
++			port_status &= ~(PORT_PE | PORT_RWC_BITS);
++			ehci_writel(ehci, port_status, status_reg);
++		}
++		spin_unlock_irq(&ehci->lock);
++		if (try > 1)
++			msleep(5);
++	}
++	return count;
++}
++static CLASS_DEVICE_ATTR(companion, 0644, show_companion, store_companion);
++
++static inline void create_companion_file(struct ehci_hcd *ehci)
++{
++	int	i;
++
++	/* with integrated TT there is no companion! */
++	if (!ehci_is_TDI(ehci))
++		i = class_device_create_file(ehci_to_hcd(ehci)->self.class_dev,
++				&class_device_attr_companion);
++}
++
++static inline void remove_companion_file(struct ehci_hcd *ehci)
++{
++	/* with integrated TT there is no companion! */
++	if (!ehci_is_TDI(ehci))
++		class_device_remove_file(ehci_to_hcd(ehci)->self.class_dev,
++				&class_device_attr_companion);
++}
++
++
++/*-------------------------------------------------------------------------*/
++
+ static int check_reset_complete (
+ 	struct ehci_hcd	*ehci,
+ 	int		index,
++	u32 __iomem	*status_reg,
+ 	int		port_status
+ ) {
+ 	if (!(port_status & PORT_CONNECT)) {
+@@ -200,7 +317,7 @@ static int check_reset_complete (
+ 		// what happens if HCS_N_CC(params) == 0 ?
+ 		port_status |= PORT_OWNER;
+ 		port_status &= ~PORT_RWC_BITS;
+-		writel (port_status, &ehci->regs->port_status [index]);
++		ehci_writel(ehci, port_status, status_reg);
+ 
+ 	} else
+ 		ehci_dbg (ehci, "port %d high speed\n", index + 1);
+@@ -218,6 +335,7 @@ ehci_hub_status_data (struct usb_hcd *hc
+ {
+ 	struct ehci_hcd	*ehci = hcd_to_ehci (hcd);
+ 	u32		temp, status = 0;
++	u32		mask;
+ 	int		ports, i, retval = 1;
+ 	unsigned long	flags;
+ 
+@@ -233,28 +351,38 @@ ehci_hub_status_data (struct usb_hcd *hc
+ 		retval++;
+ 	}
+ 
++	/* Some boards (mostly VIA?) report bogus overcurrent indications,
++	 * causing massive log spam unless we completely ignore them.  It
++	 * may be relevant that VIA VT8235 controlers, where PORT_POWER is
++	 * always set, seem to clear PORT_OCC and PORT_CSC when writing to
++	 * PORT_POWER; that's surprising, but maybe within-spec.
++	 */
++	if (!ignore_oc)
++		mask = PORT_CSC | PORT_PEC | PORT_OCC;
++	else
++		mask = PORT_CSC | PORT_PEC;
++	// PORT_RESUME from hardware ~= PORT_STAT_C_SUSPEND
++
+ 	/* no hub change reports (bit 0) for now (power, ...) */
+ 
+ 	/* port N changes (bit N)? */
+ 	spin_lock_irqsave (&ehci->lock, flags);
+ 	for (i = 0; i < ports; i++) {
+-		temp = readl (&ehci->regs->port_status [i]);
+-		if (temp & PORT_OWNER) {
+-			/* don't report this in GetPortStatus */
+-			if (temp & PORT_CSC) {
+-				temp &= ~PORT_RWC_BITS;
+-				temp |= PORT_CSC;
+-				writel (temp, &ehci->regs->port_status [i]);
+-			}
+-			continue;
+-		}
++		temp = ehci_readl(ehci, &ehci->regs->port_status [i]);
++
++		/*
++		 * Return status information even for ports with OWNER set.
++		 * Otherwise khubd wouldn't see the disconnect event when a
++		 * high-speed device is switched over to the companion
++		 * controller by the user.
++		 */
++
+ 		if (!(temp & PORT_CONNECT))
+ 			ehci->reset_done [i] = 0;
+-		if ((temp & (PORT_CSC | PORT_PEC | PORT_OCC)) != 0
+-				// PORT_STAT_C_SUSPEND?
++		if ((temp & mask) != 0
+ 				|| ((temp & PORT_RESUME) != 0
+-					&& time_after (jiffies,
+-						ehci->reset_done [i]))) {
++					&& time_after_eq(jiffies,
++						ehci->reset_done[i]))) {
+ 			if (i < 7)
+ 			    buf [0] |= 1 << (i + 1);
+ 			else
+@@ -316,9 +444,11 @@ static int ehci_hub_control (
+ ) {
+ 	struct ehci_hcd	*ehci = hcd_to_ehci (hcd);
+ 	int		ports = HCS_N_PORTS (ehci->hcs_params);
++	u32 __iomem	*status_reg = &ehci->regs->port_status[wIndex - 1];
+ 	u32		temp, status;
+ 	unsigned long	flags;
+ 	int		retval = 0;
++	unsigned	selector;
+ 
+ 	/*
+ 	 * FIXME:  support SetPortFeatures USB_PORT_FEAT_INDICATOR.
+@@ -343,18 +473,22 @@ static int ehci_hub_control (
+ 		if (!wIndex || wIndex > ports)
+ 			goto error;
+ 		wIndex--;
+-		temp = readl (&ehci->regs->port_status [wIndex]);
+-		if (temp & PORT_OWNER)
+-			break;
++		temp = ehci_readl(ehci, status_reg);
++
++		/*
++		 * Even if OWNER is set, so the port is owned by the
++		 * companion controller, khubd needs to be able to clear
++		 * the port-change status bits (especially
++		 * USB_PORT_FEAT_C_CONNECTION).
++		 */
+ 
+ 		switch (wValue) {
+ 		case USB_PORT_FEAT_ENABLE:
+-			writel (temp & ~PORT_PE,
+-				&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, temp & ~PORT_PE, status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_C_ENABLE:
+-			writel((temp & ~PORT_RWC_BITS) | PORT_PEC,
+-				&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, (temp & ~PORT_RWC_BITS) | PORT_PEC,
++					status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_SUSPEND:
+ 			if (temp & PORT_RESET)
+@@ -366,8 +500,8 @@ static int ehci_hub_control (
+ 					goto error;
+ 				/* resume signaling for 20 msec */
+ 				temp &= ~(PORT_RWC_BITS | PORT_WAKE_BITS);
+-				writel (temp | PORT_RESUME,
+-					&ehci->regs->port_status [wIndex]);
++				ehci_writel(ehci, temp | PORT_RESUME,
++						status_reg);
+ 				ehci->reset_done [wIndex] = jiffies
+ 						+ msecs_to_jiffies (20);
+ 			}
+@@ -377,16 +511,17 @@ static int ehci_hub_control (
+ 			break;
+ 		case USB_PORT_FEAT_POWER:
+ 			if (HCS_PPC (ehci->hcs_params))
+-				writel (temp & ~(PORT_RWC_BITS | PORT_POWER),
+-					&ehci->regs->port_status [wIndex]);
++				ehci_writel(ehci,
++					  temp & ~(PORT_RWC_BITS | PORT_POWER),
++					  status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_C_CONNECTION:
+-			writel((temp & ~PORT_RWC_BITS) | PORT_CSC,
+-				&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, (temp & ~PORT_RWC_BITS) | PORT_CSC,
++					status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_C_OVER_CURRENT:
+-			writel((temp & ~PORT_RWC_BITS) | PORT_OCC,
+-				&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, (temp & ~PORT_RWC_BITS) | PORT_OCC,
++					status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_C_RESET:
+ 			/* GetPortStatus clears reset */
+@@ -394,7 +529,7 @@ static int ehci_hub_control (
+ 		default:
+ 			goto error;
+ 		}
+-		readl (&ehci->regs->command);	/* unblock posted write */
++		ehci_readl(ehci, &ehci->regs->command);	/* unblock posted write */
+ 		break;
+ 	case GetHubDescriptor:
+ 		ehci_hub_descriptor (ehci, (struct usb_hub_descriptor *)
+@@ -410,53 +545,66 @@ static int ehci_hub_control (
+ 			goto error;
+ 		wIndex--;
+ 		status = 0;
+-		temp = readl (&ehci->regs->port_status [wIndex]);
++		temp = ehci_readl(ehci, status_reg);
+ 
+ 		// wPortChange bits
+ 		if (temp & PORT_CSC)
+ 			status |= 1 << USB_PORT_FEAT_C_CONNECTION;
+ 		if (temp & PORT_PEC)
+ 			status |= 1 << USB_PORT_FEAT_C_ENABLE;
+-		if (temp & PORT_OCC)
++		if ((temp & PORT_OCC) && !ignore_oc)
+ 			status |= 1 << USB_PORT_FEAT_C_OVER_CURRENT;
+ 
+ 		/* whoever resumes must GetPortStatus to complete it!! */
+-		if ((temp & PORT_RESUME)
+-				&& time_after (jiffies,
+-					ehci->reset_done [wIndex])) {
+-			status |= 1 << USB_PORT_FEAT_C_SUSPEND;
+-			ehci->reset_done [wIndex] = 0;
++		if (temp & PORT_RESUME) {
+ 
+-			/* stop resume signaling */
+-			temp = readl (&ehci->regs->port_status [wIndex]);
+-			writel (temp & ~(PORT_RWC_BITS | PORT_RESUME),
+-				&ehci->regs->port_status [wIndex]);
+-			retval = handshake (
+-					&ehci->regs->port_status [wIndex],
+-					PORT_RESUME, 0, 2000 /* 2msec */);
+-			if (retval != 0) {
+-				ehci_err (ehci, "port %d resume error %d\n",
+-					wIndex + 1, retval);
+-				goto error;
++			/* Remote Wakeup received? */
++			if (!ehci->reset_done[wIndex]) {
++				/* resume signaling for 20 msec */
++				ehci->reset_done[wIndex] = jiffies
++						+ msecs_to_jiffies(20);
++				/* check the port again */
++				mod_timer(&ehci_to_hcd(ehci)->rh_timer,
++						ehci->reset_done[wIndex]);
++			}
++
++			/* resume completed? */
++			else if (time_after_eq(jiffies,
++					ehci->reset_done[wIndex])) {
++				status |= 1 << USB_PORT_FEAT_C_SUSPEND;
++				ehci->reset_done[wIndex] = 0;
++
++				/* stop resume signaling */
++				temp = ehci_readl(ehci, status_reg);
++				ehci_writel(ehci,
++					temp & ~(PORT_RWC_BITS | PORT_RESUME),
++					status_reg);
++				retval = handshake(ehci, status_reg,
++					   PORT_RESUME, 0, 2000 /* 2msec */);
++				if (retval != 0) {
++					ehci_err(ehci,
++						"port %d resume error %d\n",
++						wIndex + 1, retval);
++					goto error;
++				}
++				temp &= ~(PORT_SUSPEND|PORT_RESUME|(3<<10));
+ 			}
+-			temp &= ~(PORT_SUSPEND|PORT_RESUME|(3<<10));
+ 		}
+ 
+ 		/* whoever resets must GetPortStatus to complete it!! */
+ 		if ((temp & PORT_RESET)
+-				&& time_after (jiffies,
+-					ehci->reset_done [wIndex])) {
++				&& time_after_eq(jiffies,
++					ehci->reset_done[wIndex])) {
+ 			status |= 1 << USB_PORT_FEAT_C_RESET;
+ 			ehci->reset_done [wIndex] = 0;
+ 
+ 			/* force reset to complete */
+-			writel (temp & ~(PORT_RWC_BITS | PORT_RESET),
+-					&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, temp & ~(PORT_RWC_BITS | PORT_RESET),
++					status_reg);
+ 			/* REVISIT:  some hardware needs 550+ usec to clear
+ 			 * this bit; seems too long to spin routinely...
+ 			 */
+-			retval = handshake (
+-					&ehci->regs->port_status [wIndex],
++			retval = handshake(ehci, status_reg,
+ 					PORT_RESET, 0, 750);
+ 			if (retval != 0) {
+ 				ehci_err (ehci, "port %d reset error %d\n",
+@@ -465,35 +613,47 @@ static int ehci_hub_control (
+ 			}
+ 
+ 			/* see what we found out */
+-			temp = check_reset_complete (ehci, wIndex,
+-				readl (&ehci->regs->port_status [wIndex]));
++			temp = check_reset_complete (ehci, wIndex, status_reg,
++					ehci_readl(ehci, status_reg));
+ 		}
+ 
+-		// don't show wPortStatus if it's owned by a companion hc
+-		if (!(temp & PORT_OWNER)) {
+-			if (temp & PORT_CONNECT) {
+-				status |= 1 << USB_PORT_FEAT_CONNECTION;
+-				// status may be from integrated TT
+-				status |= ehci_port_speed(ehci, temp);
+-			}
+-			if (temp & PORT_PE)
+-				status |= 1 << USB_PORT_FEAT_ENABLE;
+-			if (temp & (PORT_SUSPEND|PORT_RESUME))
+-				status |= 1 << USB_PORT_FEAT_SUSPEND;
+-			if (temp & PORT_OC)
+-				status |= 1 << USB_PORT_FEAT_OVER_CURRENT;
+-			if (temp & PORT_RESET)
+-				status |= 1 << USB_PORT_FEAT_RESET;
+-			if (temp & PORT_POWER)
+-				status |= 1 << USB_PORT_FEAT_POWER;
+-		}
++		/* transfer dedicated ports to the companion hc */
++		if ((temp & PORT_CONNECT) &&
++				test_bit(wIndex, &ehci->companion_ports)) {
++			temp &= ~PORT_RWC_BITS;
++			temp |= PORT_OWNER;
++			ehci_writel(ehci, temp, status_reg);
++			ehci_dbg(ehci, "port %d --> companion\n", wIndex + 1);
++			temp = ehci_readl(ehci, status_reg);
++		}
++
++		/*
++		 * Even if OWNER is set, there's no harm letting khubd
++		 * see the wPortStatus values (they should all be 0 except
++		 * for PORT_POWER anyway).
++		 */
++
++		if (temp & PORT_CONNECT) {
++			status |= 1 << USB_PORT_FEAT_CONNECTION;
++			// status may be from integrated TT
++			status |= ehci_port_speed(ehci, temp);
++		}
++		if (temp & PORT_PE)
++			status |= 1 << USB_PORT_FEAT_ENABLE;
++		if (temp & (PORT_SUSPEND|PORT_RESUME))
++			status |= 1 << USB_PORT_FEAT_SUSPEND;
++		if (temp & PORT_OC)
++			status |= 1 << USB_PORT_FEAT_OVER_CURRENT;
++		if (temp & PORT_RESET)
++			status |= 1 << USB_PORT_FEAT_RESET;
++		if (temp & PORT_POWER)
++			status |= 1 << USB_PORT_FEAT_POWER;
+ 
+ #ifndef	EHCI_VERBOSE_DEBUG
+ 	if (status & ~0xffff)	/* only if wPortChange is interesting */
+ #endif
+ 		dbg_port (ehci, "GetStatus", wIndex + 1, temp);
+-		// we "know" this alignment is good, caller used kmalloc()...
+-		*((__le32 *) buf) = cpu_to_le32 (status);
++		put_unaligned(cpu_to_le32 (status), (__le32 *) buf);
+ 		break;
+ 	case SetHubFeature:
+ 		switch (wValue) {
+@@ -506,10 +666,12 @@ static int ehci_hub_control (
+ 		}
+ 		break;
+ 	case SetPortFeature:
++		selector = wIndex >> 8;
++		wIndex &= 0xff;
+ 		if (!wIndex || wIndex > ports)
+ 			goto error;
+ 		wIndex--;
+-		temp = readl (&ehci->regs->port_status [wIndex]);
++		temp = ehci_readl(ehci, status_reg);
+ 		if (temp & PORT_OWNER)
+ 			break;
+ 
+@@ -523,13 +685,12 @@ static int ehci_hub_control (
+ 				goto error;
+ 			if (device_may_wakeup(&hcd->self.root_hub->dev))
+ 				temp |= PORT_WAKE_BITS;
+-			writel (temp | PORT_SUSPEND,
+-				&ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_POWER:
+ 			if (HCS_PPC (ehci->hcs_params))
+-				writel (temp | PORT_POWER,
+-					&ehci->regs->port_status [wIndex]);
++				ehci_writel(ehci, temp | PORT_POWER,
++						status_reg);
+ 			break;
+ 		case USB_PORT_FEAT_RESET:
+ 			if (temp & PORT_RESUME)
+@@ -557,12 +718,28 @@ static int ehci_hub_control (
+ 				ehci->reset_done [wIndex] = jiffies
+ 						+ msecs_to_jiffies (50);
+ 			}
+-			writel (temp, &ehci->regs->port_status [wIndex]);
++			ehci_writel(ehci, temp, status_reg);
++			break;
++
++		/* For downstream facing ports (these):  one hub port is put
++		 * into test mode according to USB2 11.24.2.13, then the hub
++		 * must be reset (which for root hub now means rmmod+modprobe,
++		 * or else system reboot).  See EHCI 2.3.9 and 4.14 for info
++		 * about the EHCI-specific stuff.
++		 */
++		case USB_PORT_FEAT_TEST:
++			if (!selector || selector > 5)
++				goto error;
++			ehci_quiesce(ehci);
++			ehci_halt(ehci);
++			temp |= selector << 16;
++			ehci_writel(ehci, temp, status_reg);
+ 			break;
++
+ 		default:
+ 			goto error;
+ 		}
+-		readl (&ehci->regs->command);	/* unblock posted writes */
++		ehci_readl(ehci, &ehci->regs->command);	/* unblock posted writes */
+ 		break;
+ 
+ 	default:
+@@ -573,3 +750,4 @@ error:
+ 	spin_unlock_irqrestore (&ehci->lock, flags);
+ 	return retval;
+ }
++
+Index: linux-2.6.19/drivers/usb/host/ehci-pci.c
+===================================================================
+--- linux-2.6.19.orig/drivers/usb/host/ehci-pci.c
++++ linux-2.6.19/drivers/usb/host/ehci-pci.c
+@@ -38,7 +38,7 @@ static int ehci_pci_reinit(struct ehci_h
+ 		if ((temp & (3 << 13)) == (1 << 13)) {
+ 			temp &= 0x1fff;
+ 			ehci->debug = ehci_to_hcd(ehci)->regs + temp;
+-			temp = readl(&ehci->debug->control);
++			temp = ehci_readl(ehci, &ehci->debug->control);
+ 			ehci_info(ehci, "debug port %d%s\n",
+ 				HCS_DEBUG_PORT(ehci->hcs_params),
+ 				(temp & DBGP_ENABLED)
+@@ -71,8 +71,24 @@ static int ehci_pci_setup(struct usb_hcd
+ 	u32			temp;
+ 	int			retval;
+ 
++	switch (pdev->vendor) {
++	case PCI_VENDOR_ID_TOSHIBA_2:
++		/* celleb's companion chip */
++		if (pdev->device == 0x01b5) {
++#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
++			ehci->big_endian_mmio = 1;
++#else
++			ehci_warn(ehci,
++				  "unsupported big endian Toshiba quirk\n");
++#endif
++		}
++		break;
++	}
++
+ 	ehci->caps = hcd->regs;
+-	ehci->regs = hcd->regs + HC_LENGTH(readl(&ehci->caps->hc_capbase));
++	ehci->regs = hcd->regs +
++		HC_LENGTH(ehci_readl(ehci, &ehci->caps->hc_capbase));
++
+ 	dbg_hcs_params(ehci, "reset");
+ 	dbg_hcc_params(ehci, "reset");
+ 
+@@ -101,7 +117,7 @@ static int ehci_pci_setup(struct usb_hcd
+ 	}
+ 
+ 	/* cache this readonly data; minimize chip reads */
+-	ehci->hcs_params = readl(&ehci->caps->hcs_params);
++	ehci->hcs_params = ehci_readl(ehci, &ehci->caps->hcs_params);
+ 
+ 	retval = ehci_halt(ehci);
+ 	if (retval)
+@@ -235,8 +251,8 @@ static int ehci_pci_suspend(struct usb_h
+ 		rc = -EINVAL;
+ 		goto bail;
+ 	}
+-	writel (0, &ehci->regs->intr_enable);
+-	(void)readl(&ehci->regs->intr_enable);
++	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
++	(void)ehci_readl(ehci, &ehci->regs->intr_enable);
+ 
+ 	/* make sure snapshot being resumed re-enumerates everything */
+ 	if (message.event == PM_EVENT_PRETHAW) {
+@@ -257,9 +273,7 @@ static int ehci_pci_suspend(struct usb_h
+ static int ehci_pci_resume(struct usb_hcd *hcd)
+ {
+ 	struct ehci_hcd		*ehci = hcd_to_ehci(hcd);
+-	unsigned		port;
+ 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
+-	int			retval = -EINVAL;
+ 
+ 	// maybe restore FLADJ
+ 
+@@ -269,27 +283,19 @@ static int ehci_pci_resume(struct usb_hc
+ 	/* Mark hardware accessible again as we are out of D3 state by now */
+ 	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+ 
+-	/* If CF is clear, we lost PCI Vaux power and need to restart.  */
+-	if (readl(&ehci->regs->configured_flag) != FLAG_CF)
+-		goto restart;
+-
+-	/* If any port is suspended (or owned by the companion),
+-	 * we know we can/must resume the HC (and mustn't reset it).
+-	 * We just defer that to the root hub code.
+-	 */
+-	for (port = HCS_N_PORTS(ehci->hcs_params); port > 0; ) {
+-		u32	status;
+-		port--;
+-		status = readl(&ehci->regs->port_status [port]);
+-		if (!(status & PORT_POWER))
+-			continue;
+-		if (status & (PORT_SUSPEND | PORT_RESUME | PORT_OWNER)) {
+-			usb_hcd_resume_root_hub(hcd);
+-			return 0;
+-		}
++	/* If CF is still set, we maintained PCI Vaux power.
++	 * Just undo the effect of ehci_pci_suspend().
++	 */
++	if (ehci_readl(ehci, &ehci->regs->configured_flag) == FLAG_CF) {
++		int	mask = INTR_MASK;
++
++		if (!device_may_wakeup(&hcd->self.root_hub->dev))
++			mask &= ~STS_PCD;
++		ehci_writel(ehci, mask, &ehci->regs->intr_enable);
++		ehci_readl(ehci, &ehci->regs->intr_enable);
++		return 0;
+ 	}
+ 
+-restart:
+ 	ehci_dbg(ehci, "lost power, restarting\n");
+ 	usb_root_hub_lost_power(hcd->self.root_hub);
+ 
+@@ -307,13 +313,15 @@ restart:
+ 	ehci_work(ehci);
+ 	spin_unlock_irq(&ehci->lock);
+ 
+-	/* restart; khubd will disconnect devices */
+-	retval = ehci_run(hcd);
+-
+ 	/* here we "know" root ports should always stay powered */
+ 	ehci_port_power(ehci, 1);
+ 
+-	return retval;
++	ehci_writel(ehci, ehci->command, &ehci->regs->command);
++	ehci_writel(ehci, FLAG_CF, &ehci->regs->configured_flag);
++	ehci_readl(ehci, &ehci->regs->command);	/* unblock posted writes */
++
++	hcd->state = HC_STATE_SUSPENDED;
++	return 0;
+ }
+ #endif
+ 
+@@ -387,3 +395,4 @@ static struct pci_driver ehci_pci_driver
+ #endif
+ 	.shutdown = 	usb_hcd_pci_shutdown,
+ };
++

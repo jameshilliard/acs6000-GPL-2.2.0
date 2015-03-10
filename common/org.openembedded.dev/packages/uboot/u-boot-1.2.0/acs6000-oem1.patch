@@ -1,0 +1,48 @@
+Index: u-boot-1.2.0/common/cmd_gsp-bootcmd.c
+===================================================================
+--- u-boot-1.2.0.orig/common/cmd_gsp-bootcmd.c	2008-10-29 10:40:55.000000000 -0700
++++ u-boot-1.2.0/common/cmd_gsp-bootcmd.c	2008-10-29 11:05:46.000000000 -0700
+@@ -36,7 +36,7 @@
+ #ifdef CONFIG_BOOT_FROM_FAT
+ 	sprintf(arg, "root=/dev/hda%d rw", 4 + image, baud);
+ #endif
+-	sprintf(arg + strlen(arg), " console=ttyS0,%s", baud);
++	sprintf(arg + strlen(arg), " OEM=1 console=ttyS0,%s", baud);
+ 	for (i = 1; i < argc; i ++) {
+ 		if (strstr(argv[i], "OEM"))
+ 			continue;
+@@ -88,7 +88,7 @@
+ 	int i;
+ 
+ 	printf("Booting from network ...\n");
+-	sprintf(arg, "root=/dev/ram0 rw console=ttyS0,%s", baud);
++	sprintf(arg, "root=/dev/ram0 rw OEM=1 console=ttyS0,%s", baud);
+ 	for (i = 1; i < argc; i ++) {
+ 		if (strstr(argv[i], "OEM"))
+ 			continue;
+Index: u-boot-1.2.0/common/cmd_gsp-bootm.c
+===================================================================
+--- u-boot-1.2.0.orig/common/cmd_gsp-bootm.c	2008-10-29 10:30:09.000000000 -0700
++++ u-boot-1.2.0/common/cmd_gsp-bootm.c	2008-10-29 10:48:24.000000000 -0700
+@@ -239,7 +239,7 @@
+ 	puts("\n");
+ 
+ 	//check OEM
+-	if (oemval != OPTREC_OEM_AVOCENT) {
++	if (oemval != OPTREC_OEM_FCL) {
+ 		printf("\nHardware doesn't support this firmware (wrong OEM code).\n\n");
+ 		return 0;
+ 	}
+Index: u-boot-1.2.0/include/configs/golden_gate.h
+===================================================================
+--- u-boot-1.2.0.orig/include/configs/golden_gate.h
++++ u-boot-1.2.0/include/configs/golden_gate.h
+@@ -229,7 +229,7 @@
+ #define CONFIG_OVERWRITE_ETHADDR_ONCE	1
+ #define CONFIG_IPADDR	192.168.0.1
+ #define CONFIG_SERVERIP	192.168.0.2
+-#define CONFIG_BOOTFILE zvmppcacs6k.bin
++#define CONFIG_BOOTFILE zvmppcfcl6k.bin
+ 
+ #define	CONFIG_EXTRA_ENV_SETTINGS \
+ 	"currentimage=1\0" \

@@ -1,0 +1,614 @@
+Index: busybox-1.5.0/libpwdgrp/pwd_grp.c
+===================================================================
+--- busybox-1.5.0.orig/libpwdgrp/pwd_grp.c
++++ busybox-1.5.0/libpwdgrp/pwd_grp.c
+@@ -191,7 +191,7 @@ int sgetspent_r(const char *string, stru
+ 
+ /**********************************************************************/
+ 
+-#define GETXXKEY_R_FUNC         getpwnam_r
++#define GETXXKEY_R_FUNC         bb_int_getpwnam_r
+ #define GETXXKEY_R_PARSER       bb__parsepwent
+ #define GETXXKEY_R_ENTTYPE      struct passwd
+ #define GETXXKEY_R_TEST(ENT)    (!strcmp((ENT)->pw_name, key))
+@@ -199,7 +199,7 @@ int sgetspent_r(const char *string, stru
+ #define GETXXKEY_R_PATHNAME     _PATH_PASSWD
+ #include "pwd_grp_internal.c"
+ 
+-#define GETXXKEY_R_FUNC         getgrnam_r
++#define GETXXKEY_R_FUNC         bb_int_getgrnam_r
+ #define GETXXKEY_R_PARSER       bb__parsegrent
+ #define GETXXKEY_R_ENTTYPE      struct group
+ #define GETXXKEY_R_TEST(ENT)    (!strcmp((ENT)->gr_name, key))
+@@ -217,7 +217,7 @@ int sgetspent_r(const char *string, stru
+ #include "pwd_grp_internal.c"
+ #endif
+ 
+-#define GETXXKEY_R_FUNC         getpwuid_r
++#define GETXXKEY_R_FUNC         bb_int_getpwuid_r
+ #define GETXXKEY_R_PARSER       bb__parsepwent
+ #define GETXXKEY_R_ENTTYPE      struct passwd
+ #define GETXXKEY_R_TEST(ENT)    ((ENT)->pw_uid == key)
+@@ -225,7 +225,7 @@ int sgetspent_r(const char *string, stru
+ #define GETXXKEY_R_PATHNAME     _PATH_PASSWD
+ #include "pwd_grp_internal.c"
+ 
+-#define GETXXKEY_R_FUNC         getgrgid_r
++#define GETXXKEY_R_FUNC         bb_int_getgrgid_r
+ #define GETXXKEY_R_PARSER       bb__parsegrent
+ #define GETXXKEY_R_ENTTYPE      struct group
+ #define GETXXKEY_R_TEST(ENT)    ((ENT)->gr_gid == key)
+@@ -237,24 +237,24 @@ int sgetspent_r(const char *string, stru
+ /* TODO: audit & stop using these in bbox, they pull in static buffers */
+ 
+ /* This one has many users */
+-struct passwd *getpwuid(uid_t uid)
++struct passwd *bb_int_getpwuid(uid_t uid)
+ {
+ 	static char buffer[PWD_BUFFER_SIZE];
+ 	static struct passwd resultbuf;
+ 	struct passwd *result;
+ 
+-	getpwuid_r(uid, &resultbuf, buffer, sizeof(buffer), &result);
++	bb_int_getpwuid_r(uid, &resultbuf, buffer, sizeof(buffer), &result);
+ 	return result;
+ }
+ 
+ /* This one has many users */
+-struct group *getgrgid(gid_t gid)
++struct group *bb_int_getgrgid(gid_t gid)
+ {
+ 	static char buffer[GRP_BUFFER_SIZE];
+ 	static struct group resultbuf;
+ 	struct group *result;
+ 
+-	getgrgid_r(gid, &resultbuf, buffer, sizeof(buffer), &result);
++	bb_int_getgrgid_r(gid, &resultbuf, buffer, sizeof(buffer), &result);
+ 	return result;
+ }
+ 
+@@ -272,7 +272,7 @@ int getspuid_r(uid_t uid, struct spwd *_
+ 	char pwd_buff[PWD_BUFFER_SIZE];
+ 
+ 	*result = NULL;
+-	rv = getpwuid_r(uid, &password, pwd_buff, sizeof(pwd_buff), &pp);
++	rv = bb_int_getpwuid_r(uid, &password, pwd_buff, sizeof(pwd_buff), &pp);
+ 	if (!rv) {
+ 		rv = getspnam_r(password.pw_name, resultbuf, buffer, buflen, result);
+ 	}
+@@ -294,24 +294,24 @@ struct spwd *getspuid(uid_t uid)
+ #endif
+ 
+ /* This one has many users */
+-struct passwd *getpwnam(const char *name)
++struct passwd *bb_int_getpwnam(const char *name)
+ {
+ 	static char buffer[PWD_BUFFER_SIZE];
+ 	static struct passwd resultbuf;
+ 	struct passwd *result;
+ 
+-	getpwnam_r(name, &resultbuf, buffer, sizeof(buffer), &result);
++	bb_int_getpwnam_r(name, &resultbuf, buffer, sizeof(buffer), &result);
+ 	return result;
+ }
+ 
+ /* This one has many users */
+-struct group *getgrnam(const char *name)
++struct group *bb_int_getgrnam(const char *name)
+ {
+ 	static char buffer[GRP_BUFFER_SIZE];
+ 	static struct group resultbuf;
+ 	struct group *result;
+ 
+-	getgrnam_r(name, &resultbuf, buffer, sizeof(buffer), &result);
++	bb_int_getgrnam_r(name, &resultbuf, buffer, sizeof(buffer), &result);
+ 	return result;
+ }
+ 
+@@ -336,7 +336,7 @@ int getpw(uid_t uid, char *buf)
+ 
+ 	if (!buf) {
+ 		errno = EINVAL;
+-	} else if (!getpwuid_r(uid, &resultbuf, buffer, sizeof(buffer), &result)) {
++	} else if (!bb_int_getpwuid_r(uid, &resultbuf, buffer, sizeof(buffer), &result)) {
+ 		if (sprintf(buf, "%s:%s:%lu:%lu:%s:%s:%s\n",
+ 					resultbuf.pw_name, resultbuf.pw_passwd,
+ 					(unsigned long)(resultbuf.pw_uid),
+Index: busybox-1.5.0/loginutils/login.c
+===================================================================
+--- busybox-1.5.0.orig/loginutils/login.c
++++ busybox-1.5.0/loginutils/login.c
+@@ -15,10 +15,21 @@
+ #include <errno.h>
+ #endif
+ 
++extern struct passwd *bb_int_getpwnam(const char *name);
++
++#include <gsp_auth.h> /* GSP AAA [EL] */
++#include <gsp-tsapi/gsp_tsapi_auth.h>
++#include <gsp-tsapi/gsp_tsapi_port.h>
++#include <gsp-tsapi/gsp_tsapi_connection.h>
++
++/* GSP Events */
++#include <event_def.h>
++#include <event_connect.h>
++
+ enum {
+-	TIMEOUT = 60,
++	TIMEOUT = 120,
+ 	EMPTY_USERNAME_COUNT = 10,
+-	USERNAME_SIZE = 32,
++	USERNAME_SIZE = 256,
+ 	TTYNAME_SIZE = 32,
+ };
+ 
+@@ -104,13 +115,13 @@ static inline void read_or_build_utent(i
+ static inline void write_utent(const char ATTRIBUTE_UNUSED *username) {}
+ #endif /* !ENABLE_FEATURE_UTMP */
+ 
+-static void die_if_nologin_and_non_root(int amroot)
++static int die_if_nologin_and_non_root(int amroot)
+ {
+ 	FILE *fp;
+ 	int c;
+ 
+ 	if (access(bb_path_nologin_file, F_OK))
+-		return;
++		return(0);
+ 
+ 	fp = fopen(bb_path_nologin_file, "r");
+ 	if (fp) {
+@@ -121,8 +132,9 @@ static void die_if_nologin_and_non_root(
+ 	} else
+ 		puts("\r\nSystem closed for routine maintenance\r");
+ 	if (!amroot)
+-		exit(1);
++		return(1);
+ 	puts("\r\n[Disconnect bypassed -- root login allowed.]\r");
++	return(0);
+ }
+ 
+ #if ENABLE_FEATURE_SECURETTY
+@@ -211,6 +223,122 @@ static void alarm_handler(int sig ATTRIB
+ 	exit(EXIT_SUCCESS);
+ }
+ 
++static char *get_ttyname_from_ip(const char *lhost);
++static char *get_ttyname_from_ip(const char *lhost)
++{
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	int ret;
++	char *serial_tty = NULL;
++	const char *args[2] = {NULL,NULL};
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) return(serial_tty);
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) goto cleanup2;
++
++	/* Get the ttyname if there an ip associate with it */
++    args[0] = lhost;
++	ret = gsp_tsapi_info_port_serial_portipadd(ts, &serial_tty, args);
++	if (ret != TS_OK) {
++		serial_tty = NULL;
++		goto cleanup;
++	}
++	if (serial_tty && !*serial_tty) {
++		serial_tty = NULL;
++	}
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	return(serial_tty);
++}
++
++static char *gsp_auth_util_get_authtype_target(char *target,int *serial_port_number);
++static char *gsp_auth_util_get_authtype_target(char *target,int *serial_port_number)
++{
++	struct sid_data sdata;
++	gsp_tsapi_session_t *ts = NULL;
++	int ret;
++	char *authtype = NULL;
++	char *tid_str = NULL;
++	const char *TTY_STR = "tty";
++	int len_target = strlen(target);
++	int signon_flag;
++	char *serial_port = NULL;
++
++	ret = gsp_auth_session_create(&sdata);
++	if (ret == ERROR) return(authtype);
++
++	ret = gsp_tsapi_init_with_gspaaa_session(&ts, &sdata);
++	if (ret != TS_OK) goto cleanup2;
++
++	// Check single sign-on flag and authtype.
++	if (gsp_tsapi_get_auth_singleSignOn(ts, &signon_flag) != TS_OK) {
++		syslog(LOG_ALERT, "Error: Fail to retrieve Single Sign-ON flag config.");
++		signon_flag = 0;
++	}
++
++	// Read global Single Sign ON auth type if flag enabled.
++	if (signon_flag) {
++		if (gsp_tsapi_get_auth_singleSignOnType(ts, &authtype) != TS_OK) {
++			syslog(LOG_ALERT, "Error: Fail to retrieve Single Sign ON authtype config.");
++		} else {
++			if (authtype && *authtype && strcmp(authtype,"unconfigured")) {
++				goto cleanup;
++			}
++		}
++	}
++
++	// No single sign-on get authentication based on target name
++	// Firstly try target-id as an alias  
++	ret = gsp_tsapi_get_connection_serial_name_star0_id(ts, &tid_str, target);
++
++	if (ret != TS_OK || tid_str == NULL || *tid_str == 0) {
++		/* Discover whether a "tty" has been specified */
++		if (!strncmp(target, TTY_STR, strlen(TTY_STR)) && len_target > (strlen(TTY_STR) + 1)) {
++			/* We add one to make sure that we have at least ttyS,
++		 	* ttyP, etc.  We add two to point to the place after the
++		 	* ttyS, ttyP, etc. */
++			char *tty_id = target + strlen(TTY_STR) + 1;
++			int i = + strlen(TTY_STR) + 1;
++
++			// make sure we have just numbers after ttyx.
++			for ( ; i < len_target; i++) {
++				if (!isdigit(target[i])) {
++					goto  cleanup;
++				}
++			}
++			
++			/* We have a TTY; get the target ID */
++			ret = gsp_tsapi_get_port_serial_cas_star0_connectionId(ts, &tid_str, tty_id);
++			if (ret != TS_OK || tid_str == NULL || *tid_str == 0) {
++				goto cleanup;
++			}
++		} else {
++			goto cleanup;
++		}
++	}
++
++	/* Get the authentication type from the target ID */
++	ret = gsp_tsapi_get_connection_serial_id_star0_authentication(ts, &authtype, tid_str);
++
++    /* Get the serial port number */
++    ret = gsp_tsapi_get_connection_serial_id_star0_port(ts, &serial_port,tid_str);
++	*serial_port_number = atoi(serial_port);
++	free(serial_port);
++
++ cleanup:
++	gsp_tsapi_destroy(ts);
++ cleanup2:
++	gsp_auth_session_destroy(&sdata);
++
++	return(authtype);
++}
++
+ int login_main(int argc, char **argv);
+ int login_main(int argc, char **argv)
+ {
+@@ -218,6 +346,8 @@ int login_main(int argc, char **argv)
+ 		LOGIN_OPT_f = (1<<0),
+ 		LOGIN_OPT_h = (1<<1),
+ 		LOGIN_OPT_p = (1<<2),
++		LOGIN_OPT_l = (1<<3),
++		LOGIN_OPT_s = (1<<4),
+ 	};
+ 	char fromhost[512];
+ 	char username[USERNAME_SIZE];
+@@ -227,15 +357,22 @@ int login_main(int argc, char **argv)
+ 	int count = 0;
+ 	struct passwd *pw;
+ 	char *opt_host = NULL;
++	char *opt_lhost = NULL;
++	char *opt_target = NULL;
+ 	char *opt_user = NULL;
+ 	USE_SELINUX(security_context_t user_sid = NULL;)
++	pam_handle_t *pamh = NULL; /* GSP AAA [EL] */
++	struct sid_data sdata;
++	int ret, flags=0, tries=3;
++	char *aux, *target, *ccname, *login_service;
++	int port_number = 0;
++	int targetInfo = 0;
+ 
+ 	username[0] = '\0';
+ 	amroot = (getuid() == 0);
+ 	signal(SIGALRM, alarm_handler);
+-	alarm(TIMEOUT);
+ 
+-	opt = getopt32(argc, argv, "f:h:p", &opt_user, &opt_host);
++	opt = getopt32(argc, argv, "f:h:pl:s:", &opt_user, &opt_host, &opt_lhost, &opt_target);
+ 	if (opt & LOGIN_OPT_f) {
+ 		if (!amroot)
+ 			bb_error_msg_and_die("-f is for root only");
+@@ -244,6 +381,10 @@ int login_main(int argc, char **argv)
+ 	if (optind < argc) /* user from command line (getty) */
+ 		safe_strncpy(username, argv[optind], sizeof(username));
+ 
++	if (opt & LOGIN_OPT_f) {
++		syslog(LOG_ALERT, "login for '%s' called from '%s' with '-f'", username, opt_host ? opt_host : "?");
++	}
++
+ 	/* Let's find out and memorize our tty */
+ 	if (!isatty(0) || !isatty(1) || !isatty(2))
+ 		return EXIT_FAILURE;		/* Must be a terminal */
+@@ -271,34 +412,135 @@ int login_main(int argc, char **argv)
+ 
+ 	openlog(applet_name, LOG_PID | LOG_CONS | LOG_NOWAIT, LOG_AUTH);
+ 
+-	while (1) {
++	if (opt & LOGIN_OPT_s) {
++		if (!strncmp("ttyS", opt_target, 4)) {
++			target = opt_target;
++			targetInfo = 1;
++		}
++	}
++
++	if ((targetInfo == 0) && (opt & LOGIN_OPT_l)) {
++		target = get_ttyname_from_ip(opt_lhost);
++		if (target) {
++			targetInfo = 1;
++		}
++	}
++
++	while (tries--) {
++		alarm(TIMEOUT);
+ 		if (!username[0])
+ 			get_username_or_die(username, sizeof(username));
+ 
+-		pw = getpwnam(username);
+-		if (!pw) {
+-			safe_strncpy(username, "UNKNOWN", sizeof(username));
+-			goto auth_failed;
++		if ((aux = strchr(username, ':'))) {
++			*aux++ = 0;
++		}
++		
++		if (aux) {
++			if (targetInfo) {
++				fputs("Alias or tty will be ignored\r\n", stdout);
++			} else {
++				target = aux;
++			}
++		} else {
++			if (!targetInfo) target = NULL;
+ 		}
+ 
+-		if (pw->pw_passwd[0] == '!' || pw->pw_passwd[0] == '*')
+-			goto auth_failed;
+-
+-		if (opt & LOGIN_OPT_f)
+-			break; /* -f USER: success without asking passwd */
++		if (!strcmp(username, "root") &&
++			(!strcmp(short_tty, "console") || !strcmp(short_tty, "ttyS0"))) {
++			pw = bb_int_getpwnam(username);
++			if (!pw) {
++				safe_strncpy(username, "UNKNOWN", sizeof(username));
++				goto auth_failed;
++			}
++			
++			if (pw->pw_passwd[0] == '!' || pw->pw_passwd[0] == '*')
++				goto auth_failed;
++			
++			if (opt & LOGIN_OPT_f)
++				goto login_opt_f; /* -f USER: success without asking passwd */
++			
++			if (pw->pw_uid == 0 && !check_securetty())
++				goto auth_failed;
++			
++			/* Don't check the password if password entry is empty (!) */
++			if (!pw->pw_passwd[0])
++				break;
++			
++			/* authorization takes place here */
++			if (!correct_password(pw))
++				goto auth_failed;
++
++login_opt_f:
++			ret = gsp_auth_session_create_username(username, &sdata);
++			if (ret == ERROR) {
++				bb_error_msg_and_die("%s could not create session for %s", __func__, username);
++			}
++			gsp_auth_session_set_auth_type(&sdata, "local");
++			break;
++		}
+ 
+-		if (pw->pw_uid == 0 && !check_securetty())
+-			goto auth_failed;
++		// Non root user
+ 
+-		/* Don't check the password if password entry is empty (!) */
+-		if (!pw->pw_passwd[0])
++		if (opt & LOGIN_OPT_f) {
++			// called by kerberos !!!
++			ret = gsp_auth_session_create_username(username, &sdata);
++			if (ret == ERROR) {
++				bb_error_msg_and_die("%s could not create session for %s", __func__, username);
++			}
++			gsp_auth_session_set_auth_type(&sdata, "local");
++			if ((pw = getpwnam(username)) == NULL) {
++				gsp_auth_session_destroy(&sdata);
++				bb_error_msg_and_die("could not get user for %s", username);
++			}
++			if ((ccname = getenv("KRB5CCNAME")) != NULL &&
++				memcmp(ccname, "FILE:",5) == 0) {
++				chown(ccname+5, pw->pw_uid, pw->pw_gid);
++				flags |= GSP_AUTH_ATTR_STRONG_SEC;
++			}
+ 			break;
++		}
+ 
+-		/* authorization takes place here */
+-		if (correct_password(pw))
+-			break;
++		/* GSP AAA [EL] */
++		if (pamh) gsp_auth_pam_end(&pamh);
++
++		login_service = NULL;
++
++		if (target && *target) {
++			login_service = gsp_auth_util_get_authtype_target(target,&port_number);
++		}
++		if (login_service == NULL) {
++			login_service = "login";
++		}
++
++		if (target && *target) {
++			syslog(LOG_DEBUG, "login using authtype '%s' for user '%s' target '%s'", login_service, username, target);
++		} else {
++			syslog(LOG_DEBUG, "login using authtype '%s' for user '%s'", login_service, username);
++		}
++		ret = gsp_auth_pam_authenticate_username(username, login_service, full_tty, NULL, &pamh, &sdata);
++		if (ret != PAM_SUCCESS) {
++			goto auth_failed;
++		}
++		if ((pw = getpwnam(username)) == NULL) {
++			bb_error_msg_and_die("could not get user for %s", username);
++		}
++
++		/* Set the authentication type from the original service in
++		 * the PAM handle */
++		gsp_auth_util_set_authtype_from_pamh(pamh, &sdata);
++		break;
+ 
+ auth_failed:
++		if (target && *target) {
++#ifdef evt_serauthe_fail
++			writeevt(evt_serauthe_fail, "ssii", username,
++				target, 
++				port_number,
++				(opt_host)? 2:4);
++#endif
++		} else {
++			writeevt(evt_authe_fail, "s", username);
++		}
+ 		opt &= ~LOGIN_OPT_f;
+ 		bb_do_delay(FAIL_DELAY);
+ 		puts("Login incorrect");
+@@ -308,10 +550,14 @@ auth_failed:
+ 			return EXIT_FAILURE;
+ 		}
+ 		username[0] = '\0';
++		alarm(0);
+ 	}
+ 
+ 	alarm(0);
+-	die_if_nologin_and_non_root(pw->pw_uid == 0);
++	if (die_if_nologin_and_non_root(pw->pw_uid == 0)) {
++		gsp_auth_session_destroy(&sdata);
++		exit(1);
++	}
+ 
+ 	write_utent(username);
+ 
+@@ -365,12 +611,54 @@ auth_failed:
+ 		}
+ 	}
+ 
++	if (target && *target) {
++		flags |= GSP_AUTH_ATTR_AUTH_TARGET;
++	} else {
++		gsp_auth_session_set_target_type(&sdata, GSP_AUTH_TARG_CLI);
++	}
++
++	if (strcmp(short_tty, "console") && strcmp(short_tty, "ttyS0")) {
++		if (opt_host) {
++			gsp_auth_session_set_ip_addr(&sdata, opt_host);
++		}
++		gsp_auth_session_set_type(&sdata, GSP_AUTH_SESS_TELNET);
++	} else {
++		gsp_auth_session_set_type(&sdata, GSP_AUTH_SESS_CONSOLE);
++	}
++
++	{
++		struct gsp_session_privdata gspd;
++		
++		if (gsp_auth_session_get_data_priv(&sdata, &gspd) != ERROR) {
++			if (!target || !*target) {
++				writeevt(evt_usr_login, "si", gspd.uinfo.username,
++					 gspd.attr.sess_type);
++			}
++#if 0
++			if (memcmp(gspd.attr.auth_type, "dsview", 6) == 0) {
++				flags |= GSP_AUTH_ATTR_STRONG_SEC;
++			}
++#endif
++			gsp_auth_session_free_data_priv(&gspd);
++		}
++	}
++
++	gsp_auth_session_add_attr_flag(&sdata, flags);
++	gsp_auth_session_set_mpid(&sdata, getpid());
++
+ 	change_identity(pw);
+ 	tmp = pw->pw_shell;
+ 	if (!tmp || !*tmp)
+ 		tmp = DEFAULT_SHELL;
+ 	setup_environment(tmp, 1, !(opt & LOGIN_OPT_p), pw);
+ 
++	if (!strcmp(short_tty, "console") || !strcmp(short_tty, "ttyS0")) {
++		setenv("TERM", "vt100", 1);
++	}
++	setenv("CI_USER", username, 1);
++	setenv("CI_SID", gsp_auth_session_get_sid(&sdata), 1);
++	setenv("CI_TGT", target ?  target : "", 1);
++	setenv("HOME",pw->pw_dir, 1);
+ 	motd();
+ 
+ 	if (pw->pw_uid == 0)
+@@ -397,6 +685,8 @@ auth_failed:
+ 	 * should it leave SIGINT etc enabled or disabled? */
+ 	signal(SIGINT, SIG_DFL);
+ 
++	if (pamh) gsp_auth_pam_end(&pamh);
++
+ 	run_shell(tmp, 1, 0, 0);	/* exec the shell finally */
+ 
+ 	return EXIT_FAILURE;
+Index: busybox-1.5.0/libbb/setup_environment.c
+===================================================================
+--- busybox-1.5.0.orig/libbb/setup_environment.c
++++ busybox-1.5.0/libbb/setup_environment.c
+@@ -60,15 +60,17 @@ void setup_environment(const char *shell
+ 
+ 		/* Leave TERM unchanged.  Set HOME, SHELL, USER, LOGNAME, PATH.
+ 		   Unset all other environment variables.  */
+-		term = getenv("TERM");
+-		clearenv();
+-		if (term)
+-			xsetenv("TERM", term);
+-		xsetenv("HOME",    pw->pw_dir);
+-		xsetenv("SHELL",   shell);
+-		xsetenv("USER",    pw->pw_name);
+-		xsetenv("LOGNAME", pw->pw_name);
+-		xsetenv("PATH",   (pw->pw_uid ? DEFAULT_LOGIN_PATH : DEFAULT_ROOT_LOGIN_PATH));
++		if (changeenv) {
++			term = getenv("TERM");
++			clearenv();
++			if (term)
++				xsetenv("TERM", term);
++			xsetenv("HOME",    pw->pw_dir);
++			xsetenv("SHELL",   shell);
++			xsetenv("USER",    pw->pw_name);
++			xsetenv("LOGNAME", pw->pw_name);
++			xsetenv("PATH",   (pw->pw_uid ? DEFAULT_LOGIN_PATH : DEFAULT_ROOT_LOGIN_PATH));
++		}
+ 	}
+ 	else if (changeenv) {
+ 		/* Set HOME, SHELL, and if not becoming a super-user,
+Index: busybox-1.5.0/scripts/trylink
+===================================================================
+--- busybox-1.5.0.orig/scripts/trylink
++++ busybox-1.5.0/scripts/trylink
+@@ -14,5 +14,6 @@ try "" "$@"
+ try "-lm" "$@"
+ try "-lcrypt" "$@"
+ try "-Wl,--start-group -lcrypt -lm -Wl,--end-group" "$@"
++try "-Wl,--start-group ${LDLIBS} -lcrypt -lm -Wl,--end-group" "$@"
+ # It failed. Let people see the error messages
+ cat busybox_ld.err

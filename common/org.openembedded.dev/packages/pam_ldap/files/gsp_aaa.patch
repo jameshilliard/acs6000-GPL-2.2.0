@@ -1,0 +1,198 @@
+Index: pam_ldap-180/pam_ldap.c
+===================================================================
+--- pam_ldap-180.orig/pam_ldap.c	2006-01-26 23:10:27.000000000 -0800
++++ pam_ldap-180/pam_ldap.c	2007-10-05 10:22:28.000000000 -0700
+@@ -89,6 +89,10 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE. 
+  */
+ 
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE 1
++#endif
++
+ #include "config.h"
+ 
+ #include <stdio.h>
+@@ -101,6 +105,7 @@
+ #include <syslog.h>
+ #include <netdb.h>
+ #include <errno.h>
++#include <ctype.h>
+ 
+ #if defined(HAVE_CRYPT_H)
+ #include <crypt.h>
+@@ -128,6 +133,11 @@
+ #include <rpcsvc/ypclnt.h>
+ #endif /* YPLDAPD */
+ 
++//[RK]May/19/05 - Group Authorization Support
++#include <security/pam_modules.h>
++
++#include <gsp_auth.h>
++
+ #include "pam_ldap.h"
+ #include "md5.h"
+ 
+@@ -149,7 +159,7 @@
+ #endif
+ 
+ static char rcsid[] __UNUSED__ =
+-  "$Id: pam_ldap.c,v 1.199 2005/08/11 03:16:02 lukeh Exp $";
++  "$Id: pam_ldap.c,v 1.2 2007/06/04 03:00:28 erik Exp $";
+ #if LDAP_SET_REBIND_PROC_ARGS < 3
+ static pam_ldap_session_t *global_session = 0;
+ #endif
+@@ -2579,6 +2589,9 @@
+   _get_integer_value (session->ld, msg, "uidNumber",
+ 		      (int *) &session->info->uid);
+ 
++	//[RK]May/19 - Group Authorization Support
++	_get_string_value (session->ld, msg, "info", &session->info->groupName);
++
+   /*
+    * get mapped user; some PAM host applications let PAM_USER be reset
+    * by the user (such as some of those provided with FreeBSD).
+@@ -3165,6 +3178,40 @@
+ 		      &resp, aconv->appdata_ptr);
+ }
+ 
++//[RK]May/19/05 - Group Authorization Support
++void _cyc_get_group_name(pam_handle_t *pamh, char * groupName) 
++{
++	CONST_ARG struct pam_conv *conv;
++	char *aux,*aux1;
++	int len;
++
++	if (pam_get_item(pamh, PAM_CONV, (CONST_ARG void **) &conv) != PAM_SUCCESS) {
++		free(groupName);
++		return;
++	}
++	
++	if ((aux=strstr(groupName,"group_name"))) {
++		aux+=10;
++		while (isblank(*aux) && *aux) aux++;
++		if (*aux == '=') { 
++			aux++;
++			if ((aux1=strchr(aux,';'))) {
++				/* GSP AAA [EL] */
++				struct sid_data sdata;
++				enum sid_status ret;
++				
++				gsp_auth_pam_get_sid(pamh, &sdata);
++				ret = gsp_auth_session_sdata_check(&sdata);
++				if (ret == GSP_AUTH_SID_VALID) {
++					*aux1 = '\0';
++					gsp_auth_session_set_group_name(&sdata, aux);
++				}
++			}
++		}
++	}
++	free(groupName);
++}
++
+ PAM_EXTERN int
+ pam_sm_authenticate (pam_handle_t * pamh,
+ 		     int flags, int argc, const char **argv)
+@@ -3177,6 +3224,8 @@
+   pam_ldap_session_t *session = NULL;
+   const char *configFile = NULL;
+ 
++	int flg_debug = 0; //[RK]Jun/28/05 
++
+   for (i = 0; i < argc; i++)
+     {
+       if (!strcmp (argv[i], "use_first_pass"))
+@@ -3192,7 +3241,7 @@
+       else if (!strcmp (argv[i], "no_warn"))
+ 	;
+       else if (!strcmp (argv[i], "debug"))
+-	;
++	flg_debug=1; //[RK]Jun/28/05 
+       else
+ 	syslog (LOG_ERR, "illegal option %s", argv[i]);
+     }
+@@ -3200,10 +3249,14 @@
+   rc = pam_get_user (pamh, (CONST_ARG char **) &username, NULL);
+   if (rc != PAM_SUCCESS)
+     return rc;
++ //[RK]Jun/28/05 
++if (flg_debug) syslog(LOG_DEBUG,"LDAP %s : user[%s]",__func__,username);
+ 
+   rc = _pam_ldap_get_session (pamh, username, configFile, &session);
+   if (rc != PAM_SUCCESS)
+     return rc;
++ //[RK]Jun/28/05 
++if (flg_debug) syslog(LOG_DEBUG,"LDAP %s : get_session[%s]",__func__,username);
+ 
+   rc = pam_get_item (pamh, PAM_AUTHTOK, (CONST_ARG void **) &p);
+   if (rc == PAM_SUCCESS && (use_first_pass || try_first_pass))
+@@ -3224,16 +3277,22 @@
+ 		pam_set_item (pamh, PAM_USER,
+ 			      (void *) session->info->tmpluser);
+ 	    }
++		//[RK]May/19/05 - Group Authorization Support
++		if ((rc == PAM_SUCCESS) && session->info->groupName) { //[RK]Jun/28/05 
++			_cyc_get_group_name(pamh,session->info->groupName);
++		}
+ 	  return rc;
+ 	}
+     }
+ 
+-  /* can prompt for authentication token */
+-  rc = _get_authtok (pamh, flags, (p == NULL) ? 1 : 0);
+-  if (rc != PAM_SUCCESS)
+-    return rc;
++  if (p == NULL || *p == 0) {
++    /* can prompt for authentication token */
++    rc = _get_authtok (pamh, flags, (p == NULL) ? 1 : 0);
++    if (rc != PAM_SUCCESS)
++      return rc;
+ 
+-  rc = pam_get_item (pamh, PAM_AUTHTOK, (CONST_ARG void **) &p);
++    rc = pam_get_item (pamh, PAM_AUTHTOK, (CONST_ARG void **) &p);
++  }
+   if (rc == PAM_SUCCESS)
+     rc = _do_authentication (pamh, session, username, p);
+   STATUS_MAP_IGNORE_POLICY (rc, ignore_flags);
+@@ -3255,6 +3314,10 @@
+       rc = pam_set_item (pamh, PAM_USER, (void *) session->info->tmpluser);
+     }
+ 
++	//[RK]May/19/05 - Group Authorization Support
++	if ((rc == PAM_SUCCESS) && session->info->groupName) { //[RK]Jun/28/05 
++		_cyc_get_group_name(pamh,session->info->groupName);
++	}
+   return rc;
+ }
+ 
+@@ -3268,6 +3331,7 @@
+ pam_sm_open_session (pam_handle_t * pamh,
+ 		     int flags, int argc, const char **argv)
+ {
++#if 0
+   /*
+    * Bug #120 fix: close the LDAP connection as it may time out
+    * before pam_sm_close_session() is called.
+@@ -3277,6 +3341,9 @@
+   if (pam_get_data
+       (pamh, PADL_LDAP_SESSION_DATA, (const void **) &session) == PAM_SUCCESS)
+     pam_set_data (pamh, PADL_LDAP_SESSION_DATA, NULL, NULL);
++#endif
++
++ // _pam_free_data(pamh, PAM_SUCCESS);
+ 
+   return PAM_SUCCESS;
+ }
+Index: pam_ldap-180/pam_ldap.h
+===================================================================
+--- pam_ldap-180.orig/pam_ldap.h	2006-01-26 23:10:27.000000000 -0800
++++ pam_ldap-180/pam_ldap.h	2007-10-05 10:19:47.000000000 -0700
+@@ -248,6 +248,8 @@
+     uid_t uid;
+     /* mapped user */
+     char *tmpluser;
++    //[RK]May/19/05 - Group Authorization Support
++    char *groupName;	// info attribute
+     /* shadow stuff */
+     pam_ldap_shadow_t shadow;
+   }

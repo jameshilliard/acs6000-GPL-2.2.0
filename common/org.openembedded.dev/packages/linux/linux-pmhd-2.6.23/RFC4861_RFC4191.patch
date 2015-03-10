@@ -1,0 +1,30 @@
+diff -ruN linux-2.6.23.orig/net/ipv6/route.c linux-2.6.23/net/ipv6/route.c
+--- linux-2.6.23.orig/net/ipv6/route.c	2007-10-09 13:31:38.000000000 -0700
++++ linux-2.6.23/net/ipv6/route.c	2009-05-19 18:03:09.000000000 -0700
+@@ -335,7 +335,7 @@
+ static inline int rt6_check_neigh(struct rt6_info *rt)
+ {
+ 	struct neighbour *neigh = rt->rt6i_nexthop;
+-	int m = 0;
++	int m;
+ 	if (rt->rt6i_flags & RTF_NONEXTHOP ||
+ 	    !(rt->rt6i_flags & RTF_GATEWAY))
+ 		m = 1;
+@@ -343,10 +343,15 @@
+ 		read_lock_bh(&neigh->lock);
+ 		if (neigh->nud_state & NUD_VALID)
+ 			m = 2;
+-		else if (!(neigh->nud_state & NUD_FAILED))
++#ifdef CONFIG_IPV6_ROUTER_PREF
++		else if (neigh->nud_state & NUD_FAILED)
++			m = 0;
++#endif
++		else
+ 			m = 1;
+ 		read_unlock_bh(&neigh->lock);
+-	}
++	} else
++		m = 0;
+ 	return m;
+ }
+ 

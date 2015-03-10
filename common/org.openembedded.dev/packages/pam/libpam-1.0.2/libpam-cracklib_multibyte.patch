@@ -1,0 +1,367 @@
+Index: Linux-PAM-1.0.2/modules/pam_cracklib/pam_cracklib.c
+===================================================================
+--- Linux-PAM-1.0.2.orig/modules/pam_cracklib/pam_cracklib.c
++++ Linux-PAM-1.0.2/modules/pam_cracklib/pam_cracklib.c
+@@ -57,6 +57,12 @@
+ extern char *FascistCheck(char *pw, const char *dictpath);
+ #endif
+ 
++#ifdef AVCT_MULTI_CHAR_PASSWD
++#include <locale.h>
++#include <wchar.h>
++#include <wctype.h>
++#endif
++
+ #ifndef CRACKLIB_DICTS
+ #define CRACKLIB_DICTS "/usr/lib/cracklib_dict"
+ #endif
+@@ -198,6 +204,8 @@ static char *_pam_delete(register char *
+ /*
+  * can't be a palindrome - like `R A D A R' or `M A D A M'
+  */
++#ifndef AVCT_MULTI_CHAR_PASSWD
++// password will in single byte 
+ static int palindrome(const char *new)
+ {
+     int	i, j;
+@@ -287,7 +295,6 @@ static int distance(const char *old, con
+ 
+     return r;
+ }
+-
+ static int similar(struct cracklib_options *opt,
+ 		   const char *old, const char *new)
+ {
+@@ -302,7 +309,6 @@ static int similar(struct cracklib_optio
+     /* passwords are too similar */
+     return 1;
+ }
+-
+ /*
+  * enough classes of charecters
+  */
+@@ -414,7 +420,6 @@ static int simple(struct cracklib_option
+ 
+     return 1;
+ }
+-
+ static char * str_lower(char *string)
+ {
+ 	char *cp;
+@@ -424,17 +429,262 @@ static char * str_lower(char *string)
+ 	return string;
+ }
+ 
++#else // AVCT_MULTI_CHAR_PASSWD is defined
++static int palindrome(const wchar_t *old, const wchar_t *new)
++{
++    int i, j;
++
++    i = wcslen (new);
++
++    for (j = 0;j < i;j++)
++      if (new[i - j - 1] != new[j])
++         return 0;
++
++   return 1;
++}
++
++static int distdifferent(const wchar_t *old, const wchar_t *new, int i, int j)
++{
++    wchar_t c, d;
++
++    if ((i == 0) || (wcslen(old) < i)) {
++        c = 0;
++    } else {
++        c = old[i - 1];
++    }
++    if ((j == 0) || (wcslen(new) < j)) {
++        d = 0;
++    } else {
++        d = new[j - 1];
++    }
++    return (c != d);
++}
++
++static int distcalculate(int **distances, const wchar_t *old, const wchar_t *new,
++                         int i, int j)
++{
++    int tmp = 0;
++
++    if (distances[i][j] != -1) {
++        return distances[i][j];
++    }
++
++    tmp =          distcalculate(distances, old, new, i - 1, j - 1);
++    tmp = MIN(tmp, distcalculate(distances, old, new,     i, j - 1));
++    tmp = MIN(tmp, distcalculate(distances, old, new, i - 1,     j));
++    tmp += distdifferent(old, new, i, j);
++
++    distances[i][j] = tmp;
++
++    return tmp;
++}
++
++static int distance(const wchar_t *old, const wchar_t *new)
++{
++    int **distances = NULL;
++    int m, n, i, j, r;
++
++    m = wcslen(old);
++    n = wcslen(new);
++    distances = malloc(sizeof(int*) * (m + 1));
++
++    for (i = 0; i <= m; i++) {
++        distances[i] = malloc(sizeof(int) * (n + 1));
++        for(j = 0; j <= n; j++) {
++            distances[i][j] = -1;
++        }
++    }
++    for (i = 0; i <= m; i++) {
++        distances[i][0] = i;
++    }
++    for (j = 0; j <= n; j++) {
++        distances[0][j] = j;
++    }
++    distances[0][0] = 0;
++
++    r = distcalculate(distances, old, new, m, n);
++
++    for (i = 0; i <= m; i++) {
++        memset(distances[i], 0, sizeof(int) * (n + 1));
++        free(distances[i]);
++    }
++    free(distances);
++
++    return r;
++}
++
++static int similar(struct cracklib_options *opt,
++                   const wchar_t *old, const wchar_t *new)
++{
++    if (distance(old, new) >= opt->diff_ok) {
++        return 0;
++    }
++
++    if (wcslen(new) >= (wcslen(old) * 2)) {
++        return 0;
++    }
++
++    /* passwords are too similar */
++    return 1;
++}
++
++/*
++ * a nice mix of characters.
++ */
++static int simple(struct cracklib_options *opt,
++                  const wchar_t *old, const wchar_t *new)
++{
++    int digits = 0;
++    int uppers = 0;
++    int lowers = 0;
++    int others = 0;
++    int size;
++    int i;
++
++    for (i = 0;new[i];i++) {
++        if (iswdigit (new[i]))
++            digits++;
++        else if ((wctype("upper") != (wctype_t)0) && iswupper (new[i]))
++           uppers++;
++        else if ((wctype("lower") != (wctype_t)0) && iswlower (new[i]))
++            lowers++;
++        else if (!iswalnum(new[i]))
++            others++;
++    }
++
++    /*
++     * The scam was this - a password of only one character type
++     * must be 8 letters long.  Two types, 7, and so on.
++     * This is now changed, the base size and the credits or defaults
++     * see the docs on the module for info on these parameters, the
++     * defaults cause the effect to be the same as before the change
++     */
++
++    if ((opt->dig_credit >= 0) && (digits > opt->dig_credit))
++        digits = opt->dig_credit;
++
++    if ((wctype("upper") != (wctype_t)0)){
++       if ((opt->up_credit >= 0) && (uppers > opt->up_credit))
++               uppers = opt->up_credit;
++    }
++
++    if ((wctype("lower") != (wctype_t)0)){
++       if ((opt->low_credit >= 0) && (lowers > opt->low_credit))
++               lowers = opt->low_credit;
++    }
++
++    if ((opt->oth_credit >= 0) && (others > opt->oth_credit))
++        others = opt->oth_credit;
++
++    size = opt->min_length;
++
++    if (opt->dig_credit >= 0)
++        size -= digits;
++    else if (digits < opt->dig_credit * -1)
++        return 1;
++
++    if ((wctype("upper") != (wctype_t)0)){
++       if (opt->up_credit >= 0)
++               size -= uppers;
++       else if (uppers < opt->up_credit * -1)
++               return 1;
++    }
++
++    if ((wctype("lower") != (wctype_t)0)){
++       if (opt->low_credit >= 0)
++               size -= lowers;
++       else if (lowers < opt->low_credit * -1)
++               return 1;
++    }
++
++    if (opt->oth_credit >= 0)
++        size -= others;
++    else if (others < opt->oth_credit * -1)
++        return 1;
++
++    if (size <= i)
++        return 0;
++
++    return 1;
++}
++
++static wchar_t * str_lower(wchar_t *string)
++{
++    wchar_t *cp;
++    wctype_t valid_class;
++
++    if ((valid_class=wctype("lower")) == (wctype_t)0)
++       return string;
++
++    for (cp = string; *cp; cp++)
++       *cp = towlower(*cp);
++
++    return string;
++}
++
++#endif 
++
+ static const char *password_check(struct cracklib_options *opt,
+ 				  const char *old, const char *new)
+ {
+ 	const char *msg = NULL;
+-	char *oldmono = NULL, *newmono, *wrapped = NULL;
+ 
+ 	if (old && strcmp(new, old) == 0) {
+ 	    msg = _("is the same as the old one");
+ 	    return msg;
+ 	}
+ 
++#ifdef AVCT_MULTI_CHAR_PASSWD
++       /*Setting the locale */
++
++       if(strstr(setlocale(LC_ALL,NULL),"UTF-8") == NULL)
++          setlocale(LC_ALL,"en_US.UTF-8");
++
++       {
++        wchar_t wcnew[strlen(new)+1], wcold[strlen(old)+1];
++        wchar_t *wcoldmono = NULL, *wcnewmono, *wcwrapped = NULL;
++
++        int wclenold = 0 , wclennew = 0;
++
++        /*convert to multibyte */
++        wclenold = mbstowcs(wcold,old,strlen(old)+1);
++        wclennew = mbstowcs(wcnew,new,strlen(new)+1);
++
++        wcnewmono = str_lower( (wcnew) ? wcsdup(wcnew):NULL );
++        wcoldmono = str_lower( (wcold) ? wcsdup(wcold):NULL );
++
++        wcwrapped = (wchar_t *) malloc((wcslen(wcoldmono) * 2 + 1)*sizeof(wchar_t));
++        wcscpy (wcwrapped, wcoldmono);
++        wcscat (wcwrapped, wcoldmono);
++	if (palindrome(wcoldmono, wcnewmono))
++		msg = _("is a palindrome");
++
++        if (!msg && wcscmp(wcoldmono, wcnewmono) == 0)
++		msg = _("case changes only");
++
++        if (!msg && similar(opt, wcoldmono, wcnewmono))
++		msg = _("is too similar to the old one");
++
++        if (!msg && simple(opt, wcold, wcnew))
++		msg = _("is too simple");
++
++        if (!msg && wcsstr(wcwrapped, wcnewmono))
++		msg = _("is rotated");
++
++	//if (!msg && minclass (opt, new))
++	//        msg = _("not enough character classes");
++
++        wmemset(wcnewmono, 0, wcslen(wcnewmono));
++        wmemset(wcoldmono, 0, wcslen(wcoldmono));
++        wmemset(wcwrapped, 0, wcslen(wcwrapped));
++        free(wcnewmono);
++        free(wcoldmono);
++        free(wcwrapped);
++      }
++#else // AVCT_MULTI_CHAR
++      {
++	char *oldmono=NULL, *newmono=NULL, *wrapped=NULL;
++
+ 	newmono = str_lower(x_strdup(new));
+ 	if (old) {
+ 	  oldmono = str_lower(x_strdup(old));
+@@ -443,7 +693,21 @@ static const char *password_check(struct
+ 	  strcat (wrapped, oldmono);
+ 	}
+ 
+-	if (palindrome(newmono))
++#ifdef AVCT_MULTI_CHAR
++	// is multi char but password is not
++	// password should be one byte char.
++	{
++		char *aux;
++		for (aux = newmono; *aux ; aux++) {
++			if (*aux & 0x80) {
++				msg = _("has non-ASCII character");
++				break;
++			}
++		}
++	}
++#endif
++
++	if (!msg && palindrome(newmono))
+ 		msg = _("is a palindrome");
+ 
+ 	if (!msg && oldmono && strcmp(oldmono, newmono) == 0)
+@@ -458,8 +722,8 @@ static const char *password_check(struct
+ 	if (!msg && wrapped && strstr(wrapped, newmono))
+ 		msg = _("is rotated");
+ 
+-	if (!msg && minclass (opt, new))
+-	        msg = _("not enough character classes");
++//removing for now	if (!msg && minclass (opt, new))
++//[RK]Nov/12	        msg = _("not enough character classes");
+ 
+ 	memset(newmono, 0, strlen(newmono));
+ 	free(newmono);
+@@ -469,7 +733,8 @@ static const char *password_check(struct
+ 	  free(oldmono);
+ 	  free(wrapped);
+ 	}
+-
++      }
++#endif
+ 	return msg;
+ }
+ 
+@@ -626,7 +891,7 @@ PAM_EXTERN int pam_sm_chauthtok(pam_hand
+ 						pam_set_item (pamh, PAM_OLDAUTHTOK, (void *)oldtoken);
+ 		    			}
+                 		}
+-	        		oldtoken= _pam_delete(oldtoken);
++	        		//oldtoken= _pam_delete(oldtoken);
+             		}
+ 	    		if (retval != PAM_SUCCESS) {
+ 				return(retval);

@@ -1,0 +1,96 @@
+Index: net-snmp-5.2.1.2/agent/mibgroup/mibII/var_route.c
+===================================================================
+--- net-snmp-5.2.1.2.orig/agent/mibgroup/mibII/var_route.c	2004-12-10 06:41:42.000000000 -0800
++++ net-snmp-5.2.1.2/agent/mibgroup/mibII/var_route.c	2008-06-26 00:22:15.000000000 -0700
+@@ -115,7 +115,8 @@
+     u_char         *ap;
+     oid            *op;
+ 
+-    *write_method = write_rte;
++	/[RK]Oct/08/03 - not allow write *write_method = write_rte;
++	*write_method = NULL;
+ 
+ #if 0
+   /** 
+Index: net-snmp-5.2.1.2/apps/Makefile.in
+===================================================================
+--- net-snmp-5.2.1.2.orig/apps/Makefile.in	2004-10-05 17:38:38.000000000 -0700
++++ net-snmp-5.2.1.2/apps/Makefile.in	2008-06-26 00:22:15.000000000 -0700
+@@ -17,28 +17,30 @@
+ # Things to install
+ #
+ 
+-INSTALLBINPROGS	= snmpget$(EXEEXT) 			\
+-		snmpgetnext$(EXEEXT) 			\
+-		snmpset$(EXEEXT) 			\
+-		snmpusm$(EXEEXT)			\
+-		snmpwalk$(EXEEXT) 			\
+-		snmpbulkwalk$(EXEEXT) 			\
+-		snmptable$(EXEEXT)			\
+-		snmptrap$(EXEEXT) 			\
+-		snmpbulkget$(EXEEXT)			\
+-		snmptranslate$(EXEEXT) 			\
+-		snmpstatus$(EXEEXT) 			\
+-		snmpdelta$(EXEEXT) 			\
+-		snmptest$(EXEEXT)			\
+-		encode_keychange$(EXEEXT) 		\
+-		snmpdf$(EXEEXT) 			\
+-		snmpvacm$(EXEEXT)
++#INSTALLBINPROGS	= snmpget$(EXEEXT) 			\
++#		snmpgetnext$(EXEEXT) 			\
++#		snmpset$(EXEEXT) 			\
++#		snmpusm$(EXEEXT)			\
++#		snmpwalk$(EXEEXT) 			\
++#		snmpbulkwalk$(EXEEXT) 			\
++#		snmptable$(EXEEXT)			\
++#		snmptrap$(EXEEXT) 			\
++#		snmpbulkget$(EXEEXT)			\
++#		snmptranslate$(EXEEXT) 			\
++#		snmpstatus$(EXEEXT) 			\
++#		snmpdelta$(EXEEXT) 			\
++#		snmptest$(EXEEXT)			\
++#		encode_keychange$(EXEEXT) 		\
++#		snmpdf$(EXEEXT) 			\
++#		snmpvacm$(EXEEXT)
+ 
+-INSTALLSBINPROGS = snmptrapd$(EXEEXT)
++INSTALLBINPROGS	= snmptrap$(EXEEXT) 			
+ 
+-INSTALLLIBS     = libnetsnmptrapd.$(LIB_EXTENSION)$(LIB_VERSION)
++#INSTALLSBINPROGS = snmptrapd$(EXEEXT)
+ 
+-SUBDIRS		= snmpnetstat
++#INSTALLLIBS     = libnetsnmptrapd.$(LIB_EXTENSION)$(LIB_VERSION)
++
++#SUBDIRS		= snmpnetstat
+ 
+ #
+ # build variables.
+Index: net-snmp-5.2.1.2/agent/mibgroup/if-mib/data_access/interface_common.c
+===================================================================
+--- net-snmp-5.2.1.2.orig/agent/mibgroup/if-mib/data_access/interface_common.c	2004-12-10 05:49:17.000000000 -0800
++++ net-snmp-5.2.1.2/agent/mibgroup/if-mib/data_access/interface_common.c	2008-06-26 00:22:15.000000000 -0700
+@@ -403,8 +403,8 @@
+         DEBUGMSGTL(("access:interface:ifIndex", "saved ifIndex %d for %s\n",
+                     index, name));
+     }
+-    else
+-        netsnmp_assert(index == tmp);
++//[RK]Sep/26/07    else
++//[RK]Sep/26/07        netsnmp_assert(index == tmp);
+ }
+ 
+ /**
+Index: net-snmp-5.2.1.2/snmplib/snmpUDPIPv6Domain.c
+===================================================================
+--- net-snmp-5.2.1.2.orig/snmplib/snmpUDPIPv6Domain.c	2004-12-24 06:42:23.000000000 -0800
++++ net-snmp-5.2.1.2/snmplib/snmpUDPIPv6Domain.c	2008-06-28 11:37:58.000000000 -0700
+@@ -933,7 +933,7 @@
+     char            secName[VACMSTRINGLEN];
+     char            contextName[VACMSTRINGLEN];
+     char            community[VACMSTRINGLEN];
+-    char            source[VACMSTRINGLEN];
++    char            source[VACMSTRINGLEN*2];
+     char           *cp = NULL, *strnetwork = NULL, *strmask = NULL;
+     com2Sec6Entry  *e = NULL;
+     struct sockaddr_in6 net, mask;

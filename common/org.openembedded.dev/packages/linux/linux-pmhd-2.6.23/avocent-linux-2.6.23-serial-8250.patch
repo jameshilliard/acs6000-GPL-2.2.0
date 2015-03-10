@@ -1,0 +1,452 @@
+Index: linux-2.6.23/drivers/serial/8250.c
+===================================================================
+--- linux-2.6.23.orig/drivers/serial/8250.c
++++ linux-2.6.23/drivers/serial/8250.c
+@@ -46,6 +46,9 @@
+ 
+ #include "8250.h"
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <sysdev/fsl_soc.h>
++#endif
+ /*
+  * Configuration:
+  *   share_irqs - whether we pass IRQF_SHARED to request_irq().  This option
+@@ -116,6 +119,10 @@ static unsigned long probe_rsa[PORT_RSA_
+ static unsigned int probe_rsa_count;
+ #endif /* CONFIG_SERIAL_8250_RSA  */
+ 
++#ifdef CONFIG_PPC_83xx
++extern unsigned long wdt_base;
++#endif
++
+ struct uart_8250_port {
+ 	struct uart_port	port;
+ 	struct timer_list	timer;		/* "no irq" timer */
+@@ -139,7 +146,9 @@ struct uart_8250_port {
+ 	unsigned char		lsr_saved_flags;
+ #define MSR_SAVE_FLAGS UART_MSR_ANY_DELTA
+ 	unsigned char		msr_saved_flags;
+-
++#ifdef CONFIG_AVOCENT_PMHD
++	unsigned char		mstatus;
++#endif
+ 	/*
+ 	 * We provide a per-port pm hook.
+ 	 */
+@@ -147,6 +156,12 @@ struct uart_8250_port {
+ 				      unsigned int state, unsigned int old);
+ };
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++static	unsigned int	gpio_irq = 0;
++static	unsigned int	gpio_registered = 0; //it actually counts the number of open ports
++static  spinlock_t		gpio_lock;           //exclusive GPIO resource
++#endif
++
+ struct irq_info {
+ 	spinlock_t		lock;
+ 	struct list_head	*head;
+@@ -154,6 +169,9 @@ struct irq_info {
+ 
+ static struct irq_info irq_lists[NR_IRQS];
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++extern __be32 __iomem *gpio_regs;
++#endif
+ /*
+  * Here we define the default xmit fifo size used for each type of UART.
+  */
+@@ -1225,6 +1243,12 @@ static void serial8250_stop_tx(struct ua
+ 
+ 	__stop_tx(up);
+ 
++	if (port->flags & UPF_LEGACY_RTS) {
++		/* disable transmission and enable reception */
++		up->mcr |= UART_MCR_RTS|UART_MCR_DTR;
++		serial_out(up, UART_MCR, up->mcr);
++	}
++
+ 	/*
+ 	 * We really want to stop the transmitter from sending.
+ 	 */
+@@ -1241,6 +1265,11 @@ static void serial8250_start_tx(struct u
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
+ 
+ 	if (!(up->ier & UART_IER_THRI)) {
++		if (port->flags & UPF_LEGACY_RTS) {
++			/* Stop reception and start transmission */
++			up->mcr &= ~(UART_MCR_RTS | UART_MCR_DTR);
++			serial_out(up, UART_MCR, up->mcr);
++		}
+ 		up->ier |= UART_IER_THRI;
+ 		serial_out(up, UART_IER, up->ier);
+ 
+@@ -1368,8 +1397,24 @@ static void transmit_chars(struct uart_8
+ 		return;
+ 	}
+ 	if (uart_circ_empty(xmit)) {
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Enable interrupt when transmission has not
++			finished yet */
++			if (! (serial_inp(up, UART_LSR) &  UART_LSR_TEMT)) {
++				up->ier |= UART_IER_THRI;
++				serial_out(up, UART_IER, up->ier);
++				return;
++			}
++		}
+ 		__stop_tx(up);
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Disable transmission and enable reception */
++			up->mcr |= UART_MCR_RTS | UART_MCR_DTR;
++			serial_out(up, UART_MCR, up->mcr);
++		}
++
+ 		return;
++
+ 	}
+ 
+ 	count = up->tx_loadsz;
+@@ -1385,15 +1430,54 @@ static void transmit_chars(struct uart_8
+ 		uart_write_wakeup(&up->port);
+ 
+ 	DEBUG_INTR("THRE...");
+-
+-	if (uart_circ_empty(xmit))
++	if (uart_circ_empty(xmit)) {
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Enable interrupt when transmission has not
++			finished yet */
++			if (! (serial_inp(up, UART_LSR) &  UART_LSR_TEMT)) {
++				up->ier |= UART_IER_THRI;
++				serial_out(up, UART_IER, up->ier);
++				return;
++			}
++		}
++		if (up->port.flags & UPF_LEGACY_RTS) {
++			/* Disable transmission and enable reception */
++			up->mcr |= UART_MCR_RTS | UART_MCR_DTR;
++			serial_out(up, UART_MCR, up->mcr);
++		}
+ 		__stop_tx(up);
++	}
+ }
+ 
+ static unsigned int check_modem_status(struct uart_8250_port *up)
+ {
+ 	unsigned int status = serial_in(up, UART_MSR);
+-
++#ifdef CONFIG_AVOCENT_PMHD
++	if (up->port.line == 0 || up->port.line == 1) {
++		u32 data = in_be32(gpio_regs + 2);
++		status &= ~(UART_MSR_DCD | UART_MSR_RI | UART_MSR_DSR | UART_MSR_DDCD);
++		if (up->port.line == 0) {
++			if ((data & 0x10000L) == 0) {
++				status |= UART_MSR_DCD;
++			}
++			if ((data & 0x08000L) == 0) {
++				status |= UART_MSR_DSR;
++			}
++		} else {
++			if ((data & 0x02000L) == 0) {
++				status |= UART_MSR_DCD;
++			}
++			if ((data & 0x01000L) == 0) {
++				status |= UART_MSR_DSR;
++			}
++		}
++		if (((up->mstatus & UART_MSR_DCD) && (status & UART_MSR_DCD) == 0) ||
++			((up->mstatus & UART_MSR_DCD) == 0 && (status & UART_MSR_DCD))) {
++			status |= UART_MSR_DDCD;
++		}
++		up->mstatus = status;
++	}
++#endif
+ 	status |= up->msr_saved_flags;
+ 	up->msr_saved_flags = 0;
+ 	if (status & UART_MSR_ANY_DELTA && up->ier & UART_IER_MSI &&
+@@ -1508,6 +1592,35 @@ static irqreturn_t serial8250_interrupt(
+ 	return IRQ_RETVAL(handled);
+ }
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++static irqreturn_t serial8250_gpio_interrupt(int irq, void *dev_id)
++{
++	struct irq_info *i = dev_id;
++	struct list_head *l;
++	struct uart_8250_port *up;
++
++	spin_lock(&gpio_lock);
++
++	if (in_be32(gpio_regs + 3) & 0x18000) { //Check only console signals
++
++		l = i->head;
++
++		up = list_entry(l, struct uart_8250_port, list);
++		printk(KERN_DEBUG "gpio int %d\n", up->port.line);
++
++		if (up && up->port.line == 0) {	//Only console.
++			check_modem_status(up);
++		}
++
++		out_be32(gpio_regs + 3, 0x18000);
++	}
++
++	spin_unlock(&gpio_lock);
++
++	return IRQ_HANDLED;
++}
++#endif
++
+ /*
+  * To support ISA shared interrupts, we need to have one interrupt
+  * handler that ensures that the IRQ line has been deasserted
+@@ -1552,6 +1665,20 @@ static int serial_link_irq_chain(struct 
+ 				  irq_flags, "serial", i);
+ 		if (ret < 0)
+ 			serial_do_unlink(i, up);
++#ifdef CONFIG_AVOCENT_PMHD
++		else if (gpio_irq && up->port.line == 0) {	//Only for console signals.
++			if (!gpio_registered) {
++				ret = request_irq(gpio_irq, serial8250_gpio_interrupt,
++								  IRQF_SHARED, "serial", i);
++				if (ret >= 0) {
++					gpio_registered = 1;
++					out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x18000);
++				}
++			} else {
++				gpio_registered++;
++			}
++		}
++#endif
+ 	}
+ 
+ 	return ret;
+@@ -1563,8 +1690,15 @@ static void serial_unlink_irq_chain(stru
+ 
+ 	BUG_ON(i->head == NULL);
+ 
+-	if (list_empty(i->head))
++	if (list_empty(i->head)) {
+ 		free_irq(up->port.irq, i);
++#ifdef CONFIG_AVOCENT_PMHD
++		if (up->port.line == 0 && !--gpio_registered) {
++			free_irq(gpio_irq, i);
++			out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x1b000);
++		}
++#endif
++	}
+ 
+ 	serial_do_unlink(i, up);
+ }
+@@ -1673,22 +1807,59 @@ static unsigned int serial8250_get_mctrl
+ static void serial8250_set_mctrl(struct uart_port *port, unsigned int mctrl)
+ {
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
+-	unsigned char mcr = 0;
++	unsigned char mcr = up->mcr;
+ 
+-	if (mctrl & TIOCM_RTS)
+-		mcr |= UART_MCR_RTS;
+-	if (mctrl & TIOCM_DTR)
+-		mcr |= UART_MCR_DTR;
+-	if (mctrl & TIOCM_OUT1)
++	if (!(port->flags & UPF_LEGACY_RTS)) {
++		if (mctrl & TIOCM_RTS) {
++			mcr |= UART_MCR_RTS;
++		} else {
++			mcr &= ~UART_MCR_RTS;
++		}
++		if (mctrl & TIOCM_DTR) {
++			mcr |= UART_MCR_DTR;
++		} else {
++			mcr &= ~UART_MCR_DTR;
++		}
++	}
++	if (mctrl & TIOCM_OUT1) {
+ 		mcr |= UART_MCR_OUT1;
+-	if (mctrl & TIOCM_OUT2)
++	} else {
++		mcr &= ~UART_MCR_OUT1;
++	}
++	if (mctrl & TIOCM_OUT2) {
+ 		mcr |= UART_MCR_OUT2;
+-	if (mctrl & TIOCM_LOOP)
++	} else {
++		mcr &= ~UART_MCR_OUT2;
++	}
++	if (mctrl & TIOCM_LOOP) {
+ 		mcr |= UART_MCR_LOOP;
++	} else {
++		mcr &= ~UART_MCR_LOOP;
++	}
+ 
+-	mcr = (mcr & up->mcr_mask) | up->mcr_force | up->mcr;
++	up->mcr = (mcr & up->mcr_mask) | up->mcr_force;
+ 
+-	serial_out(up, UART_MCR, mcr);
++	serial_out(up, UART_MCR, up->mcr);
++#ifdef CONFIG_AVOCENT_PMHD
++	if (up->port.line == 0 || up->port.line == 1) {
++		u32 data;
++		data = in_be32(gpio_regs + 2);
++		if (up->port.line == 0) {
++			if (mcr & UART_MCR_DTR) {
++				data &= ~0x4000L;
++			} else {
++				data |= 0x4000L;
++			}
++		} else {
++			if (mcr & UART_MCR_DTR) {
++				data &= ~0x0800;
++			} else {
++				data |= 0x0800;
++			}
++		}
++		out_be32(gpio_regs + 2, data);
++	}
++#endif
+ }
+ 
+ static void serial8250_break_ctl(struct uart_port *port, int break_state)
+@@ -1931,6 +2102,13 @@ static int serial8250_startup(struct uar
+ 		(void) inb_p(icp);
+ 	}
+ 
++	// Enable DCD/DRS interrupts
++#ifdef CONFIG_AVOCENT_PMHD
++	if (gpio_irq && gpio_registered==1) {
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x18000);
++	}
++#endif
++
+ 	return 0;
+ }
+ 
+@@ -2343,6 +2521,12 @@ static void serial8250_config_port(struc
+ 		serial8250_release_rsa_resource(up);
+ 	if (up->port.type == PORT_UNKNOWN)
+ 		serial8250_release_std_resource(up);
++#ifdef CONFIG_AVOCENT_PMHD
++	if (!gpio_irq) {
++		if (!(gpio_irq = irq_find_mapping(NULL, 74)))
++			gpio_irq = irq_create_mapping(NULL, 74);
++	}
++#endif
+ }
+ 
+ static int
+@@ -2452,7 +2636,15 @@ serial8250_register_ports(struct uart_dr
+ static void serial8250_console_putchar(struct uart_port *port, int ch)
+ {
+ 	struct uart_8250_port *up = (struct uart_8250_port *)port;
++#ifdef CONFIG_PPC_83xx
++        static int ctr = 0;
++        if(++ctr >= 10 ) {
++                out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++                out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
+ 
++                ctr = 0;
++        }
++#endif
+ 	wait_for_xmitr(up, UART_LSR_THRE);
+ 	serial_out(up, UART_TX, ch);
+ }
+@@ -2870,6 +3062,15 @@ static int __init serial8250_init(void)
+ 		"%d ports, IRQ sharing %sabled\n", nr_uarts,
+ 		share_irqs ? "en" : "dis");
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++		out_be32(gpio_regs, (in_be32(gpio_regs) & ~0x1b000) | 0x04800);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x1b000);
++		out_be32(gpio_regs + 3, 0x1b000);
++		out_be32(gpio_regs + 5, in_be32(gpio_regs + 5) & ~0x1b000);
++
++		spin_lock_init(&gpio_lock);
++#endif
++
+ 	for (i = 0; i < NR_IRQS; i++)
+ 		spin_lock_init(&irq_lists[i].lock);
+ 
+Index: linux-2.6.23/drivers/serial/serial_core.c
+===================================================================
+--- linux-2.6.23.orig/drivers/serial/serial_core.c
++++ linux-2.6.23/drivers/serial/serial_core.c
+@@ -1669,12 +1669,17 @@ static int uart_line_info(char *buf, str
+ 		return 0;
+ 
+ 	mmio = port->iotype >= UPIO_MEM;
++#ifndef CONFIG_AVOCENT_PMHD
+ 	ret = sprintf(buf, "%d: uart:%s %s%08llX irq:%d",
+ 			port->line, uart_type(port),
+ 			mmio ? "mmio:0x" : "port:",
+ 			mmio ? (unsigned long long)port->mapbase
+ 		             : (unsigned long long) port->iobase,
+ 			port->irq);
++#else 	// CONFIG_AVOCENT_PMHD
++	ret = sprintf(buf, "ttyS%d: uart:%s",
++			port->line, uart_type(port));
++#endif	// CONFIG_AVOCENT_PMHD
+ 
+ 	if (port->type == PORT_UNKNOWN) {
+ 		strcat(buf, "\n");
+@@ -1696,16 +1701,24 @@ static int uart_line_info(char *buf, str
+ 
+ 		ret += sprintf(buf + ret, " tx:%d rx:%d",
+ 				port->icount.tx, port->icount.rx);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.frame)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " fe:%d",
+ 				port->icount.frame);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.parity)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " pe:%d",
+ 				port->icount.parity);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.brk)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " brk:%d",
+ 				port->icount.brk);
++#ifndef CONFIG_AVOCENT_PMHD
+ 		if (port->icount.overrun)
++#endif	// CONFIG_AVOCENT_PMHD
+ 			ret += sprintf(buf + ret, " oe:%d",
+ 				port->icount.overrun);
+ 	
+Index: linux-2.6.23/include/linux/serial_core.h
+===================================================================
+--- linux-2.6.23.orig/include/linux/serial_core.h
++++ linux-2.6.23/include/linux/serial_core.h
+@@ -272,6 +272,7 @@ struct uart_port {
+ #define UPF_LOW_LATENCY		((__force upf_t) (1 << 13))
+ #define UPF_BUGGY_UART		((__force upf_t) (1 << 14))
+ #define UPF_MAGIC_MULTIPLIER	((__force upf_t) (1 << 16))
++#define UPF_LEGACY_RTS          ((__force upf_t) (1 << 20))
+ #define UPF_CONS_FLOW		((__force upf_t) (1 << 23))
+ #define UPF_SHARE_IRQ		((__force upf_t) (1 << 24))
+ #define UPF_BOOT_AUTOCONF	((__force upf_t) (1 << 28))
+Index: linux-2.6.23/arch/powerpc/kernel/legacy_serial.c
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/kernel/legacy_serial.c
++++ linux-2.6.23/arch/powerpc/kernel/legacy_serial.c
+@@ -489,6 +489,18 @@ static int __init serial_dev_init(void)
+ 			fixup_port_mmio(i, np, port);
+ 	}
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++	for (i = 0; i < 4; i ++) {
++		static char irq[4] = {48, 17, 18, 19};
++		legacy_serial_ports[legacy_serial_count].mapbase = 0xf0000000L + i * 8;
++		legacy_serial_ports[legacy_serial_count].irq = irq_create_mapping(NULL, irq[i]);
++		legacy_serial_ports[legacy_serial_count].uartclk = 7372800;
++		legacy_serial_ports[legacy_serial_count].iotype = UPIO_MEM;
++		legacy_serial_ports[legacy_serial_count].flags = UPF_BOOT_AUTOCONF | UPF_LEGACY_RTS;
++		legacy_serial_ports[legacy_serial_count].membase = ioremap(0xf0000000L + i * 8, 8);
++		legacy_serial_count ++;
++	}
++#endif
+ 	DBG("Registering platform serial ports\n");
+ 
+ 	return platform_device_register(&serial_device);

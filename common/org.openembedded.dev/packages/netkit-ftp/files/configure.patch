@@ -1,0 +1,74 @@
+Index: netkit-ftp-0.17/configure
+===================================================================
+--- netkit-ftp-0.17.orig/configure	2001-01-26 20:14:54.000000000 -0800
++++ netkit-ftp-0.17/configure	2007-10-15 10:25:24.000000000 -0700
+@@ -44,8 +44,9 @@
+ 	--disable-ipv6) ENABLE_IPV6=no;;
+ 	--enable-ipv6=*) ENABLE_IPV6=`echo $1 | sed 's/^[^=]*=//'`;;
+ 	--enable-ipv6) ENABLE_IPV6=yes;;
++    --build=*) build_alias=$ac_optarg ;;
+ 
+-	*) echo "Unrecognized option: $1"; exit 1;;
++	*) echo "Discarded option: $1";;
+ esac 
+ shift
+ done
+@@ -76,7 +77,7 @@
+     for TRY in egcs gcc g++ CC c++ cc; do
+        (
+            $TRY __conftest.c -o __conftest || exit 1;
+-           ./__conftest || exit 1;
++           [ -x ./__conftest ] || exit 1;
+        ) >/dev/null 2>&1 || continue;
+        CC=$TRY
+        break;
+@@ -92,7 +93,7 @@
+     echo -n 'Checking if C compiler works... '
+     if (
+           $CC __conftest.c -o __conftest || exit 1
+-          ./__conftest || exit 1
++          [ -x ./__conftest ] || exit 1
+        ) >/dev/null 2>&1; then
+          echo 'yes'
+      else
+@@ -208,13 +209,13 @@
+ EOF
+ if (
+       $CC $CFLAGS  __conftest.c  -o __conftest || exit 1
+-      ./__conftest || exit 1
++      [ -x ./__conftest ]  || exit 1
+    ) >/dev/null 2>&1; then
+     echo 'yes'
+ else
+     if (
+           $CC $CFLAGS -D__USE_BSD_SIGNAL __conftest.c  -o __conftest || exit 1
+-          ./__conftest || exit 1
++          [ -x ./__conftest ]  || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-D__USE_BSD_SIGNAL'
+         CFLAGS="$CFLAGS -D__USE_BSD_SIGNAL"
+@@ -390,7 +391,7 @@
+ else
+     if (
+           $CC $CFLAGS -D_GNU_SOURCE __conftest.c  -o __conftest || exit 1
+-          ./__conftest || exit 1
++          [ -x ./__conftest ] || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-D_GNU_SOURCE'
+         CFLAGS="$CFLAGS -D_GNU_SOURCE"
+@@ -421,13 +422,13 @@
+ EOF
+ if (
+       $CC $CFLAGS  __conftest.c $LIBBSD -o __conftest || exit 1
+-      ./__conftest || exit 1
++      [ -x ./__conftest ] || exit 1
+    ) >/dev/null 2>&1; then
+     echo 'ok'
+ else
+     if (
+           $CC $CFLAGS  __conftest.c -lsnprintf $LIBBSD -o __conftest || exit 1
+-          ./__conftest || exit 1
++          [ -x ./__conftest ] || exit 1
+        ) >/dev/null 2>&1; then
+         echo '-lsnprintf'
+         LIBS="$LIBS -lsnprintf"

@@ -1,0 +1,28 @@
+From e3823e1d9038212e61c8eae62ad22c20b38078c3 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Thu, 18 Dec 2008 18:35:51 +0800
+Subject: [PATCH] gianfar_1588: fix bug
+
+based on MPC8313ERDB revb release
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ drivers/net/gianfar_1588.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/net/gianfar_1588.c b/drivers/net/gianfar_1588.c
+index d04c34d..1d1ae47 100644
+--- a/drivers/net/gianfar_1588.c
++++ b/drivers/net/gianfar_1588.c
+@@ -98,6 +98,8 @@ static u32 div64_oper(u64 dividend, u32 divisor, u32 *quotient)
+ 	u64 tmp_dividend;
+ 	int i;
+ 
++	*quotient = 0;
++
+ 	time_h = (u32)(dividend >> 32);
+ 	time_l = (u32)dividend;
+ 	time_h = time_h % divisor;
+-- 
+1.5.5.1.248.g4b17
+

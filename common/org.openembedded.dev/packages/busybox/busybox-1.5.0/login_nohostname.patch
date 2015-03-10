@@ -1,0 +1,25 @@
+Index: busybox-1.5.0/libbb/login.c
+===================================================================
+--- busybox-1.5.0.orig/libbb/login.c	2007-03-22 13:21:31.000000000 -0700
++++ busybox-1.5.0/libbb/login.c	2007-11-20 11:24:58.000000000 -0800
+@@ -17,7 +17,7 @@
+ #include <sys/utsname.h>
+ #include <time.h>
+ 
+-#define LOGIN " login: "
++#define LOGIN "login: "
+ 
+ static const char fmtstr_d[] = "%A, %d %B %Y";
+ static const char fmtstr_t[] = "%H:%M:%S";
+@@ -95,11 +95,6 @@
+ 
+ void print_login_prompt(void)
+ {
+-	char buf[MAXHOSTNAMELEN+1];
+-
+-	if (gethostname(buf, MAXHOSTNAMELEN) == 0)
+-		fputs(buf, stdout);
+-
+ 	fputs(LOGIN, stdout);
+ 	fflush(stdout);
+ }

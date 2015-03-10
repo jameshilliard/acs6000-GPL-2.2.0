@@ -1,0 +1,12 @@
+Index: udev-100/Makefile
+===================================================================
+--- udev-100.orig/Makefile	2007-05-31 16:59:21.000000000 -0700
++++ udev-100/Makefile	2007-05-31 17:13:02.000000000 -0700
+@@ -282,6 +282,7 @@
+ 	$(INSTALL_PROGRAM) -D udevmonitor $(DESTDIR)$(usrsbindir)/udevmonitor
+ 	$(INSTALL_PROGRAM) -D udevinfo $(DESTDIR)$(usrbindir)/udevinfo
+ 	$(INSTALL_PROGRAM) -D udevtest $(DESTDIR)$(usrbindir)/udevtest
++	$(INSTALL_PROGRAM) -D udevstart $(DESTDIR)$(usrbindir)/udevstart
+ 	@extras="$(EXTRAS)"; for target in $$extras; do \
+ 		$(MAKE) -C $$target $@ || exit 1; \
+ 	done;

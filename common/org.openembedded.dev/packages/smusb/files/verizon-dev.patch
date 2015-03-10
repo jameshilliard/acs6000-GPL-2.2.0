@@ -1,0 +1,29 @@
+Index: smusb.c
+===================================================================
+--- smusb.c.orig	2008-08-18 16:25:26.000000000 -0700
++++ smusb.c	2008-08-18 16:25:26.000000000 -0700
+@@ -94,6 +94,12 @@
+ 
+     /* GSM Devices */
+     { USB_DEVICE(0x1410, 0x1400) }, /* Novatel 730         */
++
++    /* Verizon Devices */
++    { USB_DEVICE(0x1410, 0x4100) }, /* Novatel 727         */
++    { USB_DEVICE(0x1410, 0x5010) }, /* Novatel 727         */
++    { USB_DEVICE(0x1d6b, 0x0001) }, /* Novatel 727         */
++    { USB_DEVICE(0x1d6b, 0x0002) }, /* Novatel 727         */
+     {},
+ };
+ MODULE_DEVICE_TABLE( usb, id_table );
+Index: Makefile
+===================================================================
+--- Makefile.orig	2008-08-18 16:57:56.000000000 -0700
++++ Makefile	2008-08-18 16:59:21.000000000 -0700
+@@ -6,6 +6,7 @@
+ 
+ default:
+ 	make -C$(KDIR) SUBDIRS=$(PWD) C_INCLUDE_PATH=$(IDIR) modules
++	install -D -m 644 smusb.ko $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/serial/smusb.ko
+ 
+ clean:
+ 	- rm -rf *.o *.ko Modules.symvers smusb.mod.c .* >& /dev/null

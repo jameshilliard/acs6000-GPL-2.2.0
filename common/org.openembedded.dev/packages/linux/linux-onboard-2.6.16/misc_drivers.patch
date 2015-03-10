@@ -1,0 +1,636 @@
+diff -ruNp linux-2.6.16/drivers/net/natsemi.c misc_drivers/drivers/net/natsemi.c
+--- linux-2.6.16/drivers/net/natsemi.c	2006-03-20 17:07:16.000000000 +1000
++++ misc_drivers/drivers/net/natsemi.c	2006-04-10 12:04:08.000000000 +1000
+@@ -466,6 +466,11 @@ enum ChipConfig_bits {
+ 	CfgAnegEnable		= 0x2000,
+ 	CfgAneg100		= 0x4000,
+ 	CfgAnegFull		= 0x8000,
++	CfgAnegSelMsk		= 0xe000,
++	CfgForce10H		= 0x0000,
++	CfgForce100H		= 0x4000,
++	CfgForce10F		= 0x8000,
++	CfgForce100F		= 0xc000,
+ 	CfgAnegDone		= 0x8000000,
+ 	CfgFullDuplex		= 0x20000000,
+ 	CfgSpeed100		= 0x40000000,
+@@ -811,7 +816,9 @@ static int __devinit natsemi_probe1 (str
+ 	unsigned long iostart, iosize;
+ 	void __iomem *ioaddr;
+ 	const int pcibar = 1; /* PCI base address register */
++#ifndef CONFIG_ALTERPATH_ONBOARD_V1
+ 	int prev_eedata;
++#endif
+ 	u32 tmp;
+ 
+ /* when built into the kernel, we only print version if device is found */
+@@ -859,6 +866,7 @@ static int __devinit natsemi_probe1 (str
+ 		goto err_ioremap;
+ 	}
+ 
++#ifndef CONFIG_ALTERPATH_ONBOARD_V1
+ 	/* Work around the dropped serial bit. */
+ 	prev_eedata = eeprom_read(ioaddr, 6);
+ 	for (i = 0; i < 3; i++) {
+@@ -867,6 +875,12 @@ static int __devinit natsemi_probe1 (str
+ 		dev->dev_addr[i*2+1] = eedata >> 7;
+ 		prev_eedata = eedata;
+ 	}
++#else
++	{
++		bd_t *binfo = (bd_t *) __res;
++		memcpy(dev->dev_addr, binfo->bi_enet1addr, 6);
++	}
++#endif
+ 
+ 	dev->base_addr = (unsigned long __force) ioaddr;
+ 	dev->irq = irq;
+@@ -942,6 +956,35 @@ static int __devinit natsemi_probe1 (str
+ 
+ 	netif_carrier_off(dev);
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD
++	/* we do fecmode2 mii ops */
++	{
++		bd_t *bd = (bd_t *)__res;
++		switch (bd->mii_operation[1]) {
++		case 0:		/* auto */
++		case 1:		/* 1000F */
++		case 2:		/* 1000H */
++		default:
++			writel((readl(ioaddr+ChipConfig) | CfgAnegSelMsk | CfgPhyRst), ioaddr+ChipConfig);
++			break;
++		case 3:		/* 100F */
++			writel((readl(ioaddr+ChipConfig) &~CfgAnegSelMsk | CfgPhyRst | CfgForce100F), ioaddr+ChipConfig);
++			break;
++		case 4:		/* 100H */
++			writel((readl(ioaddr+ChipConfig) &~CfgAnegSelMsk | CfgPhyRst | CfgForce100H), ioaddr+ChipConfig);
++			break;
++		case 5:		/* 10F */
++			writel((readl(ioaddr+ChipConfig) &~CfgAnegSelMsk | CfgPhyRst | CfgForce10F), ioaddr+ChipConfig);
++			break;
++		case 6:		/* 10H */
++			writel((readl(ioaddr+ChipConfig) &~CfgAnegSelMsk | CfgPhyRst | CfgForce10H), ioaddr+ChipConfig);
++			break;
++		}
++
++		/* un-reset PHY */
++		writel((readl(ioaddr+ChipConfig) &~CfgPhyRst), ioaddr+ChipConfig);
++	}
++#endif
+ 	/* get the initial settings from hardware */
+ 	tmp            = mdio_read(dev, MII_BMCR);
+ 	np->speed      = (tmp & BMCR_SPEED100)? SPEED_100     : SPEED_10;
+@@ -975,6 +1018,19 @@ static int __devinit natsemi_probe1 (str
+ 		printk(KERN_INFO "natsemi %s: silicon revision %#04x.\n",
+ 				pci_name(np->pci_dev), np->srr);
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD_BROKEN
++	/* we want Failover PCI Eth to be eth1 */
++	i = dev_alloc_name(dev, "eth1");
++	if (i < 0) {
++		printk(KERN_ERR "%s: Cannot allocate device name (%d).\n",
++		       dev->name, i);
++		pci_release_regions(pdev);
++		kfree(dev);
++		pci_set_drvdata(pdev, NULL);
++		return i;
++	}
++#endif
++
+ 	i = register_netdev(dev);
+ 	if (i)
+ 		goto err_register_netdev;
+diff -ruNp linux-2.6.16/drivers/net/tulip/tulip_core.c misc_drivers/drivers/net/tulip/tulip_core.c
+--- linux-2.6.16/drivers/net/tulip/tulip_core.c	2006-03-20 17:07:16.000000000 +1000
++++ misc_drivers/drivers/net/tulip/tulip_core.c	2006-04-10 12:04:08.000000000 +1000
+@@ -41,6 +41,11 @@
+ #include <asm/pbm.h>
+ #endif
+ 
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++#define inl_noswap(port)	in_be32((u32 *)((port)+_IO_BASE))
++#define outl_noswap(val, port)	out_be32((u32 *)((port)+_IO_BASE), (val))
++#endif
++
+ static char version[] __devinitdata =
+ 	"Linux Tulip driver version " DRV_VERSION " (" DRV_RELDATE ")\n";
+ 
+@@ -313,16 +318,26 @@ static void tulip_up(struct net_device *
+ 	tp->dirty_rx = tp->dirty_tx = 0;
+ 
+ 	if (tp->flags & MC_HASH_ONLY) {
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++		u32 addr_low = *(u32 *)(dev->dev_addr);
++		u32 addr_high = *(u16 *)(dev->dev_addr+4) * 0x10000;
++#else
+ 		u32 addr_low = le32_to_cpu(get_unaligned((u32 *)dev->dev_addr));
+ 		u32 addr_high = le16_to_cpu(get_unaligned((u16 *)(dev->dev_addr+4)));
++#endif
+ 		if (tp->chip_id == AX88140) {
+ 			iowrite32(0, ioaddr + CSR13);
+ 			iowrite32(addr_low,  ioaddr + CSR14);
+ 			iowrite32(1, ioaddr + CSR13);
+ 			iowrite32(addr_high, ioaddr + CSR14);
+ 		} else if (tp->flags & COMET_MAC_ADDR) {
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++			outl_noswap(addr_low,  ioaddr + 0xA4);
++			outl_noswap(addr_high, ioaddr + 0xA8);
++#else
+ 			iowrite32(addr_low,  ioaddr + 0xA4);
+ 			iowrite32(addr_high, ioaddr + 0xA8);
++#endif
+ 			iowrite32(0, ioaddr + 0xAC);
+ 			iowrite32(0, ioaddr + 0xB0);
+ 		}
+@@ -1453,8 +1468,13 @@ static int __devinit tulip_init_one (str
+ 		}
+ 	} else if (chip_idx == COMET) {
+ 		/* No need to read the EEPROM. */
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++		*(u32 *)dev->dev_addr = inl_noswap(ioaddr + 0xA4);
++		*(u16 *)(dev->dev_addr + 4) = inl_noswap(ioaddr + 0xA8)/0x10000;
++#else
+ 		put_unaligned(cpu_to_le32(ioread32(ioaddr + 0xA4)), (u32 *)dev->dev_addr);
+ 		put_unaligned(cpu_to_le16(ioread32(ioaddr + 0xA8)), (u16 *)(dev->dev_addr + 4));
++#endif
+ 		for (i = 0; i < 6; i ++)
+ 			sum += dev->dev_addr[i];
+ 	} else {
+diff -ruNp linux-2.6.16/drivers/pci/probe.c misc_drivers/drivers/pci/probe.c
+--- linux-2.6.16/drivers/pci/probe.c	2006-03-20 17:07:17.000000000 +1000
++++ misc_drivers/drivers/pci/probe.c	2006-04-10 12:04:08.000000000 +1000
+@@ -160,6 +160,10 @@ static void pci_read_bases(struct pci_de
+ 		pci_write_config_dword(dev, reg, ~0);
+ 		pci_read_config_dword(dev, reg, &sz);
+ 		pci_write_config_dword(dev, reg, l);
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++		/* Workaround */
++		sz &= ~0x0f;
++#endif
+ 		if (!sz || sz == 0xffffffff)
+ 			continue;
+ 		if (l == 0xffffffff)
+@@ -358,9 +362,16 @@ pci_alloc_child_bus(struct pci_bus *pare
+ 	 * Set up the primary, secondary and subordinate
+ 	 * bus numbers.
+ 	 */
++#ifdef CONFIG_ALTERPATH_KVMMAX
++	child->secondary = busnr;
++	child->primary = parent->secondary;
++	child->subordinate = 0xff;
++	child->number = child->secondary + parent->number;
++#else
+ 	child->number = child->secondary = busnr;
+ 	child->primary = parent->secondary;
+ 	child->subordinate = 0xff;
++#endif
+ 
+ 	/* Set up default resource pointers and names.. */
+ 	for (i = 0; i < 4; i++) {
+diff -ruNp linux-2.6.16/drivers/pcmcia/yenta_socket.c misc_drivers/drivers/pcmcia/yenta_socket.c
+--- linux-2.6.16/drivers/pcmcia/yenta_socket.c	2006-03-20 17:07:17.000000000 +1000
++++ misc_drivers/drivers/pcmcia/yenta_socket.c	2006-04-10 12:04:08.000000000 +1000
+@@ -986,6 +986,11 @@ static void yenta_config_init(struct yen
+ 		(dev->subordinate->secondary << 8) |  /* secondary bus */
+ 		dev->subordinate->primary);		   /* primary bus */
+ 
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++	config_writel(socket, CB_MULTIFUNCTION_ROUTING, 0x00001002);
++	config_writel(socket, CB_SYSTEM_CONTROL, 0x28449060L);
++#endif
++
+ 	/*
+ 	 * Set up the bridging state:
+ 	 *  - enable write posting.
+diff -ruNp linux-2.6.16/drivers/pcmcia/yenta_socket.h misc_drivers/drivers/pcmcia/yenta_socket.h
+--- linux-2.6.16/drivers/pcmcia/yenta_socket.h	2006-03-20 17:07:17.000000000 +1000
++++ misc_drivers/drivers/pcmcia/yenta_socket.h	2006-04-10 12:04:08.000000000 +1000
+@@ -90,6 +90,9 @@
+ #define   CB_BRIDGE_POSTEN	0x00000400
+ #define CB_LEGACY_MODE_BASE	0x44
+ 
++#define CB_SYSTEM_CONTROL		0x80
++#define CB_MULTIFUNCTION_ROUTING	0x8c
++
+ /*
+  * ExCA area extensions in Yenta
+  */
+diff -ruNp linux-2.6.16/drivers/serial/8250.c misc_drivers/drivers/serial/8250.c
+--- linux-2.6.16/drivers/serial/8250.c	2006-04-10 12:08:52.000000000 +1000
++++ misc_drivers/drivers/serial/8250.c	2006-04-10 12:07:21.000000000 +1000
+@@ -298,6 +298,239 @@ static inline int map_8250_out_reg(struc
+ 
+ #endif
+ 
++/******************************************************************
++ * 
++ *      MPC85XX ONBOARD_V1 board UART1 DCD interrupt hacking
++ *      and MODEM support.
++ * 
++ */
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++#include <asm/mpc85xx.h>
++#include <asm/cpm2.h>
++
++#if 1
++#define ONBOARD_V1_AUX_DBG(msg, args...) 	do { printk(msg, ##args); } while(0)
++#else
++#define ONBOARD_V1_AUX_DBG(x)
++#endif
++
++/* pre-declare some variables and functions used here before they
++ * are defined later on.
++ */
++static unsigned int check_modem_status(struct uart_8250_port *up);
++extern struct serial_state rs_table[];
++extern struct async_struct *IRQ_ports[];
++
++/* UART0 used exclusively for console, so no need for extra signals */
++#undef  MPC8555_UART0_DCD_IRQ
++#undef  MPC8555_UART0_DTR_PA
++#undef  MPC8555_UART0_DCD_PA
++#undef  MPC8555_UART0_DSR_PA
++
++#define MPC8555_UART1_DCD_IRQ	SIU_INT_PC29
++#define MPC8555_UART1_DCD_PC	CPM_PC_29
++
++static int MPC8555_UART1_DTR_PA;
++static int MPC8555_UART1_DSR_PA;
++
++#define ONBOARD_V1_AUX_DCD_IRQ  	MPC8555_UART1_DCD_IRQ
++#define ONBOARD_V1_AUX_DTR_PA	MPC8555_UART1_DTR_PA
++#define ONBOARD_V1_AUX_DCD_PC	MPC8555_UART1_DCD_PC
++#define ONBOARD_V1_AUX_DSR_PA	MPC8555_UART1_DSR_PA
++
++#define ONBOARD_V1_AUX_LINE		1
++#define ONBOARD_V1_AUX_MEMBASE	0x0
++
++static int debv1_get_aux_dsr(void);
++static int debv1_get_aux_dcd(void);
++static int debv1_get_aux_ri(void);
++static int debv1_get_aux_dtr(void);
++static void debv1_set_aux_dtr(int);
++static int debv1_get_aux_ddcd(void);
++static void debv1_set_aux_ddcd(void);
++//static irqreturn_t debv1_aux_dcd_interrupt(int irq, void *dev_id, struct pt_regs * regs);
++
++/* this ddcd_save is 1 means _DCD changed since last read UMSR */
++static unsigned long debv1_umsr_ddcd_save = 0;
++
++/* this irq_enabled_save is 1 means ONBOARD_V1_AUX_DCD_IRQ is already enabled  */
++static unsigned long debv1_aux_dcd_irq_save = 0;
++
++#define ONBOARD_V1_UMSR_DSR 		((0 == debv1_get_aux_dsr()) ? 1 : 0)
++#define ONBOARD_V1_UMSR_DCD 		((0 == debv1_get_aux_dcd()) ? 1 : 0)
++#define ONBOARD_V1_UMSR_RI  		((0 == debv1_get_aux_ri()) ? 1 : 0)
++#define ONBOARD_V1_UMSR_DDCD		((0 == debv1_get_aux_ddcd()) ? 0 : 1)
++
++#define ONBOARD_V1_UMCR_DTR 		((0 == debv1_get_aux_dtr()) ? 1 : 0)
++
++#define ONBOARD_V1_UMCR_SET_DTR(value) 	debv1_set_aux_dtr((0 == value) ? 1 : 0)
++
++/* return 1 if _DSR pin is high, ow return 0,
++ * this _DSR pin is similar to UMSR[DSR] just
++ * without inverting pin _DSR.
++ *
++ * NOTE:  So we have to deal with this invertion.
++ * 
++ */
++static inline int debv1_get_aux_dsr(void)
++{
++	volatile cpm2_map_t *immap = cpm2_immr;
++	volatile iop_cpm2_t *iop = &immap->im_ioport;
++	bd_t *bd = (bd_t *)__res;
++
++	if (!MPC8555_UART1_DSR_PA) {
++		if (bd->board_ver_rev == 0x01) /* 1st spin */
++			MPC8555_UART1_DSR_PA = CPM_PA_31;
++		else if (bd->board_ver_rev >= 0x02) /* 2nd spin and later on */
++			MPC8555_UART1_DSR_PA = CPM_PA_20;
++	}
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, iop->iop_pdata & ONBOARD_V1_AUX_DSR_PA);
++	return (iop->iop_pdata & ONBOARD_V1_AUX_DSR_PA);
++}
++
++/* return 1 if _DCD pin is high, ow return 0,
++ * this _DCD pin is similar to UMSR[DCD] just
++ * without inverting pin _DCD.
++ * 
++ * NOTE:  So we have to deal with this invertion.
++ * 
++ */
++static inline int debv1_get_aux_dcd(void)
++{
++	volatile cpm2_map_t *immap = cpm2_immr;
++	volatile iop_cpm2_t *iop = &immap->im_ioport;
++
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, iop->iop_pdatc & ONBOARD_V1_AUX_DCD_PC);
++	return (iop->iop_pdatc & ONBOARD_V1_AUX_DCD_PC);
++}
++
++/*
++ * we don't implement this _RI pin, just return the
++ * inactive value, which is 1. Like UMSR[RI] just
++ * without inverting pin _RI.
++ * 
++ * NOTE:  So we have to deal with this invertion.
++ * 
++ */
++static inline int debv1_get_aux_ri(void)
++{
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, 1);
++	return 1;
++}
++
++/* return 1 if _DTR pin is high, ow return 0,
++ * this _DTR pin is similar to UMCR[DTR] just
++ * without inverting pin _DTR.
++ * 
++ * NOTE:  So we have to deal with this invertion.
++ * 
++ */
++static inline int debv1_get_aux_dtr(void)
++{
++	volatile cpm2_map_t *immap = cpm2_immr;
++	volatile iop_cpm2_t *iop = &immap->im_ioport;
++	bd_t *bd = (bd_t *)__res;
++
++	if (!MPC8555_UART1_DTR_PA) {
++		if (bd->board_ver_rev == 0x01) /* 1st spin */
++			MPC8555_UART1_DTR_PA = CPM_PA_22;
++		else if (bd->board_ver_rev >= 0x02) /* 2nd spin and later on */
++			MPC8555_UART1_DTR_PA = CPM_PA_13;
++	}
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, iop->iop_pdata & ONBOARD_V1_AUX_DTR_PA);
++	return (iop->iop_pdata & ONBOARD_V1_AUX_DTR_PA);
++}
++
++/*
++ * output to _DTR pin according to input value,
++ * output high if value==1,
++ * output low  if value==0.
++ * this _DTR pin is similar to UMCR[DTR] just
++ * without inverting pin _DTR.
++ * 
++ * NOTE:  So we have to deal with this invertion.
++ * 
++ */
++static inline void debv1_set_aux_dtr(int value)
++{
++	volatile cpm2_map_t *immap = cpm2_immr;
++	volatile iop_cpm2_t *iop = &immap->im_ioport;
++	unsigned long tmp;
++	bd_t *bd = (bd_t *)__res;
++
++	if (!MPC8555_UART1_DTR_PA) {
++		if (bd->board_ver_rev == 0x01) /* 1st spin */
++			MPC8555_UART1_DTR_PA = CPM_PA_22;
++		else if (bd->board_ver_rev >= 0x02) /* 2nd spin and later on */
++			MPC8555_UART1_DTR_PA = CPM_PA_13;
++	}
++	if (value)
++		iop->iop_pdata |=  (ONBOARD_V1_AUX_DTR_PA);
++	else
++		iop->iop_pdata &= ~(ONBOARD_V1_AUX_DTR_PA);
++
++	/* to ensure set value really done, two more steps: */
++	tmp = iop->iop_pdata;
++	asm("sync");
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, value);
++}
++
++/*
++ * use ddcd_save, So no invertion needed.
++ *   return 1 if _DCD changed since last read UMSR,
++ *   return 0 if not.
++ */
++static inline int debv1_get_aux_ddcd(void)
++{
++	int tmp;
++
++	tmp = test_and_clear_bit(0, &debv1_umsr_ddcd_save);
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, tmp);
++
++	return tmp;
++}
++
++static inline void debv1_set_aux_ddcd(void)
++{
++	/* manually assert DDCD */
++	set_bit(0, &debv1_umsr_ddcd_save);
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, 1);
++}
++
++#if 0
++static irqreturn_t debv1_aux_dcd_interrupt(int irq, void *dev_id, struct pt_regs * regs)
++{
++	struct uart_8250_port *up;
++	int aux_irq;
++
++	/*
++	 * We know in advance, when this irq happens, its up
++	 * is from IRQ_ports[AUX_irq]
++	 */
++	aux_irq = rs_table[ONBOARD_V1_AUX_LINE].irq;
++	up = IRQ_ports[aux_irq];
++
++	if (!up || !up->port.info || !up->port.info->tty)
++		return IRQ_NONE;
++	
++	/* wait for 10us to let CPM pin value become stable */
++	udelay(10);
++
++	/* manually assert DDCD */
++	ONBOARD_V1_UMSR_SET_DDCD();
++
++	ONBOARD_V1_AUX_DBG(KERN_INFO "%s %d\n", __FUNCTION__, 1);
++	check_modem_status(up);
++	
++	return IRQ_HANDLED;
++}
++#endif
++	
++#endif /* CONFIG_ONBOARD_V1 */
++/*
++ * End of mpc85xx ONBOARD_V1 hacking
++ ****************************************************************/
++
+ static unsigned int serial_in(struct uart_8250_port *up, int offset)
+ {
+ 	offset = map_8250_in_reg(up, offset) << up->port.regshift;
+@@ -319,7 +552,49 @@ static unsigned int serial_in(struct uar
+ #endif
+ 
+ 	default:
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++		{
++			/* MPC85xx ONBOARD_V1 AUX hacking */
++			unsigned int tmp;
++
++			/* manually assert DDCD? */
++			if (up->port.membase == ONBOARD_V1_AUX_MEMBASE && offset == UART_MSR) {
++				/* wait for 10us to let CPM pin value become stable */
++				udelay(10);
++
++				debv1_set_aux_ddcd();
++			}
++
++			tmp = inb(up->port.iobase + offset);
++			
++			/* only UART1 as AUX port needs hacking */
++			printk("up->port.membase is %p.\n", up->port.membase);
++			if (up->port.membase == ONBOARD_V1_AUX_MEMBASE) {
++				switch (offset) {
++				case UART_MSR:
++					ONBOARD_V1_AUX_DBG(KERN_INFO "serial_in() AUX UART_MSR\n");
++					tmp |= (((ONBOARD_V1_UMSR_DCD==0)  ? 0 : (UART_MSR_DCD)) |
++						((ONBOARD_V1_UMSR_DSR==0)  ? 0 : (UART_MSR_DSR)) |
++						((ONBOARD_V1_UMSR_RI==0)  ? 0 : (UART_MSR_RI)) |
++						((ONBOARD_V1_UMSR_DDCD==0) ? 0 : (UART_MSR_DDCD)));
++					break;
++				case UART_MCR:
++					ONBOARD_V1_AUX_DBG(KERN_INFO "serial_in() AUX UART_MCR\n");
++					tmp |= (((ONBOARD_V1_UMCR_DTR==0)  ? 0 : (UART_MCR_DTR)));
++					break;
++				case UART_IER:
++					break;
++				case UART_IIR:
++					break;
++				default:
++					break;
++				}
++			}
++			return tmp;
++		}
++#else
+ 		return inb(up->port.iobase + offset);
++#endif
+ 	}
+ }
+ 
+@@ -349,7 +624,53 @@ serial_out(struct uart_8250_port *up, in
+ #endif
+ 
+ 	default:
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++		{
++			/* MPC85xx ONBOARD_V1 AUX hacking */
++
++			/* only UART1 as AUX port needs hacking */
++			if (up->port.membase == ONBOARD_V1_AUX_MEMBASE) {
++				switch(offset) {
++				case UART_MCR:
++					ONBOARD_V1_AUX_DBG(KERN_INFO "serial_out() AUX UART_MCR\n");
++					ONBOARD_V1_UMCR_SET_DTR((value & UART_MCR_DTR) ? 1 : 0);
++					break;
++				case UART_IER:
++					if (value & UART_IER_MSI) {
++						/*
++						 * we must only call enable_irq() and disable_irq_nosync() once
++						 * before the other is called. So we need to maintain our boolean
++						 * variable for this purpose.
++						 *
++						 * The reason for such extra task is that: UIER register's MSI bit
++						 * can be set/reset multiple times, and only the last time updating
++						 * matters. While *_irq() pair APIs remember the number of calls,
++						 * only the number of each call match, the irq state is updated. So
++						 * UIER to *_irq() is like local_irq_enable/disable() to
++						 * local_irq_save/restore(flags).
++						 */
++						if (!test_and_set_bit(0, &debv1_aux_dcd_irq_save)) {
++							ONBOARD_V1_AUX_DBG(KERN_INFO "serial_out() AUX UART_IER, MODEM status change INT - Enabled\n");
++							enable_irq(ONBOARD_V1_AUX_DCD_IRQ);
++						}
++					} else {
++						if (test_and_clear_bit(0, &debv1_aux_dcd_irq_save)) {
++							ONBOARD_V1_AUX_DBG(KERN_INFO "serial_out() AUX UART_IER, MODEM status change INT - Disabled\n");
++							disable_irq_nosync(ONBOARD_V1_AUX_DCD_IRQ);
++						}
++					}
++					break;
++				default:
++					break;
++				}
++			}
++			outb(value, (unsigned long) up->port.membase +
++			 		(offset<<up->port.regshift));
++			break;
++		}
++#else
+ 		outb(value, up->port.iobase + offset);
++#endif
+ 	}
+ }
+ 
+@@ -1643,6 +1964,36 @@ static int serial8250_startup(struct uar
+ 			return retval;
+ 	}
+ 
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++	/*
++	 * MPC85xx ONBOARD_V1 AUX hacking.
++	 * We need to request another irq for _DCD through
++	 * CPM PC29.
++	 * 
++	 */
++
++	/* only UART1 as AUX port needs hacking */
++	printk("up->port.membase == %p.\n", up->port.membase);
++#if 0
++	if (up->port.membase == ONBOARD_V1_AUX_MEMBASE) {
++		ONBOARD_V1_AUX_DBG(KERN_INFO "%s AUX request_irq %d\n", __FUNCTION__, ONBOARD_V1_AUX_DCD_IRQ);
++		retval = request_irq(ONBOARD_V1_AUX_DCD_IRQ, debv1_aux_dcd_interrupt, SA_INTERRUPT,
++				     "ONBOARD_V1_AUX_DCD", NULL);
++		if (retval) {
++			if (capable(CAP_SYS_ADMIN)) {
++				if (up->port.info->tty)
++					set_bit(TTY_IO_ERROR,
++						&up->port.info->tty->flags);
++				retval = 0;
++			}
++			printk(KERN_WARNING "Failed on request IRQ for AUX port DCD\n");
++			return retval;
++		}
++		set_bit(0, &debv1_aux_dcd_irq_save);
++	}
++#endif
++#endif
++
+ 	/*
+ 	 * Now, initialize the UART
+ 	 */
+@@ -1756,6 +2107,22 @@ static void serial8250_shutdown(struct u
+ 		del_timer_sync(&up->timer);
+ 	else
+ 		serial_unlink_irq_chain(up);
++
++#ifdef CONFIG_ALTERPATH_ONBOARD_V1
++	/*
++	 * MPC85xx ONBOARD_V1 AUX hacking.
++	 * We need to free another irq for _DCD through
++	 * CPM PC29.
++	 * 
++	 */
++
++	/* only UART1 as AUX port needs hacking */
++	if (up->port.membase == ONBOARD_V1_AUX_MEMBASE) {
++		ONBOARD_V1_AUX_DBG(KERN_INFO "%s AUX free_irq %d\n", __FUNCTION__, ONBOARD_V1_AUX_DCD_IRQ);
++		clear_bit(0, &debv1_aux_dcd_irq_save);
++		free_irq(ONBOARD_V1_AUX_DCD_IRQ, NULL);
++	}
++#endif
+ }
+ 
+ static unsigned int serial8250_get_divisor(struct uart_port *port, unsigned int baud)
+diff -ruNp linux-2.6.16/drivers/serial/serial_cs.c misc_drivers/drivers/serial/serial_cs.c
+--- linux-2.6.16/drivers/serial/serial_cs.c	2006-03-20 17:07:21.000000000 +1000
++++ misc_drivers/drivers/serial/serial_cs.c	2006-04-10 12:04:08.000000000 +1000
+@@ -285,7 +285,7 @@ static int setup_serial(client_handle_t 
+ 	}
+ 
+ 	info->line[info->ndev] = line;
+-	sprintf(info->node[info->ndev].dev_name, "ttyS%d", line);
++	sprintf(info->node[info->ndev].dev_name, "ttyM%d", line);
+ 	info->node[info->ndev].major = TTY_MAJOR;
+ 	info->node[info->ndev].minor = 0x40 + line;
+ 	if (info->ndev > 0)

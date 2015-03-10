@@ -1,0 +1,505 @@
+Index: linux-2.6-denx/arch/ppc/Kconfig
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/Kconfig	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/arch/ppc/Kconfig	2008-10-31 19:05:48.000000000 -0700
+@@ -262,6 +262,11 @@
+ 	  In the GameCube implementation, kexec allows you to load and
+ 	  run DOL files, including kernel and homebrew DOLs.
+ 
++config AVOCENT_GSP
++	bool
++	depends on GOLDENGATE || SHASTA
++	default y
++
+ source "drivers/cpufreq/Kconfig"
+ 
+ config PPC601_SYNC_FIX
+Index: linux-2.6-denx/arch/ppc/Makefile
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/Makefile	2008-10-31 19:05:47.000000000 -0700
++++ linux-2.6-denx/arch/ppc/Makefile	2008-10-31 19:05:48.000000000 -0700
+@@ -79,7 +79,7 @@
+ 
+ PHONY += $(BOOT_TARGETS)
+ 
+-all: uImage zImage
++all: uImage avoImage zImage
+ 
+ CPPFLAGS_vmlinux.lds	:= -Upowerpc
+ 
+@@ -97,9 +97,16 @@
+ uImage.initrd:
+ 	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
+ 
++avoImage: vmlinux
++	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
++
++avoImage.initrd:
++	$(Q)$(MAKE) $(build)=$(boot)/images $(boot)/images/$@
++
+ define archhelp
+   @echo '* zImage          - Compressed kernel image (arch/$(ARCH)/boot/images/zImage.*)'
+   @echo '  uImage          - Create a bootable image for U-Boot / PPCBoot'
++  @echo '  avoImage        - Create an Avocent bootable image'
+   @echo '  install         - Install kernel using'
+   @echo '                    (your) ~/bin/installkernel or'
+   @echo '                    (distribution) /sbin/installkernel or'
+Index: linux-2.6-denx/include/asm-ppc/ppcboot.h
+===================================================================
+--- linux-2.6-denx.orig/include/asm-ppc/ppcboot.h	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/include/asm-ppc/ppcboot.h	2008-10-31 19:05:48.000000000 -0700
+@@ -86,6 +86,13 @@
+ 	/* fourth onboard ethernet ports */
+ 	unsigned char	bi_enet3addr[6];
+ #endif
++#ifdef CONFIG_AVOCENT_GSP
++       unsigned char   wdt;
++       unsigned char   mii_operation[2];
++       unsigned short  family;
++       unsigned char   serialnb[6];
++       unsigned char   oem;
++#endif
+ #if defined(CONFIG_4xx)
+ 	unsigned int	bi_opbfreq;		/* OB clock in Hz */
+ 	int		bi_iic_fast[2];		/* Use fast i2c mode */
+Index: linux-2.6-denx/arch/ppc/boot/images/Makefile
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/boot/images/Makefile	2008-10-31 19:05:47.000000000 -0700
++++ linux-2.6-denx/arch/ppc/boot/images/Makefile	2008-10-31 19:05:48.000000000 -0700
+@@ -3,6 +3,8 @@
+ # Tom Rini	January 2001
+ 
+ MKIMAGE		:= $(srctree)/scripts/mkuboot.sh
++MKAVOKERNEL	:= $(srctree)/scripts/mkavokernel.sh
++MKAVOIMAGE	:= $(srctree)/scripts/mkavoimage.sh
+ 
+ extra-y		:= vmlinux.bin vmlinux.gz
+ 
+@@ -43,5 +45,26 @@
+ 	@echo -n '  Image: $@ '
+ 	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
+ 
++quiet_cmd_avoimage = AVOIMAGE  $@
++      cmd_avoimage = $(CONFIG_SHELL) $(MKAVOKERNEL) $< $@
++
++targets += avoImage
++$(obj)/avoImage: $(obj)/vmlinux.gz
++	$(Q)rm -f $@
++	$(call cmd,avoimage)
++	@echo -n '  Image: $@ '
++	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
++
++quiet_cmd_avoimage.initrd = AVOIMAGE.INITRD  $@
++	cmd_avoimage.initrd = $(CONFIG_SHELL) $(MKAVOIMAGE) $< \
++		$(obj)/ramdisk.image.gz $(obj)/u-boot.bin $@ $(obj)/header
++
++targets += avoImage.initrd
++$(obj)/avoImage.initrd: $(obj)/vmlinux.gz $(obj)/ramdisk.image.gz $(obj)/u-boot.bin $(obj)/header
++	$(Q)rm -f $@
++	$(call if_changed,avoimage.initrd)
++	@echo -n '  Image: $@ '
++	@if [ -f $@ ]; then echo 'is ready' ; else echo 'not made'; fi
++
+ # Files generated that shall be removed upon make clean
+-clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage*
++clean-files	:= sImage vmapus vmlinux* miboot* zImage* uImage* avoImage*
+Index: linux-2.6-denx/scripts/mkavoimage.sh
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6-denx/scripts/mkavoimage.sh	2008-10-31 19:05:48.000000000 -0700
+@@ -0,0 +1,25 @@
++#!/bin/bash
++
++#
++# Build U-Boot image when `mkimage' tool is available.
++#
++
++MKAVOIMAGE=$(type -path flash2x)
++
++if [ -z "${MKAVOIMAGE}" ]; then
++	# Doesn't exist
++	echo '"flash2x" command not found - Avocent image will not be built' >&2
++	exit 0;
++fi
++
++# Build the command file
++CMDFILE=cmdfile
++echo K $1 > ${CMDFILE}
++echo F $2 >> ${CMDFILE}
++echo R $3 >> ${CMDFILE}
++echo O $4 >> ${CMDFILE}
++cat $5 >> ${CMDFILE}
++
++${MKAVOIMAGE} ${CMDFILE}
++
++#rm -f ${CMDFILE}
+Index: linux-2.6-denx/scripts/mkavokernel.sh
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6-denx/scripts/mkavokernel.sh	2008-10-31 19:05:48.000000000 -0700
+@@ -0,0 +1,16 @@
++#!/bin/bash
++
++#
++# Build Avocent-encapsulated kernel when `kernelhdr' tool is available.
++#
++
++MKAVOKERNEL=$(type -path kernelhdr)
++
++if [ -z "${MKAVOKERNEL}" ]; then
++	# Doesn't exist
++	echo '"kernelhdr" command not found - U-Boot images will not be built' >&2
++	exit 0;
++fi
++
++# Call "mkimage" to create U-Boot image
++${MKAVOKERNEL} "$@"
+Index: linux-2.6-denx/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6-denx/arch/ppc/platforms/gsp-sysctl.c	2008-10-31 19:29:22.000000000 -0700
+@@ -0,0 +1,291 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/fs.h>
++#include <linux/delay.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++#include <asm/ppcboot.h>
++
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#include "4xx/goldengate-sysctl.c"
++#endif
++
++extern bd_t __res;
++
++static int proc_handle_mac(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[19];
++	unsigned char *mac;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		if (table->data) {
++			mac = __res.bi_enet1addr;
++		} else {
++			mac = __res.bi_enetaddr;
++		}
++		memset(string, 0, 18);
++		sprintf(string, "%02X:%02X:%02X:%02X:%02X:%02X",
++			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
++		if (copy_to_user(buffer, string, 18)) {
++			return -EFAULT;
++		}
++		*lenp = 18;
++		*ppos += 18;
++	}
++	return 0;
++}
++
++static int proc_handle_serial(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[11] ;
++	unsigned char *serial = __res.serialnb;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, 11);
++		sprintf(string, "%02X%02X%02X%02X%02X",
++			serial[0], serial[1], serial[2],
++			serial[3], serial[4]);
++		if (copy_to_user(buffer, string, 11)) {
++			return -EFAULT;
++		}
++		*lenp = 11;
++		*ppos += 11;
++	}
++	return 0;
++}
++
++static int proc_handle_family(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int)] ;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, sizeof(int));
++		snprintf(string, sizeof(int), "%d", __res.family);
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static struct ctl_table bdinfo_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "mac1",
++		.maxlen = 18,
++		.data = (void *)0,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "mac2",
++		.maxlen = 18,
++		.data = (void *)1,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "serial#",
++		.maxlen = 11,
++		.mode = 0644,
++		.proc_handler = &proc_handle_serial,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "family",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_family,
++	},
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "ports",
++               .maxlen = sizeof(int),
++               .mode = 0644,
++               .proc_handler = &proc_handle_ports,
++       },
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "modem",
++               .maxlen = sizeof(int),
++               .mode = 0644,
++               .proc_handler = &proc_handle_modem,
++       },
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "aux",
++               .maxlen = sizeof(int),
++               .mode = 0644,
++               .proc_handler = &proc_handle_aux,
++       },
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "power",
++               .maxlen = sizeof(int),
++               .mode = 0644,
++               .proc_handler = &proc_handle_power,
++       },
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "fpgaver",
++               .maxlen = 6,
++               .mode = 0644,
++               .proc_handler = &proc_handle_fpgaver,
++       },
++       {
++               .ctl_name = CTL_UNNUMBERED,
++               .procname = "oem",
++               .maxlen = sizeof(int),
++               .mode = 0644,
++               .proc_handler = &proc_handle_oem,
++       },
++#endif
++	{0}
++};
++
++extern int watchdog_config;
++
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++#ifdef CONFIG_BOOKE
++	unsigned long aux;
++	int val;
++#endif
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++#ifdef CONFIG_BOOKE
++	aux = mfspr(SPRN_TSR);
++#endif
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++#ifdef CONFIG_BOOKE
++		if (sscanf(string, "%d", &val) && val > 0 && val < 4) {
++			aux = (aux & ~(3<<30)) | (val<<30);
++			mtspr(SPRN_TSR, aux);
++		}
++#endif
++	} else {
++		memset(string, 0, sizeof(int));
++#ifdef CONFIG_BOOKE
++		snprintf(string, sizeof(int), "%d", (int)(aux >> 30));
++#endif
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "control",
++		.data = &watchdog_config,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_dointvec,
++	},
++	{
++		.ctl_name = CTL_UNNUMBERED,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_wdt,
++	},
++	{0}
++};
++
++static struct ctl_table avocent_dir_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++                .procname = "bdinfo",
++                .mode = 0555,
++                .child = bdinfo_dir_table,
++        },
++	{
++		.ctl_name = CTL_UNNUMBERED,
++                .procname = "board",
++                .mode = 0555,
++                .child = board_dir_table,
++        },
++	{
++		.ctl_name = CTL_UNNUMBERED,
++                .procname = "wdt",
++                .mode = 0555,
++                .child = wdt_dir_table,
++        },
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++#ifdef MII_TEST
++       {
++               .ctl_name = CTL_UNNUMBERED,
++                .procname = "mii",
++               .maxlen = 10,
++                .mode = 0644,
++                .proc_handler = proc_handle_mii,
++        },
++#endif
++#endif
++        {0}
++};
++
++static struct ctl_table avocent_table[] =
++{
++	{
++		.ctl_name = CTL_UNNUMBERED,
++                .procname = "avocent",
++                .mode = 0555,
++                .child = avocent_dir_table,
++        },
++        {0}
++};
++
++static int __init gsp_avocent_init(void)
++{
++	printk("sysctl initialization\n");
++
++#if defined(CONFIG_GOLDENGATE) || defined(CONFIG_SHASTA)
++	if (__res.oem != 0) {
++		while (1) {
++			printk("    ERROR : The current image does not run on this board : ERROR\n");
++			ssleep(5);
++		}
++	}
++ 	goldengate_sysctl_init();
++#endif
++	register_sysctl_table(avocent_table);
++	return 0;
++}
++
++__initcall(gsp_avocent_init);
+Index: linux-2.6-denx/arch/ppc/platforms/Makefile
+===================================================================
+--- linux-2.6-denx.orig/arch/ppc/platforms/Makefile	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/arch/ppc/platforms/Makefile	2008-10-31 19:05:48.000000000 -0700
+@@ -31,3 +31,4 @@
+ obj-$(CONFIG_MPC885ADS)		+= mpc885ads_setup.o
+ obj-$(CONFIG_ADS8272)		+= mpc8272ads_setup.o
+ obj-$(CONFIG_TQM8272)		+= tqm8272_setup.o
++obj-$(CONFIG_AVOCENT_GSP)      += gsp-sysctl.o
+Index: linux-2.6-denx/init/main.c
+===================================================================
+--- linux-2.6-denx.orig/init/main.c	2008-02-21 03:17:04.000000000 -0800
++++ linux-2.6-denx/init/main.c	2008-10-31 19:30:01.000000000 -0700
+@@ -69,6 +69,10 @@
+ #include <asm/smp.h>
+ #endif
+ 
++#include <asm-ppc/ppcboot.h>
++
++extern bd_t __res;	/* board info structure defined in /include/asm-ppc/ppcboot.h */
++
+ /*
+  * This is one of the first .c files built. Error out early if we have compiler
+  * trouble.
+@@ -407,6 +411,18 @@
+ 
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++static void __init process_oem_info(void)
++{
++	__res.oem = 0; //indicates Avocent brand
++
++	if (strstr(boot_command_line, "OEM")) {
++		//shouldn't have any OEM reference
++		__res.oem = 9;
++	}
++}
++#endif
++
+ /*
+  * We need to store the untouched command line for future reference.
+  * We also need to store the touched command line since the parameter
+@@ -415,6 +431,9 @@
+  */
+ static void __init setup_command_line(char *command_line)
+ {
++#ifdef CONFIG_AVOCENT_GSP
++	process_oem_info();
++#endif
+ 	saved_command_line = alloc_bootmem(strlen (boot_command_line)+1);
+ 	static_command_line = alloc_bootmem(strlen (command_line)+1);
+ 	strcpy (saved_command_line, boot_command_line);

@@ -1,0 +1,20 @@
+Index: curl-7.19.0/configure.ac
+===================================================================
+--- curl-7.19.0.orig/configure.ac	2008-10-30 16:30:29.000000000 -0700
++++ curl-7.19.0/configure.ac	2008-10-30 17:08:51.000000000 -0700
+@@ -1375,6 +1375,7 @@
+     ])
+   fi
+ 
++  if test "$cross_compiling" = no; then
+   if test "$OPENSSL_ENABLED" = "1"; then
+     if test -n "$LIB_OPENSSL"; then
+        dnl when the ssl shared libs were found in a path that the run-time
+@@ -1386,6 +1387,7 @@
+        AC_MSG_NOTICE([Added $LIB_OPENSSL to LD_LIBRARY_PATH])
+     fi
+   fi
++  fi
+ 
+ fi
+ 

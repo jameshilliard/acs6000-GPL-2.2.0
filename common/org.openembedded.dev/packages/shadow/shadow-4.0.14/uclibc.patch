@@ -1,0 +1,101 @@
+diff -burN shadow-4.0.15/configure.in shadow-4.0.15.new/configure.in
+--- shadow-4.0.15/configure.in	2006-03-12 10:52:43.000000000 -0800
++++ shadow-4.0.15.new/configure.in	2006-05-04 16:02:01.000000000 -0700
+@@ -108,6 +108,8 @@
+ AC_REPLACE_FUNCS(sgetgrent sgetpwent sgetspent)
+ AC_REPLACE_FUNCS(snprintf strcasecmp strdup strerror strstr)
+ 
++dnl cannot check setpgrp if we are cross-compiling
++if test -z "$CC"; then
+ AC_CHECK_FUNC(setpgrp)
+ AC_FUNC_SETPGRP
+ 
+@@ -133,6 +135,7 @@
+ 		AC_DEFINE(HAVE_SHADOWGRP, 1, [Have working shadow group support in libc])
+ 	fi
+ fi
++fi
+ 
+ AC_CACHE_CHECK([location of shared mail directory], shadow_cv_maildir,
+ [for shadow_cv_maildir in /var/mail /var/spool/mail /usr/spool/mail /usr/mail none; do
+diff -burN shadow-4.0.15/libmisc/Makefile.am shadow-4.0.15.new/libmisc/Makefile.am
+--- shadow-4.0.15/libmisc/Makefile.am	2005-09-05 09:21:37.000000000 -0700
++++ shadow-4.0.15.new/libmisc/Makefile.am	2006-05-04 16:01:22.000000000 -0700
+@@ -49,4 +49,5 @@
+ 	ulimit.c \
+ 	utmp.c \
+ 	valid.c \
+-	xmalloc.c
++	xmalloc.c \
++	l64a.c
+diff -burN shadow-4.0.15/libmisc/l64a.c shadow-4.0.15.new/libmisc/l64a.c
+--- shadow-4.0.15/libmisc/l64a.c	1969-12-31 16:00:00.000000000 -0800
++++ shadow-4.0.15.new/libmisc/l64a.c	2006-05-04 16:01:22.000000000 -0700
+@@ -0,0 +1,45 @@
++/*
++ * Written by J.T. Conklin <jtc at NetBSD.org>.
++ * Public domain.
++ */
++
++#include <sys/cdefs.h>
++
++#include <stdlib.h>
++
++#define	ADOT	46		/* ASCII '.' */
++#define	ASLASH	ADOT + 1	/* ASCII '/' */
++#define	A0	48		/* ASCII '0' */
++#define	AA	65		/* ASCII 'A' */
++#define	Aa	97		/* ASCII 'a' */
++
++char *
++l64a(long value)
++{
++	static char buf[8];
++
++	(void)l64a_r(value, buf, sizeof(buf));
++	return (buf);
++}
++
++int
++l64a_r(long value, char *buffer, int buflen)
++{
++	long v;
++	int digit;
++
++	v = value & (long)0xffffffff;
++	for (; v != 0 && buflen > 1; buffer++, buflen--) {
++		digit = v & 0x3f;
++		if (digit < 2)
++			*buffer = digit + ADOT;
++		else if (digit < 12)
++			*buffer = digit + A0 - 2;
++		else if (digit < 38)
++			*buffer = digit + AA - 12;
++		else
++			*buffer = digit + Aa - 38;
++		v >>= 6;
++	}
++	return (v == 0 ? 0 : -1);
++}
+diff -burN shadow-4.0.15/src/login_nopam.c shadow-4.0.15.new/src/login_nopam.c
+--- shadow-4.0.15/src/login_nopam.c	2005-09-07 08:00:45.000000000 -0700
++++ shadow-4.0.15.new/src/login_nopam.c	2006-05-04 16:01:22.000000000 -0700
+@@ -182,6 +182,7 @@
+ static int
+ netgroup_match (const char *group, const char *machine, const char *user)
+ {
++#ifdef NIS
+ 	static char *mydomain = 0;
+ 
+ 	if (mydomain == 0) {
+@@ -192,6 +193,10 @@
+ 	}
+ 
+ 	return innetgr (group, machine, user, mydomain);
++#else
++    syslog(LOG_ERR, "(shadow/login): NIS netgroup support not available with uClibc.");
++    return(NO);
++#endif
+ }
+ 
+ /* user_match - match a username against one token */

@@ -1,0 +1,80 @@
+Index: linux-2.6.19/drivers/net/ibm_emac/ibm_emac_core.c
+===================================================================
+--- linux-2.6.19.orig/drivers/net/ibm_emac/ibm_emac_core.c	2007-12-12 16:55:51.000000000 -0800
++++ linux-2.6.19/drivers/net/ibm_emac/ibm_emac_core.c	2007-12-12 17:01:43.000000000 -0800
+@@ -46,6 +46,10 @@
+ #include "ibm_emac_core.h"
+ #include "ibm_emac_debug.h"
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#include <asm/ppcboot.h>
++extern bd_t __res;
++#endif
+ /*
+  * Lack of dma_unmap_???? calls is intentional.
+  *
+@@ -2144,6 +2148,7 @@
+ 		dev->phy.def->features &= ~emacdata->phy_feat_exc;
+ 
+ 		/* Setup initial link parameters */
++#ifndef CONFIG_AVOCENT_GSP
+ 		if (dev->phy.features & SUPPORTED_Autoneg) {
+ 			adv = dev->phy.features;
+ #if !defined(CONFIG_40x)
+@@ -2171,7 +2176,56 @@
+ 
+ 			/* Force link parameters */
+ 			dev->phy.def->ops->setup_forced(&dev->phy, speed, fd);
++#else
++		switch (__res.mii_operation[ocpdev->def->index]) {
++		case 0:
++			adv = dev->phy.features;
++#if !defined(CONFIG_40x)
++			adv |= ADVERTISED_Pause | ADVERTISED_Asym_Pause;
++#endif
++			/* Restart autonegotiation */
++			dev->phy.def->ops->setup_aneg(&dev->phy, adv);
++			break;
++		case 1:
++			adv = dev->phy.features & 
++				~(ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | 
++				  ADVERTISED_100baseT_Half | ADVERTISED_100baseT_Full | 
++				  ADVERTISED_1000baseT_Half);
++#if !defined(CONFIG_40x)
++			adv |= ADVERTISED_Pause | ADVERTISED_Asym_Pause;
++#endif
++			/* Restart autonegotiation */
++			dev->phy.def->ops->setup_aneg(&dev->phy, adv);
++			break;
++		case 2:
++			adv = dev->phy.features & 
++				~(ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | 
++				  ADVERTISED_100baseT_Half | ADVERTISED_100baseT_Full | 
++				  ADVERTISED_1000baseT_Full);
++#if !defined(CONFIG_40x)
++			adv |= ADVERTISED_Pause | ADVERTISED_Asym_Pause;
++#endif
++			/* Restart autonegotiation */
++			dev->phy.def->ops->setup_aneg(&dev->phy, adv);
++			break;
++		case 3:
++			dev->phy.def->ops->setup_forced(&dev->phy, SPEED_100,
++				DUPLEX_FULL);
++			break;
++		case 4:
++			dev->phy.def->ops->setup_forced(&dev->phy, SPEED_100,
++				DUPLEX_HALF);
++			break;
++		case 5:
++			dev->phy.def->ops->setup_forced(&dev->phy, SPEED_10,
++				DUPLEX_FULL);
++			break;
++		case 6:
++			dev->phy.def->ops->setup_forced(&dev->phy, SPEED_10,
++				DUPLEX_HALF);
++			break;
+ 		}
++#endif
+ 	} else {
+ 		emac_reset(dev);
+ 

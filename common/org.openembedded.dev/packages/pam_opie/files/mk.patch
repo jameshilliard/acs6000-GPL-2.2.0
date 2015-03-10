@@ -1,0 +1,50 @@
+diff -Naupr pam_opie/Makefile pam_opie.new/Makefile
+--- pam_opie/Makefile	1998-05-26 23:13:40.000000000 -0400
++++ pam_opie.new/Makefile	2007-06-20 16:33:25.000000000 -0400
+@@ -22,21 +22,21 @@
+ 
+ ifndef FULL_LINUX_PAM_SOURCE_TREE
+ export DYNAMIC=-DPAM_DYNAMIC
+-export CC=gcc
+-export CFLAGS=-O2 -Dlinux -DLINUX_PAM \
++#export CC=gcc
++CFLAGS +=-O2 -Dlinux -DLINUX_PAM \
+        -ansi -D_POSIX_SOURCE -Wall -Wwrite-strings \
+        -Wpointer-arith -Wcast-qual -Wcast-align -Wtraditional \
+        -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs -Winline \
+        -Wshadow -pedantic -fPIC
+ export MKDIR=mkdir -p
+-export LD_D=gcc -shared -Xlinker -x
++export LD_D=-shared -Xlinker -x
+ export SECUREDIR=/lib/security
+ export INSTALL=install
+ endif
+ 
+ TITLE=pam_opie
+ 
+-OPIELIB = -Llibopie -lopie -lc
++OPIELIB = $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -Llibopie -lopie -lc
+ OPIE = libopie/libopie.a
+ 
+ LIBSRC = $(TITLE).c
+@@ -80,7 +80,7 @@ ifdef DYNAMIC
+ $(LIBOBJD): $(LIBSRC)
+ 
+ $(LIBSHARED):	$(LIBOBJD) $(OPIE)
+-		$(LD_D) -o $@ $(LIBOBJD) $(OPIELIB)
++		$(CC) $(LD_D) -o $@ $(LIBOBJD) $(OPIELIB)
+ endif
+ 
+ ifdef STATIC
+diff -u -r pam_opie/libopie/Makefile pam_opie+/libopie/Makefile
+--- pam_opie/libopie/Makefile   1998-05-26 20:08:50.000000000 -0700
++++ pam_opie+/libopie/Makefile  2007-06-26 22:00:13.000000000 -0700
+@@ -15,7 +15,7 @@
+ 
+ OBJS=md4c.o md5c.o atob8.o btoa8.o btoh.o challenge.o getsequence.o hash.o hashlen.o keycrunch.o lock.o lookup.o newseed.o parsechallenge.o passcheck.o passwd.o randomchallenge.o readpass.o unlock.o verify.o version.o btoe.o accessfile.o generator.o insecure.o getutmpentry.o readrec.o writerec.o login.o open.o logwtmp.o # sha.o
+
+-CC=gcc
++#CC=gcc
+ CFLAGS=$(CFL) -I.. -DKEY_FILE=\"/etc/opiekeys\"
+ TARGET=libopie.a
+

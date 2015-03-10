@@ -1,0 +1,6 @@
+root:x:0:0:root:/home/root:/bin/bash
+rpc:x:1:1:Portmapper RPC user:/:/bin/false
+daemon:x:2:2:daemon:/var/empty:/bin/false
+sshd:x:90:90:sshd privsep:/var/empty:/bin/false
+nobody:x:99:99:Nobody:/:
+admin:x:101:101:Embedix User,,,:/home/admin:/usr/bin/cli

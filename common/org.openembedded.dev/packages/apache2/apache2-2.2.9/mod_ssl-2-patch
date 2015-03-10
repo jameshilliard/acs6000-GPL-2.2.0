@@ -1,0 +1,46 @@
+--- httpd-2.2.9/modules/ssl/ssl_engine_kernel.c.org	2009-11-16 16:04:32.000000000 -0800
++++ httpd-2.2.9/modules/ssl/ssl_engine_kernel.c	2009-11-16 16:04:32.000000000 -0800
+@@ -29,7 +29,7 @@
+                                   time I was too famous.''
+                                             -- Unknown                */
+ #include "ssl_private.h"
+-
++#define  DSViewCertificateName  "/C=US/ST=Alabama/L=Huntsville/O=Avocent Corp./OU=DSView/CN=System"
+ static void ssl_configure_env(request_rec *r, SSLConnRec *sslconn);
+ 
+ /*
+@@ -1248,15 +1248,28 @@
+      */
+     if (!ok) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+-                     "Certificate Verification: Error (%d): %s",
++                     "Certificate Verification: Error(%d): %s",
+                      errnum, X509_verify_cert_error_string(errnum));
++        if ((errnum == X509_V_ERR_CERT_HAS_EXPIRED) &&
++           ctx && ctx->current_cert && ctx->current_cert->name &&
++             !strcmp(DSViewCertificateName,ctx->current_cert->name )) {
+ 
+-        if (sslconn->client_cert) {
+-            X509_free(sslconn->client_cert);
+-            sslconn->client_cert = NULL;
++            X509_STORE_CTX_set_error(ctx,X509_V_OK);
++            errnum = X509_STORE_CTX_get_error(ctx);
++            SSL_set_state(ssl,SSL_ST_OK);
++            sslconn->verify_error = X509_verify_cert_error_string(errnum);
++            ok = TRUE;
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
++                         "Certificate pass Verification even it expired: because the certificate is from dsview: %s",
++                         ctx->current_cert->name);
++        }else{
++            if (sslconn->client_cert) {
++                X509_free(sslconn->client_cert);
++                sslconn->client_cert = NULL;
++            }
++            sslconn->client_dn = NULL;
+         }
+-        sslconn->client_dn = NULL;
+-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
++
+     }
+ 
+     /*

@@ -1,0 +1,46 @@
+Index: net-snmp-5.2.1.2/agent/mibgroup/mibII/system_mib.c
+===================================================================
+--- net-snmp-5.2.1.2.orig/agent/mibgroup/mibII/system_mib.c	2004-12-23 14:55:43.000000000 -0800
++++ net-snmp-5.2.1.2/agent/mibgroup/mibII/system_mib.c	2007-09-26 14:49:57.000000000 -0700
+@@ -342,40 +342,7 @@
+ init_system_mib(void)
+ {
+ 
+-#ifdef HAVE_UNAME
+-    struct utsname  utsName;
+-
+-    uname(&utsName);
+-    snprintf(version_descr, sizeof(version_descr),
+-            "%s %s %s %s %s", utsName.sysname,
+-            utsName.nodename, utsName.release, utsName.version,
+-            utsName.machine);
+-    version_descr[ sizeof(version_descr)-1 ] = 0;
+-#else
+-#if HAVE_EXECV
+-    struct extensible extmp;
+-
+-    /*
+-     * set default values of system stuff 
+-     */
+-    sprintf(extmp.command, "%s -a", UNAMEPROG);
+-    /*
+-     * setup defaults 
+-     */
+-    extmp.type = EXECPROC;
+-    extmp.next = NULL;
+-    exec_command(&extmp);
+-    strncpy(version_descr, extmp.output, sizeof(version_descr));
+-    version_descr[sizeof(version_descr) - 1] = 0;
+-    version_descr[strlen(version_descr) - 1] = 0;       /* chomp new line */
+-#else
+-#if defined(HAVE_WINSOCK_H) && defined (HAVE_WIN32_PLATFORM_SDK)
+-    windowsOSVersionString(version_descr, sizeof(version_descr));
+-#else
+-    strcpy(version_descr, "unknown");
+-#endif
+-#endif
+-#endif
++    strcpy(version_descr,"SERVIS IP-Serial ");
+ 
+ #ifdef HAVE_GETHOSTNAME
+     gethostname(sysName, sizeof(sysName));

@@ -1,0 +1,42 @@
+Index: linux-2.6.23/drivers/net/phy/marvell.c
+===================================================================
+--- linux-2.6.23.orig/drivers/net/phy/marvell.c
++++ linux-2.6.23/drivers/net/phy/marvell.c
+@@ -260,6 +260,17 @@ static int m88e1145_config_init(struct p
+ 	return 0;
+ }
+ 
++static int m88e1116_config_init(struct phy_device *phydev)
++{
++	phy_write(phydev, 22, 2);
++	phy_write(phydev, 21, 0x1070);
++	phy_write(phydev, 22, 0);
++	phy_write(phydev, 16, 0x6060);
++	phy_write(phydev, 22, 3);
++	phy_write(phydev, 16, 0x101e);
++	return 0;
++}
++
+ static struct phy_driver marvell_drivers[] = {
+ 	{
+ 		.phy_id = 0x01410c60,
+@@ -311,7 +322,19 @@ static struct phy_driver marvell_drivers
+ 		.ack_interrupt = &marvell_ack_interrupt,
+ 		.config_intr = &marvell_config_intr,
+ 		.driver = {.owner = THIS_MODULE,},
++	},
++	{
++		.phy_id = 0x01410e40,
++		.phy_id_mask = 0xfffffff0,
++		.name = "Marvell 88E1116",
++		.features = PHY_GBIT_FEATURES,
++		.flags = 0,
++		.config_init = &m88e1116_config_init,
++		.config_aneg = &genphy_config_aneg,
++		.read_status = &genphy_read_status,
++		.driver = {.owner = THIS_MODULE,},
+ 	}
++
+ };
+ 
+ static int __init marvell_init(void)

@@ -1,0 +1,45 @@
+Index: mgetty-1.1.33/mgetty.cfg.in
+===================================================================
+--- mgetty-1.1.33.orig/mgetty.cfg.in
++++ mgetty-1.1.33/mgetty.cfg.in
+@@ -10,6 +10,8 @@
+ #
+ # In this section, you put the global defaults, per-port stuff is below
+ 
++issue-file	
++login-prompt	Login:
+ 
+ # set the global debug level to "@LOG_LEVEL@" (default from policy.h)
+ debug @LOG_LEVEL@
+@@ -67,3 +69,4 @@ speed @SPEED@
+ #  direct y
+ #  speed 19200
+ #  toggle-dtr n
++init-chat "" \d\d\d+++\d\d\dATZ OK
+Index: mgetty-1.1.33/mg_m_init.c
+===================================================================
+--- mgetty-1.1.33.orig/mg_m_init.c
++++ mgetty-1.1.33/mg_m_init.c
+@@ -101,7 +101,7 @@ int mg_init_data _P4( (fd, chat_seq, nee
+     /* either no force_chat available, or that didn't help either: BARF!
+      */
+     errno = ( what_action == A_TIMOUT )? EINTR: EINVAL;
+-    lprintf( L_ERROR, "init chat failed, exiting..." );
++//[RK]Nov/30/2007 ACS6000    lprintf( L_ERROR, "init chat failed, exiting..." );
+     return FAIL;
+ }
+ 
+Index: mgetty-1.1.33/login.c
+===================================================================
+--- mgetty-1.1.33.orig/login.c
++++ mgetty-1.1.33/login.c
+@@ -325,7 +325,8 @@ fallthrough:
+ 	lprintf( L_NOISE, "login: fall back to %s", DEFAULT_LOGIN_PROGRAM );
+ 	
+ 	cmd = DEFAULT_LOGIN_PROGRAM;
+-	argv[argc++] = "login";
++	//argv[argc++] = "login";
++	argv[argc++] = "false";
+ 
+ 	/* append user name to argument list (if not empty) */
+ 	if ( user[0] != 0 )

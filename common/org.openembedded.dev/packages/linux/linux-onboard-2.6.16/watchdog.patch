@@ -1,0 +1,166 @@
+diff -ruNp linux-2.6.16/arch/ppc/kernel/time.c watchdog/arch/ppc/kernel/time.c
+--- linux-2.6.16/arch/ppc/kernel/time.c	2006-04-27 18:57:23.236822984 -0700
++++ watchdog/arch/ppc/kernel/time.c	2006-04-27 18:48:44.000000000 -0700
+@@ -66,6 +66,9 @@
+ 
+ #include <asm/time.h>
+ 
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++int watchdog_config;
++#endif
+ unsigned long disarm_decr[NR_CPUS];
+ 
+ extern struct timezone sys_tz;
+@@ -191,6 +194,20 @@ void timer_interrupt(struct pt_regs * re
+ 	if (ppc_md.heartbeat && !ppc_md.heartbeat_count--)
+ 		ppc_md.heartbeat();
+ 
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++	if (watchdog_config == 1) {
++		/*
++		 * TSR bits are write-1-to-clear,
++		 * only clear WDT bits.
++		 */
++/*		unsigned long val; */
++/*		val = mfspr(SPRN_TSR); */
++/*		val |= TSR_WIS; */
++/*		mtspr(SPRN_TSR, val); */
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++	}
++#endif
++
+ 	irq_exit();
+ }
+ 
+@@ -341,6 +358,10 @@ void __init time_init(void)
+         }
+         set_normalized_timespec(&wall_to_monotonic,
+                                 -xtime.tv_sec, -xtime.tv_nsec);
++
++#if defined(CONFIG_ALTERPATH_KVMMAX) || defined(CONFIG_ALTERPATH_ONBOARD)
++	watchdog_config = ((bd_t *)__res)->wdt;
++#endif
+ }
+ 
+ #define FEBRUARY		2
+diff -ruNp linux-2.6.16/arch/ppc/platforms/mpc85xx_wdt.c watchdog/arch/ppc/platforms/mpc85xx_wdt.c
+--- linux-2.6.16/arch/ppc/platforms/mpc85xx_wdt.c	1969-12-31 16:00:00.000000000 -0800
++++ watchdog/arch/ppc/platforms/mpc85xx_wdt.c	2006-04-27 18:48:44.000000000 -0700
+@@ -0,0 +1,91 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <asm/uaccess.h>
++#include <asm/processor.h>
++#include <asm/mpc85xx.h>
++#include <asm/ppcboot.h>
++
++enum
++{
++	CTL_MPC85xx_WATCHDOG=1
++};
++
++enum
++{
++	CTL_MPC85xx_WATCHDOG_STATUS=1,
++	CTL_MPC85xx_WATCHDOG_CONTROL=2
++};
++
++extern int watchdog_config;
++
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++		      void *buffer, size_t *lenp)
++{
++	unsigned long aux;
++	int val;
++	char string[sizeof(int) + 1];
++
++	if (!table->maxlen || !*lenp || (filp->f_pos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++
++	aux = mfspr(SPRN_TSR);
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++			if (sscanf(string, "%d", &val) && val > 0 && val < 4) {
++			aux |= val << 30;
++			mtspr(SPRN_TSR, aux);
++		}
++	} else {
++		snprintf(string, sizeof(int), "%d\n", (int)(aux >> 30));
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		filp->f_pos += sizeof(int);
++	}
++	return 0;
++}
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_MPC85xx_WATCHDOG_STATUS,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_wdt,
++	},
++	{
++		.ctl_name = CTL_MPC85xx_WATCHDOG_CONTROL,
++		.procname = "control",
++		.data = &watchdog_config,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_dointvec,
++	},
++	{0}
++};
++
++static struct ctl_table wdt_table[] =
++{
++	{
++		.ctl_name = CTL_MPC85xx_WATCHDOG,
++		.procname = "watchdog",
++		.mode = 0555,
++		.child = wdt_dir_table,
++	},
++	{0}
++};
++
++static int __init mpc85xx_wdt_init(void)
++{
++	printk("MPC85xx watchdog timer\n");
++	register_sysctl_table(wdt_table, 1);
++	return 0;
++}
++
++__initcall(mpc85xx_wdt_init);
++
+diff -ruNp linux-2.6.16/net/sched/sch_generic.c watchdog/net/sched/sch_generic.c
+--- linux-2.6.16/net/sched/sch_generic.c	2006-03-19 21:53:29.000000000 -0800
++++ watchdog/net/sched/sch_generic.c	2006-04-27 18:48:44.000000000 -0700
+@@ -215,11 +215,20 @@ static void dev_watchdog_init(struct net
+ 
+ void __netdev_watchdog_up(struct net_device *dev)
+ {
++	static int printks = 1;
++
+ 	if (dev->tx_timeout) {
+ 		if (dev->watchdog_timeo <= 0)
+ 			dev->watchdog_timeo = 5*HZ;
+-		if (!mod_timer(&dev->watchdog_timer, jiffies + dev->watchdog_timeo))
+-			dev_hold(dev);
++		if (!(dev->watchdog_timer.function)) {
++			if (printks) {
++				printk("Device %s watchdog timer not set.\n",
++						dev->name);
++				printks--;
++			}
++		} else
++			if (!mod_timer(&dev->watchdog_timer, jiffies + dev->watchdog_timeo))
++				dev_hold(dev);
+ 	}
+ }
+ 

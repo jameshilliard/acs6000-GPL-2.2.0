@@ -1,0 +1,13 @@
+Index: linux-2.6.19/arch/ppc/kernel/time.c
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/kernel/time.c
++++ linux-2.6.19/arch/ppc/kernel/time.c
+@@ -172,7 +172,7 @@ void timer_interrupt(struct pt_regs * re
+ 		 * We should have an rtc call that only sets the minutes and
+ 		 * seconds like on Intel to avoid problems with non UTC clocks.
+ 		 */
+-		if ( ppc_md.set_rtc_time && ntp_synced() &&
++		if ( ppc_md.set_rtc_time && 
+ 		     xtime.tv_sec - last_rtc_update >= 659 &&
+ 		     abs((xtime.tv_nsec / 1000) - (1000000-1000000/HZ)) < 500000/HZ) {
+ 		  	if (ppc_md.set_rtc_time(xtime.tv_sec+1 + timezone_offset) == 0)

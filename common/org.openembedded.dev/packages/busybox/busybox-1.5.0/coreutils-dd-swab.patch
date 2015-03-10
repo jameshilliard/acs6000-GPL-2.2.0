@@ -1,0 +1,44 @@
+diff -ruN busybox-1.5.0.orig/coreutils/dd.c busybox-1.5.0/coreutils/dd.c
+--- busybox-1.5.0.orig/coreutils/dd.c	2007-03-22 13:21:30.000000000 -0700
++++ busybox-1.5.0/coreutils/dd.c	2007-06-28 13:58:05.000000000 -0700
+@@ -66,7 +66,9 @@
+ 	int oflag, ifd, ofd;
+ 	const char *infile = NULL, *outfile = NULL;
+ 	char *ibuf, *obuf;
+-
++	#ifdef FEATURE_SWAB
++		int swab_flag = FALSE;
++	#endif
+ 	if (ENABLE_FEATURE_DD_SIGNAL_HANDLING) {
+ 		struct sigaction sa;
+ 
+@@ -107,6 +109,11 @@
+ 				} else if (!strncmp("sync", arg, 4)) {
+ 					flags |= sync_flag;
+ 					arg += 4;
++#ifdef FEATURE_SWAB
++				} else if (strncmp("swab", arg, 4) == 0) {
++					swab_flag = TRUE;
++					arg += 4;
++#endif
+ 				} else if (!strncmp("noerror", arg, 7)) {
+ 					flags |= noerror;
+ 					arg += 7;
+@@ -197,6 +205,17 @@
+ 				n = ibs;
+ 			}
+ 		}
++#ifdef FEATURE_SWAB
++		if (swab_flag) {
++			char ch;
++			int i;
++			for(i=0; i < n; i+=2) {
++				ch = ibuf[i];
++				ibuf[i] = ibuf[i+1];
++				ibuf[i+1] = ch;
++			}
++		}
++#endif
+ 		if (flags & twobufs_flag) {
+ 			char *tmp = ibuf;
+ 			while (n) {

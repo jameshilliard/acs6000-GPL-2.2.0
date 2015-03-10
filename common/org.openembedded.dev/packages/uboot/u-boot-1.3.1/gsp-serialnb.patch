@@ -1,0 +1,78 @@
+Index: u-boot-1.3.1/board/avocent/gsp/gsp-config-serialnb.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.3.1/board/avocent/gsp/gsp-config-serialnb.c	2008-03-05 10:18:47.000000000 -0800
+@@ -0,0 +1,50 @@
++#include <common.h>
++#include <gsp-serialnb.h>
++
++#ifdef CONFIG_AVOCENT_GSP
++#ifdef CONFIG_GSP_SERIALNB
++int gsp_config_serialnb(void *addr)
++{
++	/* Check for serial number and MAC address in first sector */
++	struct bdserial *bds = (struct bdserial *)addr;
++	char aux[20], *s;
++	int set = 0;
++	if (bds->magic != BDS_MAGIC) {
++		/* production mode - network boot + maintenance mode */
++		printf("Production mode: boot from network.\n");
++		setenv("bootcmd", "net_boot single");
++		return 0;
++	}
++	sprintf(aux, "%02x%02x%02x%02x%02x", bds->serialnb[0], bds->serialnb[1],
++		bds->serialnb[2], bds->serialnb[3], bds->serialnb[4]);
++	s = getenv("serial#");
++	if (s == NULL || strcmp(s, aux)) {
++		printf("Setting serial number: %s\n", aux);
++		setenv("serial#", aux);
++		set = 1;
++	}
++	sprintf(aux, "%02x:%02x:%02x:%02x:%02x:%02x",
++		bds->ethaddr[0], bds->ethaddr[1], bds->ethaddr[2],
++		bds->ethaddr[3], bds->ethaddr[4], bds->ethaddr[5]);
++	s = getenv("ethaddr");
++	if (s == NULL || strcmp(s, aux)) {
++		printf("Setting first MAC address: %s\n", aux);
++		setenv("ethaddr", aux);
++		set = 1;
++	}
++#ifdef CONFIG_HAS_ETH1
++	sprintf(aux, "%02x:%02x:%02x:%02x:%02x:%02x",
++		bds->eth1addr[0], bds->eth1addr[1], bds->eth1addr[2],
++		bds->eth1addr[3], bds->eth1addr[4], bds->eth1addr[5]);
++	s = getenv("eth1addr");
++	if (s == NULL || strcmp(s, aux)) {
++		printf("Setting second MAC address: %s\n", aux);
++		setenv("eth1addr", aux);
++		set = 1;
++	}
++#endif
++	return set;
++}
++
++#endif
++#endif
+Index: u-boot-1.3.1/board/avocent/gsp/gsp-config-serialnb.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.3.1/board/avocent/gsp/gsp-config-serialnb.h	2008-03-04 18:02:37.000000000 -0800
+@@ -0,0 +1 @@
++int gsp_config_serialnb(void *addr);
+Index: u-boot-1.3.1/include/gsp-serialnb.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ u-boot-1.3.1/include/gsp-serialnb.h	2008-03-04 18:02:37.000000000 -0800
+@@ -0,0 +1,12 @@
++#include <config.h>
++#define BDS_MAGIC       0x2E437ABD
++
++struct bdserial {
++        int magic;
++        unsigned char serialnb[6];
++        unsigned char ethaddr[6];
++#ifdef CONFIG_HAS_ETH1
++        unsigned char eth1addr[6];
++#endif
++};
++

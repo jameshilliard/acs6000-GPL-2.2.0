@@ -1,0 +1,24 @@
+diff -u -r pam_unix2-1.15/src/Makefile.am pam_unix2-1.15+/src/Makefile.am
+--- pam_unix2-1.15/src/Makefile.am	2003-01-21 05:26:55.000000000 -0800
++++ pam_unix2-1.15+/src/Makefile.am	2007-06-21 23:36:58.000000000 -0700
+@@ -7,7 +7,7 @@
+ AUTOMAKE_OPTIONS = 1.7 gnits
+ MAINT_CHARSET = latin1
+ #
+-INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s -m 755
++INSTALL_PROGRAM = @INSTALL_PROGRAM@ -m 755
+ 
+ EXTRA_DIST = pam_unix2.map
+ 
+diff -u -r pam_unix2-1.15/src/Makefile.in pam_unix2-1.15+/src/Makefile.in
+--- pam_unix2-1.15/src/Makefile.in	2003-02-10 09:01:22.000000000 -0800
++++ pam_unix2-1.15+/src/Makefile.in	2007-06-21 23:36:52.000000000 -0700
+@@ -58,7 +58,7 @@
+ EXEEXT = @EXEEXT@
+ INSTALL_DATA = @INSTALL_DATA@
+ #
+-INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s -m 755
++INSTALL_PROGRAM = @INSTALL_PROGRAM@ -m 755
+ INSTALL_SCRIPT = @INSTALL_SCRIPT@
+ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+ LDFLAGS = @LDFLAGS@

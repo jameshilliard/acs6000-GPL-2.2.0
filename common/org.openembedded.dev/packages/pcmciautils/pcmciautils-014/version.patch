@@ -1,0 +1,12 @@
+diff -Naupr pcmciautils-014/src/pccardctl.c pcmciautils-014.new/src/pccardctl.c
+--- pcmciautils-014/src/pccardctl.c	2007-07-05 13:25:54.000000000 -0400
++++ pcmciautils-014.new/src/pccardctl.c	2007-07-05 13:29:05.000000000 -0400
+@@ -350,7 +350,7 @@ static int pccardctl_status(unsigned lon
+ }
+ 
+ static void print_header(void) {
+-	printf("pcmciautils %s\n", PCMCIAUTILS_VERSION);
++	printf("pcmciautils 014\n");
+ 	printf("Copyright (C) 2004-2005 Dominik Brodowski, (C) 1999 David A. Hinds\n");
+ 	printf("Report errors and bugs to <linux-pcmcia@lists.infradead.org>, please.\n");
+ }

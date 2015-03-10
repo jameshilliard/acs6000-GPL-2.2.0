@@ -1,0 +1,60 @@
+diff -BurN pam_radius-1.3.15/pam_radius_auth.c pam_radius-1.3.15-noacct/pam_radius_auth.c
+--- pam_radius-1.3.15/pam_radius_auth.c	2009-07-15 12:20:04.000000000 -0700
++++ pam_radius-1.3.15-noacct/pam_radius_auth.c	2009-07-15 16:39:04.000000000 -0700
+@@ -654,15 +654,17 @@
+     }
+   }
+     fclose(fserver);
+-  
+-  if (!server) {		/* no server found, die a horrible death */
++
++  if (!server && (accounting == TRUE)) {		/* Fix for bug 55122, allow no acct server */
++    return PAM_IGNORE;
++  } else if (!server) {
+     _pam_log(LOG_ERR, "No RADIUS server found in configuration file %s\n",
+ 	     conf_file);
+     return PAM_AUTHINFO_UNAVAIL;
+   }
+-  
++
+ using_live_server:
+-    
++
+   /* open a socket.  Dies if it fails */
+   conf->sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+   if (conf->sockfd < 0) {
+@@ -1447,6 +1449,7 @@
+   AUTH_HDR *request = (AUTH_HDR *) send_buffer;
+   AUTH_HDR *response = (AUTH_HDR *) recv_buffer;
+   radius_conf_t config;
++  radius_server_t *server = NULL;
+ 
+   ctrl = _pam_parse(argc, argv, &config);
+ 
+@@ -1465,9 +1468,25 @@
+    * Then, open a socket, and bind it to a port
+    */
+   retval = initialize(&config, TRUE, 0);
++  if (retval == PAM_IGNORE) // Fix for bug 55122, acct is optional
++    return PAM_SUCCESS;
+   PAM_FAIL_CHECK;
+ 
+-  /* 
++  server = config.server;
++
++  DPRINT(LOG_DEBUG, "ACCOUNT Server[%s]", server->hostname);
++  if (		((server->accounting == TRUE) && (NULL == server->hostname)) ||			// no accounting server
++  		((server->accounting == TRUE) && !strcmp(server->hostname,"[0.0.0.0]")) || 	// localhost accounting server (IPV4)
++  		((server->accounting == TRUE) && !strcmp(server->hostname,"[127.0.0.1]")) || 	// localhost accounting server (IPV4)
++		((server->accounting == TRUE) && !strcmp(server->hostname,"127.0.0.1")) ||	// localhost accounting server (IPV4)
++		((server->accounting == TRUE) && !strcmp(server->hostname, "::1")) ||		// localhost accounting server (IPV6)
++		((server->accounting == TRUE) && !strcmp(server->hostname, "0:0:0:0:0:0:0:1")) || // localhost accounting server (IPV6)
++		((server->accounting == TRUE) && !strcmp(server->hostname, "[::1]")) ||		// localhost accounting server (IPV6)
++		((server->accounting == TRUE) && !strcmp(server->hostname, "[0:0:0:0:0:0:0:1]"))) // localhost accounting server (IPV6)
++	{
++  	return(PAM_SUCCESS);
++  }
++  /*
+    * If there's no client id specified, use the service type, to help
+    * keep track of which service is doing the authentication.
+    */

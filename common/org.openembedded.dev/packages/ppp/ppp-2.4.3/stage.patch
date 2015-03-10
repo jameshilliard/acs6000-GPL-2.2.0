@@ -1,0 +1,13 @@
+Index: ppp-2.4.3/pppd/Makefile
+===================================================================
+--- ppp-2.4.3.orig/pppd/Makefile
++++ ppp-2.4.3/pppd/Makefile
+@@ -68,7 +68,7 @@ HAVE_INET6=y
+ PLUGIN=y
+ 
+ # Enable Microsoft proprietary Callback Control Protocol
+-#CBCP=y
++CBCP=y
+ 
+ # Enable EAP SRP-SHA1 authentication (requires libsrp)
+ #USE_SRP=y

@@ -1,0 +1,31 @@
+Index: httpd-2.2.9/srclib/apr/configure
+===================================================================
+--- httpd-2.2.9.orig/srclib/apr/configure	2008-06-10 12:17:53.000000000 -0700
++++ httpd-2.2.9/srclib/apr/configure	2008-07-29 16:20:37.000000000 -0700
+@@ -30614,7 +30614,7 @@
+ if test "${ac_cv_file__dev_zero+set}" = set; then
+   $as_echo_n "(cached) " >&6
+ else
+-  test "$cross_compiling" = yes &&
++  test "$cross_compiling" = no &&
+   { { $as_echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+ $as_echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+    { (exit 1); exit 1; }; }
+@@ -38835,7 +38835,7 @@
+   $as_echo_n "(cached) " >&6
+ else
+   if test "$cross_compiling" = yes; then
+-  ac_cv_sizeof_struct_iovec=0
++  ac_cv_sizeof_struct_iovec="(sizeof(struct iovec))"
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+@@ -45368,7 +45368,7 @@
+ if test "${apr_cv_tcp_nodelay_with_cork+set}" = set; then
+   $as_echo_n "(cached) " >&6
+ else
+-  if test "$cross_compiling" = yes; then
++  if test "$cross_compiling" = no; then
+   { { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
+ See \`config.log' for more details." >&5
+ $as_echo "$as_me: error: cannot run test program while cross compiling

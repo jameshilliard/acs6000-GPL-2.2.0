@@ -1,0 +1,2083 @@
+--------------------------------------------------------------------------------
+--  Avocent _#MODEL_ TRAP MIB
+--  Copyright 2009 Avocent Corporation
+--  Revision: 2.0.0
+--  Last Modified: Nov 30, 2009
+--------------------------------------------------------------------------------
+
+_#FAMILY_TYPE_-TRAP-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+  enterprises, MODULE-IDENTITY, OBJECT-TYPE
+      FROM SNMPv2-SMI
+  TRAP-TYPE
+      FROM RFC-1215;
+
+
+
+--------------------------------------------------------------------------------
+-- Object Groupings
+-- Familyoid _#FAMILY_OID_
+-- Productoid 1
+-- Managementoid 2
+-- TrapObjectoid 6
+--------------------------------------------------------------------------------
+
+-- avocent                 OBJECT IDENTIFIER ::= { enterprises 10418 }
+
+_#FAMILY_PREFIX_    MODULE-IDENTITY
+        LAST-UPDATED    "_#REVISION_"
+        ORGANIZATION    "Avocent Corporation"
+        CONTACT-INFO    "postal : Avocent Corporation
+                                  3541 Gateway Boulevard
+                                  Fremont, CA 94538, USA
+                         e-mail : Technical Support
+                                  techsupport@avocent.com"
+        DESCRIPTION      
+        "This module defines the Avocent TRAP MIB extensions to
+         _#FAMILY_PREFIX_ products."
+        REVISION        "_#REVISION_"
+		DESCRIPTION     "Updating traps"
+::= { enterprises 10418 _#FAMILY_OID_ }
+
+_#FAMILY_PREFIX_Products             OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_ 1 }
+_#FAMILY_PREFIX_Management           OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_ 2 }
+_#FAMILY_PREFIX_TrapObject           OBJECT IDENTIFIER ::= { _#FAMILY_PREFIX_Management 6 }  -- 10418.16.2.6
+
+-------------------------------------------------------------------------------
+-- _#FAMILY_TYPE_ Trap Object
+-------------------------------------------------------------------------------
+_#FAMILY_PREFIX_TrapObjectUserName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the name of the user
+     for which the trap condition occurred."
+::= { _#FAMILY_PREFIX_TrapObject 1 }
+
+_#FAMILY_PREFIX_TrapObjectDaemonName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION     
+    "This object is sent in a trap to indicate the Daemon name
+     that has started/stopped."
+    --% AVAILABILITY public          
+::= { _#FAMILY_PREFIX_TrapObject 2 }
+
+_#FAMILY_PREFIX_TrapObjectTargetUserName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the name of the user
+     for which the trap condition occurred."
+::= { _#FAMILY_PREFIX_TrapObject 3 }
+
+_#FAMILY_PREFIX_TrapObjectFileName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the name of the file
+     that was used."
+::= { _#FAMILY_PREFIX_TrapObject 4 }
+
+_#FAMILY_PREFIX_TrapFirmwareVersion OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify current Firmware version."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 5 }
+
+_#FAMILY_PREFIX_TrapNewFirmwareVersion OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify new Firmware version."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 6 }
+        
+_#FAMILY_PREFIX_TrapFirmwareUpgradeResult OBJECT-TYPE
+    SYNTAX INTEGER  {
+               imageUpgradeSuccess(1),
+               imageUpgradeInternalError(2)
+           }
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION     
+    "This object is sent in a trap to identify the firmware upgrade result."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 7 }        
+
+_#FAMILY_PREFIX_TrapObjectAlertIndex OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the alert string 
+     that matched in the alert message."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 8 }
+
+_#FAMILY_PREFIX_TrapObjectAlertMessage OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION
+    "This object is sent in a trap to identify the line text where 
+     the alert string was detected."
+::= { _#FAMILY_PREFIX_TrapObject 9 }
+
+_#FAMILY_PREFIX_TrapObjectAlertString OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the alert string 
+     that matched in the alert message."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 10 }
+
+
+_#FAMILY_PREFIX_TrapObjectSessionType OBJECT-TYPE
+    SYNTAX INTEGER {
+                    ssh(0),
+                    telnet(1),
+                    console(2),
+                    http(4),
+		    https(5)
+                    }
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION 
+    "This object is sent in a trap to identify type of Session 
+     for access to appliance."
+     --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 11 }  
+
+_#FAMILY_PREFIX_TrapObjectSerialPortName OBJECT-TYPE
+    SYNTAX OCTET STRING 
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION 
+    "This object is sent in a trap to identify the target Device by 
+     name - alias of the serial port."
+     --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 12 }
+
+_#FAMILY_PREFIX_TrapObjectSerialPortNumber OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify which serial port number 
+     the trap condition occurred."
+     --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 13 }
+
+_#FAMILY_PREFIX_TrapObjectSerialSessionType OBJECT-TYPE
+    SYNTAX INTEGER {
+                    cas-ssh(1),
+                    cas-telnet(2),
+                    cas-console(3),
+		    cas-raw(4),
+                    dial-in(5)
+                   }
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION 
+    "This object is sent in a trap to identify type of Serial Session."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 14 }
+
+_#FAMILY_PREFIX_TrapObjectDataBufferSize OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify current size of 
+     global buffer."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 15 }
+
+_#FAMILY_PREFIX_TrapObjectPduId OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the ID of the PDU
+     where the trap occurred."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 16 }
+               
+_#FAMILY_PREFIX_TrapObjectPduNumber OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public          
+    DESCRIPTION       
+    "This object is sent in a trap to identify the index of the PDU the trap 
+     condition occurred on."         
+::= { _#FAMILY_PREFIX_TrapObject 17 }
+
+_#FAMILY_PREFIX_TrapObjectPduSocket OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+  --% AVAILABILITY public      
+    DESCRIPTION
+    "This object is sent in a trap to identify number of outlets of the PDU."
+::= { _#FAMILY_PREFIX_TrapObject 18 }
+                       
+_#FAMILY_PREFIX_TrapObjectPduVendor OBJECT-TYPE
+    SYNTAX INTEGER {
+                cyclades(1),
+                spc(2),
+                serverTech(3)
+           }
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the vendor of the IPDU
+     where the trap occurred."
+  --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 19 }
+
+_#FAMILY_PREFIX_TrapObjectPduIdOld OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the old ID of the PDU
+     where the trap occurred."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 20 }
+
+-- this may now be redundant - objects 40 and 41 replacing it.
+_#FAMILY_PREFIX_TrapObjectPduPhase OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the Phase of the PDU
+     where the trap occurred."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 21 }
+
+_#FAMILY_PREFIX_TrapObjectPduCurrentValue OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION     
+    "This object is sent in a trap to detected current value of the PDU."
+    --% AVAILABILITY public               
+::= { _#FAMILY_PREFIX_TrapObject 22 }
+
+_#FAMILY_PREFIX_TrapObjectSocketNumber OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify outlet number the trap
+     condition occurred on."
+  --% AVAILABILITY public   
+::= { _#FAMILY_PREFIX_TrapObject 23 }
+
+_#FAMILY_PREFIX_TrapObjectSocketName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify outlet name stored in the PM."
+  --% AVAILABILITY public   
+::= { _#FAMILY_PREFIX_TrapObject 24 }
+
+_#FAMILY_PREFIX_TrapObjectSocketOldName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the old outlet  
+     name stored in the PM."
+  --% AVAILABILITY public   
+::= { _#FAMILY_PREFIX_TrapObject 25 }
+
+_#FAMILY_PREFIX_TrapObjectSerialSessionNumbers OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the number of sessions openned 
+     in the serial port."
+  --% AVAILABILITY public   
+::= { _#FAMILY_PREFIX_TrapObject 26 }
+
+_#FAMILY_PREFIX_TrapObjectAction OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION
+    "This object is sent in a trap to identify the unauthorized action."
+  --% AVAILABILITY public
+::= { _#FAMILY_PREFIX_TrapObject 27 }
+
+-- _#PDU_ Object Types (extra to those mixed in above.)
+_#FAMILY_PREFIX_TrapObjectPduElementName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the Element of the PDU
+     where the trap occurred."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 40 }
+
+_#FAMILY_PREFIX_TrapObjectPduElementType OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current            
+    DESCRIPTION
+    "This object is sent in a trap to identify the Element Type of the PDU
+     where the trap occurred."
+    --% AVAILABILITY public  
+::= { _#FAMILY_PREFIX_TrapObject 41 }
+
+-- _#MODEL_ Object Types
+_#FAMILY_PREFIX_TrapObjectTemperatureMaximumValue OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the maximum temperature
+     value configured in the appliance."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 100 }
+
+_#FAMILY_PREFIX_TrapObjectTemperatureMaxThreshold OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the max temperature threshold 
+     configured in the appliance."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 101 }
+
+_#FAMILY_PREFIX_TrapObjectTemperatureMinimumValue OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the minimum temperature
+     value configured in the appliance."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 102 }
+
+_#FAMILY_PREFIX_TrapObjectTemperatureMinThreshold OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the min temperature threshold 
+     configured in the appliance."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 103 }
+
+_#FAMILY_PREFIX_TrapObjectTemperatureCurrent OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the current temperature."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 104 }
+
+_#FAMILY_PREFIX_TrapObjectPowerSupplyNumber OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the appliance power supply
+     for which the trap condition occurred."
+::= { _#FAMILY_PREFIX_TrapObject 105 }
+
+_#FAMILY_PREFIX_TrapObjectPowerSupplyOldState OBJECT-TYPE
+    SYNTAX INTEGER {
+             powerSupplyOn(1),
+             powerSupplyOff(2)
+           }
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the old state of 
+     the power supply."
+::= { _#FAMILY_PREFIX_TrapObject 106 }
+
+_#FAMILY_PREFIX_TrapObjectPowerSupplyNewState OBJECT-TYPE
+    SYNTAX INTEGER {
+             powerSupplyOn(1),
+             powerSupplyOff(2)
+           }
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    --% AVAILABILITY public
+    DESCRIPTION 
+    "This object is sent in a trap to identify the new state of 
+     the power supply."
+::= { _#FAMILY_PREFIX_TrapObject 107 }
+
+_#FAMILY_PREFIX_TrapObjectPlugDeviceName OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the device name used  
+     by the plugged device."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 108 }
+
+_#FAMILY_PREFIX_TrapObjectPlugDeviceType OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the type of the plugged device."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 109 }
+
+_#FAMILY_PREFIX_TrapObjectPlugDeviceInfo OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the info about plugged device."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 110 }
+
+_#FAMILY_PREFIX_TrapObjectApplianceFault OBJECT-TYPE
+    SYNTAX INTEGER
+    MAX-ACCESS accessible-for-notify
+    STATUS current
+    DESCRIPTION       
+    "This object is sent in a trap to identify the info about an appliance fault."
+    --% AVAILABILITY public                         
+::= { _#FAMILY_PREFIX_TrapObject 111 }
+
+_#FAMILY_PREFIX_TrapObjectPduFuseStatus OBJECT-TYPE
+    SYNTAX OCTET STRING
+    MAX-ACCESS accessible-for-notify
+    STATUS current 
+    DESCRIPTION     
+    "This object is sent in a trap for blown fuse detection in the PDU."
+    --% AVAILABILITY public
+::= { _#FAMILY_PREFIX_TrapObject 112 }
+
+      
+--
+-- the _#MODEL_ Products is used as the Enterprise ID for the _#FAMILY_TYPE_ familiy.
+-- This corresponds to the same OID as _#FAMILY_PREFIX_Products in the _#FAMILY_TYPE_-MIB.
+--
+
+--------------------------------------------------------------------------------
+-- Enterprise Traps
+--------------------------------------------------------------------------------
+
+-- Appliance Management Traps
+avct_#FAMILY_INFIX_RebootStartedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName 
+                }
+    DESCRIPTION
+    "_#MODEL_ is in process of rebooting.
+     The name of the user who issued the command is contained
+     in _#FAMILY_PREFIX_TrapObjectUserName."
+    --#SUMMARY     "The appliance is rebooting. Command issued by user: %s."
+    --#ARGUMENTS   { 0 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Rebooting"
+    --SHORT     "appliance rebooting"
+    --EVENT evt_reboot
+    --% TrapTypeEnum=15 
+::= 1
+
+avct_#FAMILY_INFIX_DaemonStarted TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectDaemonName 
+                }
+    DESCRIPTION
+    "This trap is generated when daemon in the appliance started.
+     The daemon name is contained in _#FAMILY_PREFIX_TrapObjectDaemonName.
+     The name of the user who start the daemon is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    "
+    --#SUMMARY     "A daemon started. User: %s. Daemon name: %s."
+    --#ARGUMENTS   { 0, 1 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Daemon Started"
+    --SHORT     "appliance daemon started"
+    --EVENT evt_daemon_start
+    --% TrapTypeEnum=9
+::= 2
+
+avct_#FAMILY_INFIX_DaemonStoped TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectDaemonName 
+                }
+    DESCRIPTION
+    "This trap is generated when daemon in the appliance stopped.
+     The daemon name is contained in _#FAMILY_PREFIX_TrapObjectDaemonName.
+     The name of the user who stop the daemon is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    "
+    --#SUMMARY     "A daemon stopped. User: %s. Daemon name: %s."
+    --#ARGUMENTS   { 0, 1 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Daemon Stopped"
+    --SHORT     "appliance daemon stopped"
+    --EVENT evt_daemon_stop
+    --% TrapTypeEnum=9
+::= 3     
+
+avct_#FAMILY_INFIX_SessionTerminatedTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectUserName, 
+                 _#FAMILY_PREFIX_TrapObjectTargetUserName
+               }
+   DESCRIPTION
+   "This trap is generated when one previous session is 
+    terminated by another user.
+    The name of the user who terminated the session is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    The name of the user who was terminated from the session is contained 
+    in _#FAMILY_PREFIX_TrapObjectTargetUserName."
+   --#SUMMARY     "Session terminated. Command issued by user: %s. Terminated user: %s."
+   --#ARGUMENTS   { 0, 1 }
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Status Events"
+   --NAME       "Appliance Session Terminated"
+   --SHORT      "appliance session terminated"
+   --EVENT evt_session_term
+   --% TrapTypeEnum=9
+::= 4
+        
+avct_#FAMILY_INFIX_ConfigurationStoredTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                 _#FAMILY_PREFIX_TrapObjectUserName,
+                 _#FAMILY_PREFIX_TrapObjectFileName
+               }
+   DESCRIPTION            
+   "This trap is generated when 'store backup configuration' command is successful.
+    _#FAMILY_PREFIX_TrapObjectUserName is name of the user who executed the command.
+    _#FAMILY_PREFIX_TrapObjectFileName is name of the file where the configuration was stored."         
+   --#SUMMARY     "Backup configuration was stored. User: %s. Filename: %s."
+   --#ARGUMENTS   {0, 1}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Configuration Events"
+   --NAME       "Appliance Backup Configuration Stored"
+   --SHORT      "appliance backup configuration stored"
+   --EVENT evt_config_store
+   --% TrapTypeEnum=9
+::= 5
+
+avct_#FAMILY_INFIX_ConfigurationRestoredTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                 _#FAMILY_PREFIX_TrapObjectUserName,
+                 _#FAMILY_PREFIX_TrapObjectFileName
+               }
+   DESCRIPTION            
+   "This trap is generated when 'restore backup configuration' command is successful.
+    _#FAMILY_PREFIX_TrapObjectUserName is name of the user who executed the command.
+    _#FAMILY_PREFIX_TrapObjectFileName is name of the file used to restored the configuration."         
+   --#SUMMARY     "Backup configuration was restored. User: %s. Filename: %s."
+   --#ARGUMENTS   {0, 1}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Configuration Events"
+   --NAME       "Appliance Backup Configuration Restored"
+   --SHORT      "appliance backup configuration restored"
+   --EVENT evt_config_restore
+   --% TrapTypeEnum=9
+::= 6
+
+avct_#FAMILY_INFIX_ConfigurationActivatedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectUserName 
+                }
+    DESCRIPTION
+    "This trap is generated when the configuration is activated.
+     _#FAMILY_PREFIX_TrapObjectUserName is name of the user who activated new configuration."
+    --#SUMMARY     "Configuration activated. User: %s."
+    --#ARGUMENTS   {0}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Configuration Events"
+    --NAME      "Appliance Configuration Activated"
+    --SHORT     "appliance configuration activated"
+    --EVENT evt_config_activate
+    --% TrapTypeEnum=9
+::= 7    
+
+avct_#FAMILY_INFIX_LocalUserAddedTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                _#FAMILY_PREFIX_TrapObjectUserName,
+                _#FAMILY_PREFIX_TrapObjectTargetUserName 
+               }
+   DESCRIPTION
+   "A new user has been added to the local user database.
+    The name of the user who added the new user is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    The name of the new user is contained in _#FAMILY_PREFIX_TrapObjectTargetUserName."
+   --#SUMMARY     "A user was added to the local user database. Command issued by user: %s. New user: %s."
+   --#ARGUMENTS   { 0, 1}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Configuration Events"
+   --NAME       "Appliance User Added to Local User Database"
+   --SHORT      "appliance user added to local user database"
+   --EVENT evt_user_add
+   --% TrapTypeEnum=9
+::= 8   
+      
+avct_#FAMILY_INFIX_LocalUserDeletedTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                _#FAMILY_PREFIX_TrapObjectUserName,
+                _#FAMILY_PREFIX_TrapObjectTargetUserName 
+               }
+   DESCRIPTION
+   "A user has been deleted from the local user database.
+    The name of the user who deleted the user is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    The name of the user who was deleted is contained in _#FAMILY_PREFIX_TrapObjectTargetUserName."
+   --#SUMMARY     "A user was deleted from the local user database. Command issued by user: %s. Deleted user: %s."
+   --#ARGUMENTS   {0,1}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Configuration Events"
+   --NAME       "Appliance User Deleted from Local User Database"
+   --SHORT      "appliance user deleted from local user database"
+   --EVENT evt_user_del
+   --% TrapTypeEnum=9
+::= 9
+
+avct_#FAMILY_INFIX_LocalUserModifiedTrap TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                _#FAMILY_PREFIX_TrapObjectUserName,
+                _#FAMILY_PREFIX_TrapObjectTargetUserName 
+               }
+   DESCRIPTION
+   "A user has been modified in the local user database.
+    The name of the user who modified the data is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+    The name of the user who was modified is contained in _#FAMILY_PREFIX_TrapObjectTargetUserName."
+   --#SUMMARY     "A user was modified in the local user database. Command issued by user: %s. Modified user: %s."
+   --#ARGUMENTS   {0,1}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Configuration Events"
+   --NAME       "Appliance User Modified in Local User Database"
+   --SHORT      "appliance user modified in local user database"
+   --EVENT evt_user_mod
+   --% TrapTypeEnum=9
+::= 10
+
+avct_#FAMILY_INFIX_FirmwareUpgradeStarted TRAP-TYPE
+   ENTERPRISE  _#FAMILY_PREFIX_Products
+   VARIABLES   {     
+                _#FAMILY_PREFIX_TrapObjectUserName,
+                _#FAMILY_PREFIX_TrapFirmwareVersion,
+                _#FAMILY_PREFIX_TrapNewFirmwareVersion
+               }
+   DESCRIPTION
+   "The appliance has started an upgrade of a software image.
+    The name of the user who initiate the process is contained 
+    in _#FAMILY_PREFIX_TrapObjectUserName.
+    The current firmware version is contained in _#FAMILY_PREFIX_TrapFirmwareVersion.
+    The new firmware version is contained in _#FAMILY_PREFIX_TrapNewFirmwareVersion."
+   --#SUMMARY     "Image upgrade started. User: %s. Current version: %s. New version: %s."
+   --#ARGUMENTS   { 0, 1, 2}
+   --#SEVERITY    INFORMATIONAL
+   --#CATEGORY    "Status Events"
+   --NAME       "Appliance Image Upgrade Started"
+   --SHORT      "appliance image upgrade started"
+   --EVENT evt_imgup_start
+   --% TrapTypeEnum=9
+::= 11
+
+avct_#FAMILY_INFIX_FirmwareUpgradeResultsTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                 _#FAMILY_PREFIX_TrapFirmwareUpgradeResult ,                        
+                 _#FAMILY_PREFIX_TrapNewFirmwareVersion
+                }
+    DESCRIPTION
+    "This trap is generated when Firmware upgraded is done to indicate the result.
+     The new FW version is contained in _#FAMILY_PREFIX_TrapNewFirmwareVersion.
+     The result of the process is contained in _#FAMILY_PREFIX_TrapFirmwareUpgradeResult."
+    --#SUMMARY     "Image upgrade result. Result: %d. New firmware version: %s."
+    --#ARGUMENTS   {0,1}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Image Upgrade Result"
+    --SHORT     "appliance image upgrade result"
+    --EVENT evt_imgup_result
+    --% TrapTypeEnum=9
+::= 12        
+
+avct_#FAMILY_INFIX_ApplianceAlertTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectUserName,
+                 _#FAMILY_PREFIX_TrapObjectAlertIndex,
+                 _#FAMILY_PREFIX_TrapObjectAlertString,
+                 _#FAMILY_PREFIX_TrapObjectAlertMessage
+                }
+    DESCRIPTION
+    "An appliance alert was detected on a ssh or telnet session.
+     The name of user who was logged into the appliance when 
+     trap occurred is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+     The index of the appliance alert that was detected in the message is 
+     contained in _#FAMILY_PREFIX_TrapObjectAlertIndex.
+     The appliance alert that was detected is contained in _#FAMILY_PREFIX_TrapObjectAlertString.
+     The line text where the appliance alert was detected is contained 
+     in _#FAMILY_PREFIX_TrapObjectAlertMessage."
+    --#SUMMARY     "An appliance alert was detected. User: %s. Alert index: %d. Alert string: %s. Line text: %s." 
+    --#ARGUMENTS   { 0, 1, 2, 3}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Error Events"           
+    --NAME      "Appliance Alert Detected"
+    --SHORT     "appliance alert detected"
+    --EVENT evt_alert_detect
+    --% TrapTypeEnum=9
+::= 13      
+
+avctAcsApplianceStartedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    DESCRIPTION
+    "This trap is generated when the appliance is started."
+    --#SUMMARY     "The appliance has started."
+    --#SEVERITY    ALERT
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance Started"
+    --SHORT     "appliance started"
+    --EVENT evt_app_start
+    --% TrapTypeEnum=9
+::= 14      
+      
+avct_#FAMILY_INFIX_ApplianceHardwareFaultTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                 _#FAMILY_PREFIX_TrapObjectApplianceFault                        
+                }
+    DESCRIPTION
+    "This trap is sent when an appliance hardware fault is detected."
+    --#SUMMARY     "Fault returned. Result: %d."
+    --#ARGUMENTS   {0}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Hardware Fault code"
+    --SHORT     "appliance hardware fault result"
+    --EVENT evt_fault_result
+    --% TrapTypeEnum=9
+::= 15
+
+-- AAA Traps - start # 50
+avct_#FAMILY_INFIX_UserLoginTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectSessionType 
+                }
+    DESCRIPTION
+    "This trap is sent when user logged into the appliance.
+     The name of the user who logged in is contained in 
+     _#FAMILY_PREFIX_TrapObjectUserName and the method used to log into appliance 
+     is contained in _#FAMILY_PREFIX_TrapObjectSessionType."
+    --#SUMMARY     "A user logged into the appliance. User: %s. Session type: %d."
+    --#ARGUMENTS   { 0, 1 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance User Logged In"
+    --SHORT     "appliance user logged in"
+    --EVENT evt_usr_login
+    --% TrapTypeEnum=15
+::= 50
+
+avct_#FAMILY_INFIX_UserLogoutTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectSessionType 
+                }
+    DESCRIPTION
+    "A user logged out of the appliance.
+     The name of the user who logged in is contained in 
+     _#FAMILY_PREFIX_TrapObjectUserName and the method used to log into appliance 
+     is contained in _#FAMILY_PREFIX_TrapObjectSessionType."
+    --#SUMMARY     "A user logged out of the appliance. User: %s. Session type: %d."
+    --#ARGUMENTS   { 0, 1}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance User Logged Out"
+    --SHORT     "appliance user logged out"
+    --EVENT evt_usr_logout
+    --% TrapTypeEnum=15
+::= 51
+
+avct_#FAMILY_INFIX_AuthenticationFailureTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                 _#FAMILY_PREFIX_TrapObjectUserName 
+                }
+    DESCRIPTION
+    "A user failed to authenticate with the appliance.
+     The name of the user who failed to authenticate is contained in _#FAMILY_PREFIX_TrapObjectUserName."
+    --#SUMMARY     "User authentication failed. User: %s."
+    --#ARGUMENTS   {0}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance Authentication Failure"
+    --SHORT     "appliance authentication failure"
+    --EVENT evt_authe_fail
+    --% TrapTypeEnum=15 
+::= 52
+
+avct_#FAMILY_INFIX_PortAuthenticationFailureTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                 _#FAMILY_PREFIX_TrapObjectUserName,
+                 _#FAMILY_PREFIX_TrapObjectSerialPortName,
+                 _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                 _#FAMILY_PREFIX_TrapObjectSerialSessionType
+                }
+    DESCRIPTION      
+    "This trap is sent when a serial session authentication fails.
+     The name of the user who failed to authenticate is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+     The serial port number on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The serial port name on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName
+     The type of protocol configured on this port is contained in _#FAMILY_PREFIX_TrapObjectSerialSessionType."
+    --#SUMMARY     "Serial session authentication failed. User: %s. Port name: %s. Port number: %d. Session type: %d." 
+    --#ARGUMENTS   { 0, 1, 2, 3 }
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Error Events"     
+    --NAME      "Appliance Serial Session Authentication Failed"
+    --SHORT     "appliance serial session authentication failed"
+    --EVENT evt_serauthe_fail
+    --% TrapTypeEnum=6                     
+::= 53 
+
+--
+-- Serial Port Traps - start # 100
+--
+avct_#FAMILY_INFIX_PortPowerOnDetectTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortName,
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber                        
+                }    
+    DESCRIPTION
+    "The appliance has detected that the power on/off control signal
+     (RS232C - DCD signal) is high on a serial port indicating that the
+     server attached to the port is powered on.
+     This trap is sent on initialization if the condition is detected.
+     Subsequent traps occur only if there is a transition of the DCD
+     signal from low to high.
+     The affected serial port number is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The affected serial port name is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName."
+    --#SUMMARY     "Power on detected on a serial port. Port name: %s. Port number: %d."
+    --#ARGUMENTS   { 0, 1}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"    
+    --NAME      "Appliance Serial Port Power Detected On"
+    --SHORT     "appliance serial port power detected on"
+    --EVENT evt_serpow_on
+    --% TrapTypeEnum=22
+::= 100    
+      
+avct_#FAMILY_INFIX_PortPowerOffDetectTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortName,
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber                        
+                }   
+    DESCRIPTION
+    "The appliance has detected that the power on/off control signal
+     (RS232C - DCD signal) is low on a serial port indicating that the
+     server attached to the port is powered off.
+     This trap is sent on initialization if the condition is detected.
+     Subsequent traps occur only if there is a transition of the DCD
+     signal from high to low.
+     The affected serial port number is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The affected serial port name is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName."
+    --#SUMMARY     "Power off detected on a serial port. Port name: %s. Port number: %d."
+    --#ARGUMENTS   { 0, 1}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Serial Port Power Detected Off"
+    --SHORT     "appliance serial port power detected off"
+    --EVENT evt_serpow_off
+    --% TrapTypeEnum=23
+::= 101          
+
+--
+-- CAS session Traps
+-- start # 150
+avct_#FAMILY_INFIX_SerialSessionStartedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectUserName,
+                  _#FAMILY_PREFIX_TrapObjectSerialPortName,
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectSerialSessionType,
+                  _#FAMILY_PREFIX_TrapObjectSerialSessionNumbers
+                }
+    DESCRIPTION
+    "This trap is sent when a serial session has started on particular port.
+     The name of the user who is connected to the session is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+     The serial port number on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The serial port name on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName
+     The type of protocol running on this serial port is contained in _#FAMILY_PREFIX_TrapObjectSerialSessionType.
+     The numbe of sessions openned in this port is contained in _#FAMILY_PREFIX_TrapObjecSerialSessionNumbers. "
+    --#SUMMARY     "Serial session started. User: %s. Port name: %s. Port number: %d. Session type: %d. Number of sessions: %d."          
+    --#ARGUMENTS   { 0, 1, 2, 3, 4 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Serial Session Started"
+    --SHORT     "appliance serial session started"
+    --EVENT evt_sersess_start
+    --% TrapTypeEnum=9
+::= 150
+      
+avct_#FAMILY_INFIX_SerialSessionStoppedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                 _#FAMILY_PREFIX_TrapObjectUserName,
+                 _#FAMILY_PREFIX_TrapObjectSerialPortName,
+                 _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                 _#FAMILY_PREFIX_TrapObjectSerialSessionType,
+                 _#FAMILY_PREFIX_TrapObjectSerialSessionNumbers
+                }
+    DESCRIPTION
+    "This trap is sent when a serial session has stopped.
+     The user who was connected to the session is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+     The serial port number on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The serial port name on the appliance is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName
+     The type of protocol running on this port is contained in _#FAMILY_PREFIX_TrapObjectSerialSessionType.
+     The number of serial sessions openned in this port is contained in _#FAMILY_PREFIX_TrapObjectSessionNumbers."
+    --#SUMMARY     "Serial session stopped. User: %s. Port name: %s. Port number: %d. Session type: %d. Number of sessions: %d."  
+    --#ARGUMENTS   { 0, 1, 2, 3, 4 }
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Serial Session Stopped"
+    --SHORT     "appliance serial session stopped"
+    --EVENT evt_sersess_stop
+    --% TrapTypeEnum=9
+::= 151
+      
+avct_#FAMILY_INFIX_PortAlertTrap TRAP-TYPE      
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortName,                        
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectAlertIndex,
+                  _#FAMILY_PREFIX_TrapObjectAlertString,
+                  _#FAMILY_PREFIX_TrapObjectAlertMessage
+                }
+    DESCRIPTION      
+    "The appliance detected a port alert on a serial port.
+     The serial port number where the port alert was detected on is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The serial port name where the port alert was detected on is contained in _#FAMILY_PREFIX_TrapObjectSerialPortName.
+     The index of the port alert that was detected is contained in _#FAMILY_PREFIX_TrapObjectAlertIndex.
+     The port alert that was detected is contained in _#FAMILY_PREFIX_TrapObjectAlertString.
+     The line text where the port alert was detected is contained in _#FAMILY_PREFIX_TrapObjectAlertMessage."
+    --#SUMMARY     "A port alert was detected on a serial port. Port name: %s. Port number: %d. Port alert index: %d. Port alert string: %s. Line text: %s." 
+    --#ARGUMENTS   { 0, 1, 2, 3, 4 }
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Error Events"      
+    --NAME      "Appliance Port Alert Detected On Serial Port"
+    --SHORT     "appliance port alert detected on serial port"
+    --EVENT evt_serport_alrt
+    --% TrapTypeEnum=19                     
+::= 152  
+
+avct_#FAMILY_INFIX_DataBufferNFSFailure TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    DESCRIPTION
+    "This trap is generated when the appliance is sending data buffering data to a NFS server 
+     and the write operation fails."
+    --#SUMMARY     "Data Buffering could not be written to NFS server."
+    --#SEVERITY    ALERT
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance NFS Failure"
+    --SHORT     "appliance NFS failure"
+    --EVENT evt_nfs_failure
+    --% TrapTypeEnum=9
+::= 153      
+ 
+avct_#FAMILY_INFIX_DataBufferNFSRecovery TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    DESCRIPTION
+    "This trap is generated when the NFS server is back online after a failure in a 
+     Data Buffering write operation."
+    --#SUMMARY     "NFS Server is back online after a failure."
+    --#SEVERITY    ALERT
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance NFS Recovery"
+    --SHORT     "appliance NFS recovery"
+    --EVENT evt_nfs_recovery
+    --% TrapTypeEnum=9
+::= 154      
+
+--
+-- DSView Integration traps                                  
+-- start # 200
+avct_#FAMILY_INFIX_DataBufferFullThresholdLowTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectDataBufferSize 
+                }
+    DESCRIPTION
+    "This trap is generated when the appliance is managed by DSView and 
+     global data buffer has reached configured Low level Threshold.
+     _#FAMILY_PREFIX_TrapObjectDataBufferSize is current size of the buffer."
+    --#SUMMARY     "Data Buffering for DSView data log is getting full (low threshold). Buffer size: %d."
+    --#ARGUMENTS   {0}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance DSView Data Log Buffer Full First Warning"
+    --SHORT     "appliance DSView data log buffer full first warning"
+    --EVENT evt_dsview_loglow
+    --% TrapTypeEnum=9
+::= 200      
+      
+avct_#FAMILY_INFIX_DataBufferFullThresholdMedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectDataBufferSize 
+                }
+    DESCRIPTION
+    "This trap is generated when the appliance is managed by DSView and 
+     global data buffer has reached configured Med level Threshold.
+     _#FAMILY_PREFIX_TrapObjectDataBufferSize is current size of the buffer."
+    --#SUMMARY     "Data Buffering for DSView data log is almost full (medium threshold). Buffer size: %d."
+    --#ARGUMENTS   {0}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance DSView Data Log Buffer Full Second Warning"
+    --SHORT     "appliance DSView data log buffer full second warning"
+    --EVENT evt_dsview_logmed
+    --% TrapTypeEnum=9
+::= 201      
+
+avct_#FAMILY_INFIX_DataBufferFullLostDataTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    DESCRIPTION
+    "This trap is generated when the appliance is managed by DSView and 
+     global data buffer has exceeded beyond the size of buffer and data lost has occurred."
+    --#SUMMARY     "Data Buffering for DSView data log had data loss because buffer full."
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance DSView Log Data loss"
+    --SHORT     "appliance DSView log data loss"
+    --EVENT evt_dsview_loss
+    --% TrapTypeEnum=9
+::= 202      
+      
+--------------------------------------------------------------------------------
+-- Power Management Enterprise Traps
+--------------------------------------------------------------------------------
+--
+-- PDU Traps
+-- start # 300
+avct_#FAMILY_INFIX_PduOnlineTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduSocket,                        
+                  _#FAMILY_PREFIX_TrapObjectPduVendor
+                }
+    DESCRIPTION
+    "A power device unit(PDU) attached to the appliance is online. 
+     The port number on the appliance that the power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The power device ID is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The number of outlets of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduSocket.
+     The vendor of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduVendor"      
+    --#SUMMARY     "A power device is online. Serial port number: %d. PDU number: %d. PDU ID: %s. Number of sockets: %d. Vendor: %d."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Online"
+    --SHORT     "appliance power device online"
+    --EVENT evt_powdev_on
+    --% TrapTypeEnum=9
+::= 300
+
+avct_#FAMILY_INFIX_PduOfflineTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduSocket,                        
+                  _#FAMILY_PREFIX_TrapObjectPduVendor
+                }
+    DESCRIPTION
+    "A power device attached to the appliance is offline.
+     The port number on the appliance that the power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The power device ID is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The number of outlets of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduSocket.
+     The vendor of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduVendor."      
+    --#SUMMARY     "A power device is offline. Serial port number: %d. PDU number: %d. PDU ID: %s. Number of sockets: %d. Vendor: %d."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Error Events"
+    --NAME      "Appliance Power Device Offline"
+    --SHORT     "appliance power device offline"
+    --EVENT evt_powdev_off
+    --% TrapTypeEnum=9
+::= 301
+
+avct_#FAMILY_INFIX_PduIdChangedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduIdOld,
+                  _#FAMILY_PREFIX_TrapObjectPduId,                    
+                  _#FAMILY_PREFIX_TrapObjectPduVendor
+                }
+    DESCRIPTION
+    "The ID of the PDU was changed.
+     The port number on the appliance that the power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The old power device ID is contained in _#FAMILY_PREFIX_TrapObjectPduIdOld.
+     The new power device ID is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The vendor of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduVendor."    
+    --#SUMMARY  "Power device ID was changed. Serial port number: %d. PDU number: %d. PDU old ID: %s. PDU new ID: %s. Vendor: %d."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device ID Changed"
+    --SHORT     "appliance power device id changed"
+    --EVENT evt_powid_chng
+    --% TrapTypeEnum=9
+::= 302
+
+avct_#FAMILY_INFIX_PduMaxLoadHighTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue  
+                 }
+    DESCRIPTION
+    "The current on a power device attached to the appliance is above its high critical threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Appliance power device current is above its high critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Current Above High Critical Threshold"
+    --SHORT     "appliance power device current above high critical threshold"
+    --EVENT evt_pow_maxload
+    --% TrapTypeEnum=9
+::= 303
+      
+avct_#FAMILY_INFIX_PduMinLoadLowTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue  
+                }
+    DESCRIPTION
+    "The current on a power device attached to the appliance is below its low critical threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Appliance power device current is below its low critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Current Below Low Critical Threshold"
+    --SHORT     "appliance power device current below low critical threshold"
+    --EVENT evt_pow_minload
+    --% TrapTypeEnum=9
+::= 304
+
+avct_#FAMILY_INFIX_PduInletTotalLoadHighTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue  
+                }
+    DESCRIPTION
+    "The current in the inlet of a power device attached to the appliance is above its high critical threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The PDU ID that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     "
+    --#SUMMARY     "Appliance power device inlet current is above its high critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %d. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    ALERT
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Inlet Current Above High Critical Threshold"
+    --SHORT     "appliance power device inlet current above high critical threshold"
+    --EVENT evt_powin_mxld
+    --% TrapTypeEnum=9
+::= 305
+      
+avct_#FAMILY_INFIX_PduInletTotalLoadLowTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue  
+                }
+    DESCRIPTION
+    "The current in the inlet of a power device attached to the appliance is below its low critical threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The PDU ID that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     "
+    --#SUMMARY     "Appliance power device inlet current is below its low critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type:%d. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    ALERT
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Inlet Current Below Low Critical Threshold"
+    --SHORT     "appliance power device inlet current below low critical threshold"
+    --EVENT evt_powin_mnld
+    --% TrapTypeEnum=9
+::= 306
+
+avct_#FAMILY_INFIX_PduFirmwareUpgradeStarted TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectUserName,
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapFirmwareVersion,
+                  _#FAMILY_PREFIX_TrapNewFirmwareVersion              
+                }
+    DESCRIPTION
+    "The appliance has started an upgrade of the PM software.
+     The name of the user who initiate the process is contained in _#FAMILY_PREFIX_TrapObjectUserName.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The current firmware version is contained in _#FAMILY_PREFIX_TrapFirmwareVersion.
+     The new firmware version is contained in _#FAMILY_PREFIX_TrapNewFirmwareVersion."
+    --#SUMMARY     "PDU image upgrade started. User: %s. Serial port number: %d. PDU number: %d. Current version: %s. New version: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance PDU Image Upgrade Started"
+    --SHORT     "appliance pdu image upgrade started"
+    --EVENT evt_pdup_start
+    --% TrapTypeEnum=9
+::= 307
+
+avct_#FAMILY_INFIX_PduFirmwareUpgradeResultsTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapFirmwareUpgradeResult,                        
+                  _#FAMILY_PREFIX_TrapNewFirmwareVersion
+                }
+    DESCRIPTION
+    "This trap is generated when Firmware upgraded is done to indicate the result.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that gone beneath the minimum threshold is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The new FW version is contained in _#FAMILY_PREFIX_TrapNewFirmwareVersion.
+     The result of the process is contained in _#FAMILY_PREFIX_TrapFirmwareUpgradeResult."
+    --#SUMMARY     "PDU image upgrade result. Serial port number:%d. PDU number: %d. Result: %d. New firmware version: %s."
+    --#ARGUMENTS   {0, 1, 2, 3}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance PDU Image Upgrade Result"
+    --SHORT     "appliance pdu image upgrade result"
+    --EVENT evt_pdup_rslt
+    --% TrapTypeEnum=9
+::= 308            
+
+avct_#FAMILY_INFIX_PduHwOcpTripped TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName
+                }
+    DESCRIPTION
+    "This trap is generated when the HW overcurrent protection mechanism is tripped.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU that was tripped is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that was tripped is contained in the _#FAMILY_PREFIX_TrapObjectPduId. 
+     The Type of the PDU Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName."
+    --#SUMMARY     "HW overcurrent protection was tripped. Serial port number:%d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s."
+    --#ARGUMENTS   {0, 1, 2, 3, 4}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance PDU HW Overcurrent Protection tripped"
+    --SHORT     "appliance pdu hwocp tripped"
+    --EVENT evt_hwocp_tripped
+    --% TrapTypeEnum=9
+::= 309
+
+avct_#FAMILY_INFIX_PduHwOcpReset TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {     
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName
+                }
+    DESCRIPTION
+    "This trap is generated when the HW overcurrent protection mechanism is reset.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU whose HW OCP was reset is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU ID whose HW OCP was reset is contained in the _#FAMILY_PREFIX_TrapObjectPduId. 
+     The Type of the PDU Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName."
+    --#SUMMARY     "HW overcurrent protection was reset. Serial port number:%d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s."
+    --#ARGUMENTS   {0, 1, 2, 3, 4}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance PDU HW Overcurrent Protection reset"
+    --SHORT     "appliance pdu hwocp reset"
+    --EVENT evt_hwocp_reset
+    --% TrapTypeEnum=9
+::= 310
+
+avct_#FAMILY_INFIX_PduMaxLoadBackTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "The current on a power device attached to the appliance is back to normal.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the event is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Appliance power device normal current restored. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Normal Current Restored"
+    --SHORT     "appliance power device normal current restored"
+    --EVENT evt_pow_normload
+    --% TrapTypeEnum=9
+::= 311
+
+avct_#FAMILY_INFIX_PduWarnLoadTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "The current on a power device attached to the appliance is above its high warning threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Appliance power device current is above its high warning threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Current Above High Warning Threshold"
+    --SHORT     "appliance power device current above high warning threshold"
+    --EVENT evt_pow_warnload
+    --% TrapTypeEnum=9
+::= 312
+
+avct_#FAMILY_INFIX_PduLowLoadLowTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue  
+                }
+    DESCRIPTION
+    "The current on a power device attached to the appliance is below its low warning threshold.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Appliance power device current is below its low warning threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Current detected: %s amps."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Current Below Low Warning Threshold"
+    --SHORT     "appliance power device current below low warning threshold"
+    --EVENT evt_pow_lowload
+    --% TrapTypeEnum=9
+::= 313
+
+avct_#FAMILY_INFIX_PduBlownFuseTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduFuseStatus  
+                }
+    DESCRIPTION
+    "Blown fuse detection in one circuit of the PDU.
+     The port number on the appliance that the power device is attached to is contained in the _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The PDU# that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the PDU Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the Pdu Element that detected the problem is contained in the _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The status detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduFuseStatus."
+    --#SUMMARY     "Fuse status change. Serial port number: %d. PDU number: %d. PDU ID: %s. Elem Type: %s. Elem Name: %s. Fuse status: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    INFORMATIONAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Blown Fuse Detection"
+    --SHORT     "appliance power device blown fuse detection"
+    --EVENT evt_blown_fuse
+    --% TrapTypeEnum=9
+::= 314
+
+--
+--
+-- Outlet traps
+-- start # 350
+avct_#FAMILY_INFIX_OutletNameChangedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketOldName,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "The name of socket was changed.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the power device is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that has changed the name is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The old socket name is contained in _#FAMILY_PREFIX_TrapObjectSocketOldName.
+     The socket name that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "Power device socket name was changed. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Old socket name: %s. New socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket Name Changed"
+    --SHORT     "appliance power device socket name changed"
+    --EVENT evt_pdsock_chng
+    --% TrapTypeEnum=9
+::= 350
+
+avct_#FAMILY_INFIX_OutletCmdOnTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has been issued the on command.
+     The name of the user who issued the on command is contained in _#FAMILY_PREFIX_TrapObjectUserName.      
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that was issued the on command is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that was issued the on command is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "The on command was issued to a power device socket. Command issued by user: %s. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket On Command"
+    --SHORT     "appliance power device socket on command"
+    --EVENT evt_pdsock_oncmd
+    --% TrapTypeEnum=9
+::= 351
+
+avct_#FAMILY_INFIX_OutletStatusOnTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has changed to the on state.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that has changed to the on state is contained _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The number of the power device is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The socket name that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "Power device socket state changed to on. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket State On"
+    --SHORT     "appliance power device socket state on"
+    --EVENT evt_pdsock_onst
+    --% TrapTypeEnum=9
+::= 352
+
+avct_#FAMILY_INFIX_OutletCmdOffTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has been issued the off command.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that was issued the off command is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that was issued the off command is contained in _#FAMILY_PREFIX_TrapObjectSocketName.
+     The name of the user who issued the off command is contained in _#FAMILY_PREFIX_TrapObjectUserName."      
+    --#SUMMARY     "The off command was issued to a power device socket. Command issued by user: %s. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket Off Command"
+    --SHORT     "appliance power device socket off command"
+    --EVENT evt_pdsock_offcmd
+    --% TrapTypeEnum=9
+::= 353
+    
+avct_#FAMILY_INFIX_OutletStatusOffTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has changed to the off state.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the power device is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that has changed to the off state is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that has changed to the off state is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "Power device socket state changed to off. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket State Off"
+    --SHORT     "appliance power device socket state off"
+    --EVENT evt_pdsock_offst
+    --% TrapTypeEnum=9
+::= 354
+
+avct_#FAMILY_INFIX_OutletCmdCycleTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectUserName, 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has been issued the cycle command.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that was issued the cycle command is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that was issued the cycle command is contained in _#FAMILY_PREFIX_TrapObjectSocketName.
+     The name of the user who issued the cycle command is contained in _#FAMILY_PREFIX_TrapObjectUserName."      
+    --#SUMMARY     "The cycle command was issued to a power device socket. Command issued by user: %s. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket Cycle Command"
+    --SHORT     "appliance power device socket cycle command"
+    --EVENT evt_pdsock_cycmd
+    --% TrapTypeEnum=9
+::= 355
+
+avct_#FAMILY_INFIX_OutletCycleFinishedTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "An outlet on a chain of power device has completed the cycle command.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The power device number in the chain is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that was issued the cycle command is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that was issued the cycle command is contained in _#FAMILY_PREFIX_TrapObjectSocketName."
+    --#SUMMARY     "The cycle command has completed to a power device socket.  Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Socket Cycle Command Completed"
+    --SHORT     "appliance power device socket cycle command completed"
+    --EVENT evt_pdsock_cycom
+    --% TrapTypeEnum=9
+::= 356 
+     
+avct_#FAMILY_INFIX_OutletOnSenseFailTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "A power device attached to the appliance has detected an on sense failure for a socket.
+     An on sense failure occurs when a socket should be in the on state but is actually in the off state.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the power device is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "Power device socket on sense failure. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device On Sense Failure"
+    --SHORT     "appliance power device on sense failure"
+    --EVENT evt_pd_onfail
+    --% TrapTypeEnum=9
+::= 357
+
+avct_#FAMILY_INFIX_OutletOffSenseFailTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectSocketNumber,
+                  _#FAMILY_PREFIX_TrapObjectSocketName
+                }
+    DESCRIPTION
+    "A power device attached to the appliance has detected an off sense failure for a socket.
+     An off sense failure occurs when a socket should be in the off state but is actually in the on state.
+     The port number on the appliance that the chain of power device is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the power device is contained in the _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the power device is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The socket number that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketNumber.
+     The socket name that has changed to the on state is contained in _#FAMILY_PREFIX_TrapObjectSocketName."      
+    --#SUMMARY  "Power device socket off sense failure. Serial port number: %d. PDU number: %d. PDU ID: %s. Socket number: %d. Socket name: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4}
+    --#SEVERITY    MINOR
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Device Off Sense Failure"
+    --SHORT     "appliance power device off sense failure"
+    --EVENT evt_pd_offail
+    --% TrapTypeEnum=9
+::= 358
+  
+--
+-- ACS 6000 Appliance Specifics TRAPS
+-- 500
+avct_#FAMILY_INFIX_TemperatureExceededMaxTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMaximumValue,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMaxThreshold,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureCurrent
+               }
+    DESCRIPTION
+    "The appliance temperature has exceeded the maximum threshold configured.
+     The maximum temperature configured is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMaximumValue.
+     The threshold configured is contained in the _#FAMILY_PREFIX_TrapObjectTemperatureMaxThreshold.
+     The current temperature is contained in _#FAMILY_PREFIX_TrapObjectTemperatureCurrent."
+    --#SUMMARY     "Appliance temperature exceeded the maximum threshold. Maximum value: %d. Threshold: %d. Current: %d." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"      
+    --NAME      "Appliance Temperature Max Threshold Exceeded"
+    --SHORT     "appliance temperature max threshold exceeded"
+    --EVENT evt_temp_maxexd
+    --% TrapTypeEnum=9
+::= 500
+      
+avct_#FAMILY_INFIX_TemperatureReachedMaxTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMaximumValue,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMaxThreshold,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureCurrent
+                }
+    DESCRIPTION
+    "The appliance temperature has gone beneath the maximum threshold configured.
+     The maximum temperature configured is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMaximumValue
+     The threshold confiugred is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMaxThreshold.
+     The current temperature is contained in _#FAMILY_PREFIX_TrapObjectTemperatureCurrent."
+    --#SUMMARY     "Appliance temperature reached the maximum threshold. Maximum value: %d. Threshold: %d. Current: %d." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"        
+    --NAME      "Appliance Temperature Max Threshold Reached"
+    --SHORT     "appliance temperature max threshold reached"
+    --EVENT evt_temp_maxrch
+    --% TrapTypeEnum=9
+::= 501
+ 
+avct_#FAMILY_INFIX_TemperatureExceededMinTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMinimumValue,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMinThreshold,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureCurrent
+               }
+    DESCRIPTION
+    "The appliance temperature has exceeded the minimum threshold configured.
+     The minimum temperature configured is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMinimumValue.
+     The threshold configured is contained in the _#FAMILY_PREFIX_TrapObjectTemperatureMinThreshold.
+     The current temperature is contained in _#FAMILY_PREFIX_TrapObjectTemperatureCurrent."
+    --#SUMMARY     "Appliance temperature exceeded the minimum threshold. Minimum value: %d. Threshold: %d. Current: %d." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"     
+    --NAME      "Appliance Temperature Min Threshold Exceeded"
+    --SHORT     "appliance temperature min threshold exceeded"
+    --EVENT evt_temp_minexd
+    --% TrapTypeEnum=9
+::= 502
+      
+avct_#FAMILY_INFIX_TemperatureReachedMinTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMinimumValue,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureMinThreshold,
+                 _#FAMILY_PREFIX_TrapObjectTemperatureCurrent
+                }
+    DESCRIPTION
+    "The appliance temperature has gone beneath the minimum threshold configured.
+     The minimum temperature configured is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMinimumValue
+     The threshold confiugred is contained in _#FAMILY_PREFIX_TrapObjectTemperatureMinThreshold.
+     The current temperature is contained in _#FAMILY_PREFIX_TrapObjectTemperatureCurrent."
+    --#SUMMARY     "Appliance temperature reached the minimum threshold. Minimum value: %d. Threshold:%d. Current: %d." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"       
+    --NAME      "Appliance Temperature Min Threshold Reached"
+    --SHORT     "appliance temperature min threshold reached"
+    --EVENT evt_temp_minrch
+    --% TrapTypeEnum=9
+::= 503
+    
+avct_#FAMILY_INFIX_PowerSupplyTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectPowerSupplyNumber,
+                 _#FAMILY_PREFIX_TrapObjectPowerSupplyOldState,
+                 _#FAMILY_PREFIX_TrapObjectPowerSupplyNewState
+               }
+    DESCRIPTION
+    "The state of the appliance power supply has changed.
+     The number of power supply is contained in _#FAMILY_PREFIX_TrapObjectPowerSupplyNumber.
+     The old state of the power supply is contained in _#FAMILY_PREFIX_TrapObjectSupplyOldState.
+     The new state of the power supply is contained in _#FAMILY_PREFIX_TrapObjectSupplyNewState."
+    --#SUMMARY     "State of the power supply has been changed. Power supply number: %d. Old state: %d. New state: %d." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Appliance Power Supply State Changed"
+    --SHORT     "appliance power supply state changed"
+    --EVENT evt_pow_stch
+    --% TrapTypeEnum=9
+::= 504
+      
+avct_#FAMILY_INFIX_PlugDeviceInsertTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceName,
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceType,
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceInfo
+               }
+    DESCRIPTION
+    "A plugged device has been inserted in the appliance.
+     The device name used by plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceName.
+     The type of the plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceType.
+     The info about the plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceInfo."
+    --#SUMMARY     "A pluggable device has been inserted in the appliance. Device name: %s. Device type: %s. Device info: %s." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events" 
+    --NAME      "Appliance Has A Pluggable Device Inserted"
+    --SHORT     "appliance has a pluggable device inserted"
+    --EVENT evt_plgd_ins
+    --% TrapTypeEnum=9
+::= 505
+
+avct_#FAMILY_INFIX_PlugDeviceEjectTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   { 
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceName,
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceType,
+                 _#FAMILY_PREFIX_TrapObjectPlugDeviceInfo
+               }
+    DESCRIPTION
+    "A plugged device has been ejected from the appliance.
+     The device name used by plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceName.
+     The type of the plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceType.
+     The info about the plugged device is contained in _#FAMILY_PREFIX_TrapObjectPlugDeviceInfo."
+    --#SUMMARY     "A pluggable device has been ejected from the appliance. Device name: %s. Device type: %s. Device info: %s." 
+    --#ARGUMENTS   { 0, 1, 2}
+    --#SEVERITY    CRITICAL
+    --#CATEGORY    "Status Events" 
+    --NAME      "Appliance Has A Pluggable Device Ejected"
+    --SHORT     "appliance has a pluggable device ejected"
+    --EVENT evt_plgd_ej
+    --% TrapTypeEnum=9
+::= 506
+
+avct_#FAMILY_INFIX_SensorThresholdNormalTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A sensor attached to the appliance cleared its alarm.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Sensor alarm was cleared. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Sensor Alarm Cleared"
+    --SHORT     "sensor alarm cleared"
+    --EVENT evt_sensor_alarm_normal
+    --% TrapTypeEnum=9
+::= 507
+
+avct_#FAMILY_INFIX_SensorThresholdHighCriticalTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A sensor attached to the appliance is above its high critical threshold.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Sensor is above its high critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Sensor Alarm High Critical"
+    --SHORT     "sensor alarm high critical"
+    --EVENT evt_sensor_alarm_high_crit
+    --% TrapTypeEnum=9
+::= 508
+
+avct_#FAMILY_INFIX_SensorThresholdHighWarningTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A sensor attached to the appliance is above its high warning threshold.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Sensor is above its high warning threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Sensor Alarm High Warning"
+    --SHORT     "sensor alarm high warning"
+    --EVENT evt_sensor_alarm_high_warn
+    --% TrapTypeEnum=9
+::= 509
+
+avct_#FAMILY_INFIX_SensorThresholdLowWarningTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A sensor attached to the appliance is below its low warning threshold.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Sensor is below its low warning threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Sensor Alarm Low Warning"
+    --SHORT     "sensor alarm low warning"
+    --EVENT evt_sensor_alarm_low_warn
+    --% TrapTypeEnum=9
+::= 510
+
+avct_#FAMILY_INFIX_SensorThresholdLowCriticalTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A sensor attached to the appliance is below its low critical threshold.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Sensor is below its low critical threshold. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Sensor Alarm Low Critical"
+    --SHORT     "sensor alarm low critical"
+    --EVENT evt_sensor_alarm_low_crit
+    --% TrapTypeEnum=9
+::= 511
+   
+avct_#FAMILY_INFIX_SensorThresholdDigitalSensorAlarmTrap TRAP-TYPE
+    ENTERPRISE  _#FAMILY_PREFIX_Products
+    VARIABLES   {
+                  _#FAMILY_PREFIX_TrapObjectSerialPortNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduNumber,
+                  _#FAMILY_PREFIX_TrapObjectPduId,
+                  _#FAMILY_PREFIX_TrapObjectPduElementType,
+                  _#FAMILY_PREFIX_TrapObjectPduElementName,
+                  _#FAMILY_PREFIX_TrapObjectPduCurrentValue
+                }
+    DESCRIPTION
+    "A digital sensor attached to the appliance is in its alarm state.
+     The port number of the appliance where the sensor is attached to is contained in _#FAMILY_PREFIX_TrapObjectSerialPortNumber.
+     The number of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduNumber.
+     The ID of the PDU where the sensor is attached is contained in _#FAMILY_PREFIX_TrapObjectPduId.
+     The Type of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementType.
+     The Name of the sensor is contained in _#FAMILY_PREFIX_TrapObjectPduElementName.
+     The current value detected when this trap was originated is contained in _#FAMILY_PREFIX_TrapObjectPduCurrentValue."
+    --#SUMMARY     "Digital sensor changed to alarm state. Serial port number: %d. PDU number: %d. PDU ID: %s. Sensor Type: %s. Sensor Name: %s. Current value: %s."
+    --#ARGUMENTS   { 0, 1, 2, 3, 4, 5}
+    --#SEVERITY    NON-CRITICAL
+    --#CATEGORY    "Status Events"
+    --NAME      "Digital Sensor Alarm"
+    --SHORT     "digital sensor alarm"
+    --EVENT evt_digital_sensor_alarm
+    --% TrapTypeEnum=9
+::= 512
+
+END

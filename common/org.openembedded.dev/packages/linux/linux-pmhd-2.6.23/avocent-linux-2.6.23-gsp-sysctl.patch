@@ -1,0 +1,1586 @@
+Index: linux-2.6.23/arch/powerpc/platforms/83xx/Kconfig
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/platforms/83xx/Kconfig
++++ linux-2.6.23/arch/powerpc/platforms/83xx/Kconfig
+@@ -9,6 +9,12 @@ config MPC8313_RDB
+ 	help
+ 	  This option enables support for the MPC8313 RDB board.
+ 
++config AVOCENT_PMHD
++	bool "Avocent PMHD"
++	select AVOCENT_GSP
++	help
++	  This option enables support for the Avocent PMHD board.
++
+ config MPC832x_MDS
+ 	bool "Freescale MPC832x MDS"
+ 	select DEFAULT_UIMAGE
+@@ -56,7 +62,7 @@ config PPC_MPC831x
+ 	bool
+ 	select PPC_UDBG_16550
+ 	select PPC_INDIRECT_PCI
+-	default y if MPC8313_RDB
++	default y if MPC8313_RDB || AVOCENT_PMHD
+ 
+ config PPC_MPC832x
+ 	bool
+Index: linux-2.6.23/arch/powerpc/boot/dts/avocent-pmhd.dts
+===================================================================
+--- /dev/null
++++ linux-2.6.23/arch/powerpc/boot/dts/avocent-pmhd.dts
+@@ -0,0 +1,224 @@
++/*
++ * MPC8313E RDB Device Tree Source
++ *
++ * Copyright (C) 2007 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++/ {
++        model = "MPC8313ERDB";
++        compatible = "MPC8313ERDB", "MPC831xRDB", "MPC83xxRDB";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	cpus {
++		#cpus = <1>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		PowerPC,8313@0 {
++			device_type = "cpu";
++			reg = <0>;
++			d-cache-line-size = <20>;	// 32 bytes
++			i-cache-line-size = <20>;	// 32 bytes
++			d-cache-size = <4000>;		// L1, 16K
++			i-cache-size = <4000>;		// L1, 16K
++			timebase-frequency = <0>;	// from bootloader
++			bus-frequency = <0>;		// from bootloader
++			clock-frequency = <0>;		// from bootloader
++			32-bit;
++		};
++	};
++
++	memory {
++		device_type = "memory";
++		reg = <00000000 08000000>;	// 128MB at 0
++	};
++
++	nand0 {
++		device_type = "nand";
++		compatible = "fsl-nand";
++		linux,phandle = <301>;
++		reg = <e2800000 2000>;
++	};
++
++	soc8313@e0000000 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		#interrupt-cells = <2>;
++		device_type = "soc";
++		ranges = <0 e0000000 00100000>;
++		reg = <e0000000 00000200>;
++		bus-frequency = <0>;
++
++		wdt@200 {
++			device_type = "watchdog";
++			compatible = "mpc83xx_wdt";
++			reg = <200 100>;
++		};
++
++		reset@200 {
++			device_type = "reset";
++			compatible = "mpc83xx_rst";
++			reg = <900 100>;
++		};
++
++		i2c@3000 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3000 100>;
++			interrupts = <e 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		i2c@3100 {
++			device_type = "i2c";
++			compatible = "fsl-i2c";
++			reg = <3100 100>;
++			interrupts = <f 8>;
++			interrupt-parent = <700>;
++			dfsrr;
++		};
++
++		spi@7000 {
++			device_type = "spi";
++			compatible = "mpc83xx_spi";
++			reg = <7000 1000>;
++			interrupts = <10 8>;
++			interrupt-parent = <700>;
++			mode = <0>;
++		};
++
++		mdio@24520 {
++			device_type = "mdio";
++			compatible = "gianfar";
++			reg = <24520 20>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			linux,phandle = <24520>;
++			ethernet-phy@0 {
++				linux,phandle = <2452000>;
++				reg = <0>;
++				device_type = "ethernet-phy";
++			};
++		};
++
++		ethernet@24000 {
++			device_type = "network";
++			model = "eTSEC";
++			compatible = "gianfar";
++			reg = <24000 1000>;
++			address = [ 00 00 00 00 00 00 ];
++			local-mac-address = [ 00 00 00 00 00 00 ];
++			interrupts = <20 8 21 8 22 8>;
++			interrupt-parent = <700>;
++			phy-handle = <2452000>;
++			sleep = <b00 20000000>;
++			fsl,magic-packet;
++		};
++
++		serial@4500 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4500 100>;
++			clock-frequency = <0>;
++			interrupts = <9 8>;
++			interrupt-parent = <700>;
++		};
++
++		serial@4600 {
++			device_type = "serial";
++			compatible = "ns16550";
++			reg = <4600 100>;
++			clock-frequency = <0>;
++			interrupts = <a 8>;
++			interrupt-parent = <700>;
++		};
++
++		/* IPIC
++		 * interrupts cell = <intr #, sense>
++		 * sense values match linux IORESOURCE_IRQ_* defines:
++		 * sense == 8: Level, low assertion
++		 * sense == 2: Edge, high-to-low change
++		 */
++		pic@700 {
++			linux,phandle = <700>;
++			interrupt-controller;
++			#address-cells = <0>;
++			#interrupt-cells = <2>;
++			reg = <700 100>;
++			built-in;
++			device_type = "ipic";
++		};
++
++		elbc@5000 {
++			linux,phandle = <5000>;
++			device_type = "elbc";
++			compatible = "fsl-elbc";
++			reg = <5000 1000>;
++			interrupts = <4d 8>;
++			interrupt-parent = <700>;
++		};
++
++		power@b00 {
++			linux,phandle = <b00>;
++			device_type = "power";
++			compatible = "fsl,mpc831x-pmc", "fsl,mpc83xx-pmc";
++			reg = <b00 100
++				a00 100>;
++			interrupts = <50 8>;
++			interrupt-parent = <700>;
++		};
++
++		timer@500 {
++			linux,phandle = <500>;
++			device_type = "timer";
++			compatible = "fsl,mpc831x-gtm", "fsl,mpc83xx-gtm";
++			reg = <500 100>;
++			interrupts = <48 8>;
++			interrupt-parent = <700>;
++		};
++	};
++
++	serial@f0000000 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000000 8>;
++		clock-frequency = <0>;
++		interrupts = <30 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000008 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000008 8>;
++		clock-frequency = <0>;
++		interrupts = <11 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000010 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000010 8>;
++		clock-frequency = <0>;
++		interrupts = <12 2>;
++		interrupt-parent = <700>;
++	};
++
++	serial@f0000018 {
++		device_type = "serial";
++		compatible = "ns16550";
++		reg = <f0000018 8>;
++		clock-frequency = <0>;
++		interrupts = <13 2>;
++		interrupt-parent = <700>;
++	};
++};
++
+Index: linux-2.6.23/arch/powerpc/platforms/83xx/Makefile
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/platforms/83xx/Makefile
++++ linux-2.6.23/arch/powerpc/platforms/83xx/Makefile
+@@ -6,6 +6,7 @@ obj-$(CONFIG_PCI)		+= pci.o
+ obj-$(CONFIG_SUSPEND)		+= suspend.o suspend-asm.o
+ obj-$(CONFIG_MPC83xx_GTM)	+= timer.o
+ obj-$(CONFIG_MPC8313_RDB)	+= mpc8313_rdb.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent-pmhd.o
+ obj-$(CONFIG_MPC832x_RDB)	+= mpc832x_rdb.o
+ obj-$(CONFIG_MPC834x_MDS)	+= mpc834x_mds.o
+ obj-$(CONFIG_MPC834x_ITX)	+= mpc834x_itx.o
+Index: linux-2.6.23/arch/powerpc/kernel/setup_32.c
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/kernel/setup_32.c
++++ linux-2.6.23/arch/powerpc/kernel/setup_32.c
+@@ -49,6 +49,10 @@
+ #include <asm/kgdb.h>
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
+ extern void bootx_init(unsigned long r4, unsigned long phys);
+ 
+ struct ide_machdep_calls ppc_ide_md;
+@@ -135,6 +139,17 @@ void __init machine_init(unsigned long d
+ 		ppc_md.progress("id mach(): done", 0x200);
+ }
+ 
++#ifdef CONFIG_AVOCENT_GSP
++int gsp_watchdog_enabled = 0;
++int __init early_parse_watchdog(char *p)
++{
++	if (p && strncmp(p, "no", 2) != 0)
++		gsp_watchdog_enabled = 1;
++	return 0;
++}
++early_param("watchdog", early_parse_watchdog);
++#endif
++
+ #ifdef CONFIG_BOOKE_WDT
+ /* Checks wdt=x and wdt_period=xx command-line option */
+ int __init early_parse_wdt(char *p)
+@@ -156,6 +171,53 @@ int __init early_parse_wdt_period (char 
+ early_param("wdt_period", early_parse_wdt_period);
+ #endif	/* CONFIG_BOOKE_WDT */
+ 
++#ifdef CONFIG_AVOCENT_GSP
++
++#ifndef CONFIG_AVOCENT_ETHPORTS
++#define CONFIG_AVOCENT_ETHPORTS 1
++#endif
++int gsp_ethmode[CONFIG_AVOCENT_ETHPORTS];
++int __init early_parse_fecmode1(char *p)
++{
++	if (p) {
++		if (! strcmp(p, "auto")) {
++			gsp_ethmode[0] = 0;
++		} else if (! strcmp(p, "10h") || ! strcmp(p, "10H")) {
++			gsp_ethmode[0] = 1;
++		} else if (! strcmp(p, "10f") || ! strcmp(p, "10F")) {
++			gsp_ethmode[0] = 2;
++		} else if (! strcmp(p, "100h") || ! strcmp(p, "100H")) {
++			gsp_ethmode[0] = 3;
++		} else if (! strcmp(p, "100f") || ! strcmp(p, "100F")) {
++			gsp_ethmode[0] = 4;
++		}
++	}
++	return 0;
++}
++early_param("fecmode1", early_parse_fecmode1);
++
++#if (CONFIG_AVOCENT_ETHPORTS >= 2)
++int __init early_parse_fecmode2(char *p)
++{
++	if (p) {
++		if (! strcmp(p, "auto")) {
++			gsp_ethmode[1] = 0;
++		} else if (! strcmp(p, "10h") || ! strcmp(p, "10H")) {
++			gsp_ethmode[1] = 1;
++		} else if (! strcmp(p, "10f") || ! strcmp(p, "10F")) {
++			gsp_ethmode[1] = 2;
++		} else if (! strcmp(p, "100h") || ! strcmp(p, "100H")) {
++			gsp_ethmode[1] = 3;
++		} else if (! strcmp(p, "100f") || ! strcmp(p, "100F")) {
++			gsp_ethmode[1] = 4;
++		}
++	}
++	return 0;
++}
++early_param("fecmode2", early_parse_fecmode2);
++#endif
++#endif
++
+ /* Checks "l2cr=xxxx" command-line option */
+ int __init ppc_setup_l2cr(char *str)
+ {
+@@ -239,10 +301,10 @@ void __init setup_arch(char **cmdline_p)
+ 	find_legacy_serial_ports();
+ 
+ 	smp_setup_cpu_maps();
+-
++#ifdef CONFIG_EARLY_PRINTK
+ 	/* Register early console */
+ 	register_early_udbg_console();
+-
++#endif
+ 	xmon_setup();
+ 
+ #if defined(CONFIG_KGDB)
+Index: linux-2.6.23/arch/powerpc/kernel/time.c
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/kernel/time.c
++++ linux-2.6.23/arch/powerpc/kernel/time.c
+@@ -73,9 +73,15 @@
+ #include <asm/iseries/hv_call_xm.h>
+ #endif
+ #include <asm/smp.h>
++#include <linux/workqueue.h>
++#include <asm/atomic.h>
+ 
+ /* keep track of when we need to update the rtc */
+ time_t last_rtc_update;
++atomic_t do_set_rtc = ATOMIC_INIT(0);
++atomic_t flag_rtc = ATOMIC_INIT(1);
++unsigned long do_get_rtc_flag = 0;
++
+ #ifdef CONFIG_PPC_ISERIES
+ static unsigned long __initdata iSeries_recal_titan;
+ static signed long __initdata iSeries_recal_tb;
+@@ -128,6 +134,27 @@ unsigned long ppc_tb_freq;
+ static u64 tb_last_jiffy __cacheline_aligned_in_smp;
+ static DEFINE_PER_CPU(u64, last_jiffy);
+ 
++#ifdef CONFIG_AVOCENT_GSP
++extern int gsp_watchdog_enabled;
++#ifdef CONFIG_PPC_83xx
++unsigned long wdt_base;
++unsigned long reset_base = 0;
++#endif
++
++void avocent_gsp_watchdog_reset(void)
++{
++	if (gsp_watchdog_enabled) {
++#ifdef CONFIG_BOOKE
++		mtspr(SPRN_TSR, TSR_WIS|TSR_ENW);
++#endif
++#ifdef CONFIG_PPC_83xx
++		out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++		out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++#endif
++	}
++}
++#endif
++
+ #ifdef CONFIG_VIRT_CPU_ACCOUNTING
+ /*
+  * Factors for converting from cputime_t (timebase ticks) to
+@@ -367,15 +394,20 @@ static __inline__ void timer_check_rtc(v
+          * We should have an rtc call that only sets the minutes and
+          * seconds like on Intel to avoid problems with non UTC clocks.
+          */
+-        if (ppc_md.set_rtc_time && ntp_synced() &&
++
++	u8 set_flag = atomic_read(&do_set_rtc);
++
++        if (ppc_md.set_rtc_time && (ntp_synced() || set_flag)&&
+ 	    xtime.tv_sec - last_rtc_update >= 659 &&
+ 	    abs((xtime.tv_nsec/1000) - (1000000-1000000/HZ)) < 500000/HZ) {
+ 		struct rtc_time tm;
+ 		to_tm(xtime.tv_sec + 1 + timezone_offset, &tm);
+ 		tm.tm_year -= 1900;
+ 		tm.tm_mon -= 1;
+-		if (ppc_md.set_rtc_time(&tm) == 0)
++		if (ppc_md.set_rtc_time(&tm) == 0) {
+ 			last_rtc_update = xtime.tv_sec + 1;
++			atomic_set(&do_set_rtc,0);
++		}
+ 		else
+ 			/* Try again one minute later */
+ 			last_rtc_update += 60;
+@@ -711,6 +743,10 @@ void timer_interrupt(struct pt_regs * re
+ 	}
+ #endif
+ 
++#ifdef CONFIG_AVOCENT_GSP
++	avocent_gsp_watchdog_reset();
++#endif
++
+ 	irq_exit();
+ 	set_irq_regs(old_regs);
+ }
+@@ -847,7 +883,7 @@ int do_settimeofday(struct timespec *tv)
+ 	 * clock to be updated as soon as the PLL is again in lock.
+ 	 */
+ 	last_rtc_update = new_sec - 658;
+-
++	atomic_inc(&do_set_rtc);
+ 	ntp_clear();
+ 
+ 	new_xsec = xtime.tv_nsec;
+@@ -1059,6 +1095,29 @@ void __init time_init(void)
+ 
+ 	/* Not exact, but the timer interrupt takes care of this */
+ 	set_dec(tb_ticks_per_jiffy);
++#ifdef CONFIG_AVOCENT_GSP
++	{
++#ifdef CONFIG_PPC_83xx
++		struct device_node *np;
++		struct resource r;
++		wdt_base = 0xe0000200L; /* Value when something doesn't work out */
++		np = of_find_compatible_node(NULL, "watchdog", "mpc83xx_wdt");
++		if (np) {
++			memset(&r, 0, sizeof(r));
++			if (! of_address_to_resource(np, 0, &r))
++				wdt_base = ioremap(r.start, 16);
++		}
++		reset_base = 0xe0000900L; /* Value when something doesn't work out */
++		np = of_find_compatible_node(NULL, "reset", "mpc83xx_rst");
++		if (np) {
++			memset(&r, 0, sizeof(r));
++			if (! of_address_to_resource(np, 0, &r))
++				reset_base = ioremap(r.start, 16);
++		}
++#endif
++	}
++#endif
++
+ }
+ 
+ 
+Index: linux-2.6.23/arch/powerpc/platforms/83xx/misc.c
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/platforms/83xx/misc.c
++++ linux-2.6.23/arch/powerpc/platforms/83xx/misc.c
+@@ -18,13 +18,27 @@
+ 
+ #include "mpc83xx.h"
+ 
++#ifdef CONFIG_AVOCENT_GSP
++#ifdef CONFIG_PPC_83xx
++extern unsigned long reset_base;
++#endif
++#endif
++
+ static __be32 __iomem *restart_reg_base;
+ 
+ static int __init mpc83xx_restart_init(void)
+ {
++#ifdef CONFIG_AVOCENT_GSP
++#ifdef CONFIG_PPC_83xx
++
++	if (reset_base) {
++		restart_reg_base = reset_base;
++	}
++#endif
++#else
+ 	/* map reset restart_reg_baseister space */
+ 	restart_reg_base = ioremap(get_immrbase() + 0x900, 0xff);
+-
++#endif
+ 	return 0;
+ }
+ 
+Index: linux-2.6.23/arch/powerpc/kernel/setup-common.c
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/kernel/setup-common.c
++++ linux-2.6.23/arch/powerpc/kernel/setup-common.c
+@@ -67,6 +67,8 @@
+ #define DBG(fmt...)
+ #endif
+ 
++extern unsigned long wdt_base;
++
+ /* The main machine-dep calls structure
+  */
+ struct machdep_calls ppc_md;
+@@ -116,6 +118,7 @@ void machine_restart(char *cmd)
+ 
+ void machine_power_off(void)
+ {
++	int i;
+ 	machine_shutdown();
+ 	if (ppc_md.power_off)
+ 		ppc_md.power_off();
+@@ -124,7 +127,16 @@ void machine_power_off(void)
+ #endif
+ 	printk(KERN_EMERG "System Halted, OK to turn off power\n");
+ 	local_irq_disable();
+-	while (1) ;
++	while (1) {
++	//Added for BTS Bug-51589, Shell commands like shutdown or halt should NOT reboot the PM   
++	#ifdef CONFIG_PPC_83xx
++		out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++		out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++	#endif
++	for(i =0; i < 1000; i++ )
++		;
++	}
++
+ }
+ /* Used by the G5 thermal driver */
+ EXPORT_SYMBOL_GPL(machine_power_off);
+@@ -134,6 +146,7 @@ EXPORT_SYMBOL_GPL(pm_power_off);
+ 
+ void machine_halt(void)
+ {
++	int i;
+ 	machine_shutdown();
+ 	if (ppc_md.halt)
+ 		ppc_md.halt();
+@@ -142,7 +155,15 @@ void machine_halt(void)
+ #endif
+ 	printk(KERN_EMERG "System Halted, OK to turn off power\n");
+ 	local_irq_disable();
+-	while (1) ;
++	while (1) {
++	//Added for BTS Bug-51589, Shell commands like shutdown or halt should NOT reboot the PM   
++	#ifdef CONFIG_PPC_83xx
++		out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++		out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++	#endif
++	for(i =0; i < 1000; i++ )
++		;
++	}
+ }
+ 
+ 
+Index: linux-2.6.23/arch/powerpc/Kconfig
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/Kconfig
++++ linux-2.6.23/arch/powerpc/Kconfig
+@@ -65,7 +65,7 @@ config PPC
+ 
+ config EARLY_PRINTK
+ 	bool
+-	default y
++	default n
+ 
+ config COMPAT
+ 	bool
+@@ -146,6 +146,10 @@ config PPC_OF_PLATFORM_PCI
+ 	depends on PPC64 # not supported on 32 bits yet
+ 	default n
+ 
++config AVOCENT_GSP
++	bool
++	default n
++
+ source "init/Kconfig"
+ 
+ source "arch/powerpc/platforms/Kconfig"
+Index: linux-2.6.23/arch/powerpc/platforms/Makefile
+===================================================================
+--- linux-2.6.23.orig/arch/powerpc/platforms/Makefile
++++ linux-2.6.23/arch/powerpc/platforms/Makefile
+@@ -25,3 +25,4 @@ obj-$(CONFIG_PPC_CELL)		+= cell/
+ obj-$(CONFIG_PPC_PS3)		+= ps3/
+ obj-$(CONFIG_PPC_CELLEB)	+= celleb/
+ obj-$(CONFIG_EMBEDDED6xx)	+= embedded6xx/
++obj-$(CONFIG_AVOCENT_GSP)	+= gsp-sysctl.o
+Index: linux-2.6.23/arch/powerpc/platforms/gsp-sysctl.c
+===================================================================
+--- /dev/null
++++ linux-2.6.23/arch/powerpc/platforms/gsp-sysctl.c
+@@ -0,0 +1,343 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/fs.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++#include <asm/ppcboot.h>
++
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
++enum {
++	CTL_BDINFO = 1,
++	CTL_BOARD,
++	CTL_WDT,
++};
++
++enum {
++	CTL_BDINFO_DUMMY = 0,
++	CTL_BDINFO_FAMILY,
++	CTL_BDINFO_PORTS,
++	CTL_BDINFO_MODEM,
++	CTL_BDINFO_AUX,
++	CTL_BDINFO_OEM,
++#ifdef CONFIG_AVOCENT_PMHD
++	CTL_BDINFO_MODEL,
++	CTL_BDINFO_INPUT_TYPE,
++	CTL_BDINFO_INPUT,
++	CTL_BDINFO_SWITCHED,
++#endif
++};
++
++#ifndef CFG_AVOCENT_FAMILY_CODE
++#define CFG_AVOCENT_FAMILY_CODE	0
++#endif
++#ifndef CFG_AVOCENT_SERIAL
++#define CFG_AVOCENT_SERIAL	0
++#endif
++#ifndef CFG_AVOCENT_MODEM
++#define CFG_AVOCENT_MODEM	0
++#endif
++#ifndef CFG_AVOCENT_AUX
++#define CFG_AVOCENT_AUX		0
++#endif
++#ifndef CFG_AVOCENT_OEM_CODE
++#define CFG_AVOCENT_OEM_CODE	0
++#endif
++
++#define MAX_BDINFO_STR	64
++
++#ifdef CONFIG_AVOCENT_PMHD
++char avocent_pmhd_model[MAX_BDINFO_STR] = {0};
++int avocent_pmhd_input_type = 0;
++char avocent_pmhd_input[MAX_BDINFO_STR] = {0};
++int avocent_pmhd_switched = 0;
++#endif
++
++static int proc_handle_int(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int)] ;
++	int value;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		memset(string, 0, sizeof(int));
++		switch (table->ctl_name) {
++		case CTL_BDINFO_FAMILY:
++			value = CFG_AVOCENT_FAMILY_CODE;
++			break;
++		case CTL_BDINFO_PORTS:
++			value = CFG_AVOCENT_SERIAL;
++			break;
++		case CTL_BDINFO_MODEM:
++			value = CFG_AVOCENT_MODEM;
++			break;
++		case CTL_BDINFO_AUX:
++			value = CFG_AVOCENT_AUX;
++			break;
++		case CTL_BDINFO_OEM:
++			value = CFG_AVOCENT_OEM_CODE;
++			break;
++#ifdef CONFIG_AVOCENT_PMHD
++		case CTL_BDINFO_INPUT_TYPE:
++			value = avocent_pmhd_input_type;
++			break;
++		case CTL_BDINFO_SWITCHED:
++			value = avocent_pmhd_switched;
++			break;
++#endif
++		}
++		snprintf(string, sizeof(int), "%d", value);
++		if (copy_to_user(buffer, string, sizeof(int))) {
++			return -EFAULT;
++		}
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++static int proc_handle_string(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[MAX_BDINFO_STR];
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++	if (!write) {
++		memset(string, 0, MAX_BDINFO_STR);
++		switch (table->ctl_name) {
++#ifdef CONFIG_AVOCENT_PMHD
++		case CTL_BDINFO_MODEL:
++			strncpy(string, avocent_pmhd_model, MAX_BDINFO_STR);
++			printk("avocent_pmhd_model set with %s\n", avocent_pmhd_model);
++			break;
++		case CTL_BDINFO_INPUT:
++			strncpy(string, avocent_pmhd_input, MAX_BDINFO_STR);
++			printk("avocent_pmhd_input set with %s\n", avocent_pmhd_input);
++			break;
++#endif
++		default:
++			break;
++		}
++
++		if (!*string) {	//string was not set
++			return 0;
++		}
++
++		if (copy_to_user(buffer, string, MAX_BDINFO_STR)) {
++			printk("avocent pmhd string fail to copy %s to buffer", string);
++			return -EFAULT;
++		}
++		*lenp = strlen(string);
++		*ppos += strlen(string);
++	}
++	return 0;
++}
++
++static struct ctl_table bdinfo_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO_FAMILY,
++		.procname = "family",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_PORTS,
++		.procname = "ports",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_MODEM,
++		.procname = "modem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_AUX,
++		.procname = "aux",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_OEM,
++		.procname = "oem",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{0}
++};
++
++extern int gsp_watchdog_enabled;
++#ifdef CONFIG_PPC_83xx
++extern unsigned long wdt_base;
++#endif
++static int proc_handle_wdt(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[sizeof(int) + 1];
++	unsigned long aux;
++	int val;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++	}
++#ifdef CONFIG_BOOKE
++	aux = mfspr(SPRN_TSR);
++#endif
++	if (write) {
++		if (copy_from_user(string, buffer, sizeof(int)))
++			return -EFAULT;
++#ifdef CONFIG_BOOKE
++		if (sscanf(string, "%d", &val) && val > 0 && val < 4) {
++			aux = (aux & ~(3<<30)) | (val<<30);
++			mtspr(SPRN_TSR, aux);
++		}
++#endif
++#ifdef CONFIG_PPC_83xx
++		if (sscanf(string, "%d", &val) && val != 0) {
++			out_be16((__be16 *)(wdt_base + 0xe), 0x556c);
++			out_be16((__be16 *)(wdt_base + 0xe), 0xaa39);
++		}
++#endif
++	} else {
++		memset(string, 0, sizeof(int));
++#ifdef CONFIG_BOOKE
++		snprintf(string, sizeof(int), "%d", (int)(aux >> 30));
++#endif
++#ifdef CONFIG_PPC_83xx
++		aux = in_be32((__be32 *)(wdt_base + 0x8));
++		snprintf(string, sizeof(int), "%x", (unsigned int)aux);
++#endif
++		if (copy_to_user(buffer, string, sizeof(int)))
++			return -EFAULT;
++		*lenp = sizeof(int);
++		*ppos += sizeof(int);
++	}
++	return 0;
++}
++
++enum {
++	CTL_WDT_DUMMY = 0,
++	CTL_WDT_CONTROL,
++	CTL_WDT_STATUS,
++};
++
++static struct ctl_table wdt_dir_table[] =
++{
++	{
++		.ctl_name = CTL_WDT_CONTROL,
++		.procname = "control",
++		.data = &gsp_watchdog_enabled,
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_dointvec,
++	},
++	{
++		.ctl_name = CTL_WDT_STATUS,
++		.procname = "status",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = proc_handle_wdt,
++	},
++	{0}
++};
++
++static struct ctl_table board_dir_table[] =
++{
++#ifdef CONFIG_AVOCENT_PMHD
++	{
++		.ctl_name = CTL_BDINFO_MODEL,
++		.procname = "model",
++		.maxlen = MAX_BDINFO_STR,
++		.mode = 0644,
++		.proc_handler = &proc_handle_string,
++	},
++	{
++		.ctl_name = CTL_BDINFO_INPUT_TYPE,
++		.procname = "input_type",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++	{
++		.ctl_name = CTL_BDINFO_INPUT,
++		.procname = "input",
++		.maxlen = MAX_BDINFO_STR,
++		.mode = 0644,
++		.proc_handler = &proc_handle_string,
++	},
++	{
++		.ctl_name = CTL_BDINFO_SWITCHED,
++		.procname = "switched",
++		.maxlen = sizeof(int),
++		.mode = 0644,
++		.proc_handler = &proc_handle_int,
++	},
++#endif
++	{0}
++};
++
++static struct ctl_table avocent_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO,
++                .procname = "bdinfo",
++                .mode = 0555,
++                .child = bdinfo_dir_table,
++        },
++	{
++		.ctl_name = CTL_BOARD,
++                .procname = "board",
++                .mode = 0555,
++                .child = board_dir_table,
++        },
++	{
++		.ctl_name = CTL_WDT,
++		.procname = "wdt",
++		.mode = 0555,
++		.child = wdt_dir_table,
++	},
++        {0}
++};
++
++#define CTL_AVOCENT 1
++
++static struct ctl_table avocent_table[] =
++{
++	{
++		.ctl_name = CTL_AVOCENT,
++                .procname = "avocent",
++                .mode = 0555,
++                .child = avocent_dir_table,
++        },
++        {0}
++};
++
++static int __init gsp_avocent_init(void)
++{
++	printk("Avocent sysctl\n");
++
++	//register_sysctl_table(avocent_table, 1);
++	register_sysctl_table(avocent_table);
++	return 0;
++}
++
++__initcall(gsp_avocent_init);
++
+Index: linux-2.6.23/arch/powerpc/platforms/83xx/avocent-pmhd.c
+===================================================================
+--- /dev/null
++++ linux-2.6.23/arch/powerpc/platforms/83xx/avocent-pmhd.c
+@@ -0,0 +1,528 @@
++/*
++ * arch/powerpc/platforms/83xx/avocent-pmhd.c
++ *
++ * Description: Avocent PMHD board specific routines. This file is based on mpc8313_rbd.c
++ * Author: Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Copyright (C) 2008 Avocent Corporation.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ */
++
++#include <linux/stddef.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/errno.h>
++#include <linux/reboot.h>
++#include <linux/kdev_t.h>
++#include <linux/major.h>
++#include <linux/console.h>
++#include <linux/delay.h>
++#include <linux/seq_file.h>
++#include <linux/root_dev.h>
++#include <linux/fsl_devices.h>
++#include <linux/serial.h>
++#include <linux/serial_8250.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/partitions.h>
++#include <linux/mtd/map.h>
++#include <linux/m41t00.h>
++#include <linux/rtc.h>
++#include <linux/spi/spi.h>
++
++#include <asm/system.h>
++#include <asm/atomic.h>
++#include <asm/time.h>
++#include <asm/io.h>
++#include <asm/machdep.h>
++#include <asm/ipic.h>
++#include <asm/bootinfo.h>
++#include <asm/irq.h>
++#include <asm/prom.h>
++#include <asm/udbg.h>
++#include <asm/of_platform.h>
++#include <sysdev/fsl_soc.h>
++
++#include "mpc83xx.h"
++#include <linux/pci.h>
++#include <linux/interrupt.h>
++#include <linux/of_platform.h>
++#include <sysdev/fsl_soc.h>
++
++#include <linux/of_platform.h>
++#include <asm/time.h>
++#include <asm/ipic.h>
++#include <asm/udbg.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/fsl_elbc.h>
++
++
++#undef DEBUG
++#ifdef DEBUG
++#define DBG(fmt...) udbg_printf(fmt)
++#else
++#define DBG(fmt...)
++#endif
++
++
++
++
++
++
++#ifdef CONFIG_GFAR_PTP_VCO
++#define MPC8313_SICRH_1588_EXT_CLK	0x00000040
++#endif
++
++__be32 __iomem *gpio_regs;
++
++/* ************************************************************************
++ *
++ * Setup the architecture
++ *
++ */
++static void __init avocent_pmhd_setup_arch(void)
++{
++	struct device_node *np;
++#ifdef CONFIG_GFAR_PTP_VCO
++	void __iomem *immap;
++	unsigned long sicrh;
++#endif
++
++	if (ppc_md.progress)
++		ppc_md.progress("avocent_pmhd_setup_arch()", 0);
++
++	np = of_find_node_by_type(NULL, "cpu");
++	if (np != 0) {
++		const unsigned int *fp =
++			get_property(np, "clock-frequency", NULL);
++		if (fp != 0)
++			loops_per_jiffy = *fp / HZ;
++		else
++			loops_per_jiffy = 50000000 / HZ;
++		of_node_put(np);
++	}
++
++#ifdef CONFIG_GFAR_PTP_VCO
++	immap = ioremap(get_immrbase(), 0x1000);
++	sicrh = in_be32(immap + MPC83XX_SICRH_OFFS);
++	sicrh |= MPC8313_SICRH_1588_EXT_CLK;
++	out_be32(immap + MPC83XX_SICRH_OFFS, sicrh);
++#endif
++
++	gpio_regs = ioremap(get_immrbase() + 0xc00, 0x18);
++}
++/* ************************************************************************
++ *
++ * This is the work around for mpc8313 cpu rev1.0
++ *
++ */
++
++static void mpc83xx_ethernet_cpu_rev1_workaround(void)
++{
++        struct device_node *np;
++        u32 svr;
++        svr = mfspr(SPRN_SVR);
++        u32 temp = svr & 0xFF;
++
++        if(temp <= 0x10 ) {
++                np = of_find_node_by_type(NULL, "network");
++                if (np != 0) {
++                        unsigned int *fp =
++                                get_property(np, "interrupts", NULL);
++                        *fp = 0x25;
++                        fp++;
++                        fp++;
++                        *fp = 0x24;
++                        fp++;
++                        fp++;
++                        *fp = 0x23;
++                        fp++;
++                        fp++;
++                        of_node_put(np);
++                }
++        }
++}
++
++
++void __init avocent_pmhd_init_IRQ(void)
++{
++	struct device_node *np;
++	 mpc83xx_ethernet_cpu_rev1_workaround();
++	np = of_find_node_by_type(NULL, "ipic");
++	if (!np)
++		return;
++
++	ipic_init(np, 0);
++
++	/* Initialize the default interrupt mapping priorities,
++	 * in case the boot rom changed something on us.
++	 */
++	ipic_set_default_priority();
++}
++
++/*
++ * Called very early, MMU is off, device-tree isn't unflattened
++ */
++static int __init avocent_pmhd_probe(void)
++{
++	/* We always match for now, eventually we should look at the flat
++	   dev tree to ensure this is the board we are suppose to run on
++	*/
++        unsigned long root = of_get_flat_dt_root();
++
++        return of_flat_dt_is_compatible(root, "MPC8313ERDB");
++
++//	return 1;
++}
++
++static struct of_device_id mpc831x_soc_ids[] = {
++	{ .type = "soc", },
++	{},
++};
++extern int of_platform_bus_probe(struct device_node *, struct of_device_id *, struct device *);
++static int __init mpc831x_declare_of_platform_devices(void)
++{
++	if (!machine_is(avocent_pmhd))
++		return 0;
++
++	of_platform_bus_probe(NULL, mpc831x_soc_ids, NULL);
++		return 0;
++}
++device_initcall(mpc831x_declare_of_platform_devices);
++
++static int __init fsl_elbc_of_init(void)
++{
++	struct device_node *np;
++	unsigned int i;
++	struct platform_device *elbc_dev = NULL;
++	struct platform_device *nand_dev = NULL;
++	int ret;
++
++	/* find and register the enhanced local bus controller */
++	for (np = NULL, i = 0;
++	     (np = of_find_compatible_node(np, "elbc", "fsl-elbc")) != NULL;
++	     i++) {
++		struct resource r[2];
++
++		memset(&r, 0, sizeof(r));
++
++		ret = of_address_to_resource(np, 0, &r[0]);
++		if (ret)
++			goto err;
++
++		r[1].start = irq_of_parse_and_map(np, 0);
++		r[1].end = r[1].start;
++		r[1].flags = IORESOURCE_IRQ;
++
++		elbc_dev =
++		    platform_device_register_simple("fsl-elbc", i, r, 2);
++		if (IS_ERR(elbc_dev)) {
++			ret = PTR_ERR(elbc_dev);
++			goto err;
++		}
++	}
++
++	/* find and register NAND memories if the eLBC was found */
++	for (np = NULL, i = 0;
++	     elbc_dev &&
++	     (np = of_find_compatible_node(np, "nand", "fsl-nand")) != NULL;
++	     i++) {
++		struct resource r;
++		struct platform_fsl_nand_chip chip_data;
++
++		memset(&r, 0, sizeof(r));
++		memset(&chip_data, 0, sizeof(chip_data));
++
++		ret = of_address_to_resource(np, 0, &r);
++		if (ret)
++			goto err;
++
++		nand_dev =
++		    platform_device_register_simple("fsl-nand", i, &r, 1);
++		if (IS_ERR(nand_dev)) {
++			ret = PTR_ERR(nand_dev);
++			goto err;
++		}
++
++		chip_data.name = get_property(np, "name", NULL);
++		chip_data.partitions_str = get_property(np, "partitions", NULL);
++		chip_data.np = np;
++
++		ret = platform_device_add_data(nand_dev, &chip_data,
++					sizeof(struct platform_fsl_nand_chip));
++		if (ret)
++			goto err;
++	}
++	return 0;
++
++err:
++	return ret;
++}
++
++arch_initcall(fsl_elbc_of_init);
++
++
++#define AVOCENT_PMHD_NOR_FLASH_ADDR	0xFFF80000
++#define AVOCENT_PMHD_NOR_FLASH_SIZE	0x00080000
++
++static struct mtd_partition avocent_pmd_nor_partition_info[]={
++	{
++		.name		= "U-Boot",
++		.offset 	= 0,
++		.size		= AVOCENT_PMHD_NOR_FLASH_SIZE - 0x3000
++	},
++	{
++		.name		= "Config",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x02000
++	},
++	{
++		.name		= "SerialNb",
++		.offset		= MTDPART_OFS_APPEND,
++		.size		= 0x01000,
++    	},
++};
++#define AVOCENT_PMHD_NOR_PARTITIONS (sizeof(avocent_pmd_nor_partition_info)/sizeof(struct mtd_partition))
++
++struct map_info avocent_pmhd_nor_map = {
++	.name		= "Avocent PMHD NOR Flash Map Info",
++	.size		= AVOCENT_PMHD_NOR_FLASH_SIZE,
++	.phys		= AVOCENT_PMHD_NOR_FLASH_ADDR,
++	.bankwidth	= 1,
++};
++
++static struct mtd_info *avocent_pmhd_mtd;
++
++static int __init avocent_pmhd_init_nor_flash(void)
++{
++
++	printk(KERN_NOTICE"Avocent PMHD NOR flash device: %x at %x Partition number %d\n",
++			AVOCENT_PMHD_NOR_FLASH_SIZE, AVOCENT_PMHD_NOR_FLASH_ADDR,
++			AVOCENT_PMHD_NOR_PARTITIONS);
++	avocent_pmhd_nor_map.virt = ioremap(AVOCENT_PMHD_NOR_FLASH_ADDR, AVOCENT_PMHD_NOR_FLASH_SIZE);
++
++	if (!avocent_pmhd_nor_map.virt) {
++		printk("Failed to ioremap\n");
++		return -EIO;
++	}
++	simple_map_init(&avocent_pmhd_nor_map);
++
++	avocent_pmhd_mtd = do_map_probe("jedec_probe", &avocent_pmhd_nor_map);
++	if (avocent_pmhd_mtd) {
++		avocent_pmhd_mtd->owner = THIS_MODULE;
++                add_mtd_partitions(avocent_pmhd_mtd, avocent_pmd_nor_partition_info,
++			AVOCENT_PMHD_NOR_PARTITIONS);
++		printk(KERN_NOTICE "Avocent PMHD flash device (%s) initialized\n",
++			avocent_pmhd_mtd->name);
++		return 0;
++	}
++
++	iounmap((void *)avocent_pmhd_nor_map.virt);
++	return -ENXIO;
++}
++late_initcall(avocent_pmhd_init_nor_flash);
++
++#if defined(CONFIG_SENSORS_M41T00)
++static struct m41t00_platform_data avocent_pmhd_rtc_data = {
++	.type = M41T00_TYPE_M41T00,
++	.i2c_addr = 0x68,
++};
++
++static struct platform_device avocent_pmhd_rtc_device = {
++	.name = M41T00_DRV_NAME,
++	.dev = {
++		.platform_data = &avocent_pmhd_rtc_data,
++	},
++};
++
++static void powerpc_m41t00_get_rtc_time(struct rtc_time *tm)
++{
++	unsigned long time = m41t00_get_rtc_time();
++	rtc_time_to_tm(time, tm);
++}
++
++static int powerpc_m41t00_set_rtc_time(struct rtc_time *tm)
++{
++	unsigned long time;
++	rtc_tm_to_time(tm, &time);
++	return m41t00_set_rtc_time(time);
++}
++
++static int __init
++avocent_pmhd_rtc_init(void)
++{
++	platform_device_register(&avocent_pmhd_rtc_device);
++
++	ppc_md.get_rtc_time = powerpc_m41t00_get_rtc_time;
++	ppc_md.set_rtc_time = powerpc_m41t00_set_rtc_time;
++}
++arch_initcall(avocent_pmhd_rtc_init);
++
++static int __init
++avocent_pmhd_rtc_hookup(void)
++{
++	struct rtc_time tm;
++	struct timespec tv;
++
++	ppc_md.get_rtc_time(&tm);
++	tv.tv_nsec = 0;
++	tv.tv_sec = mktime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
++			tm.tm_hour, tm.tm_min, tm.tm_sec);
++	printk("Current time is %02d/%02d/%04d %02d:%02d:%02d\n",
++		tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900,
++		tm.tm_hour, tm.tm_min, tm.tm_sec);
++	do_settimeofday(&tv);
++	return 0;
++}
++late_initcall(avocent_pmhd_rtc_hookup);
++#endif
++
++void avocent_pmhd_spi_activate_cs (unsigned char cs, unsigned char polarity)
++{
++	u32 data;
++	data = in_be32(gpio_regs + 2);
++	switch(cs) {
++	case 0:
++		out_be32(gpio_regs + 2, (data & ~0x04000000L) | 0x18000000L);
++		break;
++	case 1:
++		out_be32(gpio_regs + 2, (data & ~0x5c000000L) | 0x20000000L);
++		break;
++	case 2:
++		out_be32(gpio_regs + 2, (data & ~0x54000000L) | 0x28000000L);
++		break;
++	case 3:
++		out_be32(gpio_regs + 2, (data & ~0x3c000000L) | 0x40000000L);
++		break;
++	case 4:
++		out_be32(gpio_regs + 2, (data & ~0x34000000L) | 0x48000000L);
++		break;
++	case 5:
++		out_be32(gpio_regs + 2, (data & ~0x1c000000L) | 0x60000000L);
++		break;
++	case 6:
++		out_be32(gpio_regs + 2, (data & ~0x14000000L) | 0x68000000L);
++		break;
++	}
++}
++
++void avocent_pmhd_spi_deactivate_cs (unsigned char cs, unsigned char polarity)
++{
++	u32 data;
++	data = in_be32(gpio_regs + 2);
++	out_be32(gpio_regs + 2, (data | 0x04000000L));
++}
++
++static int __init mpc83xx_spi_init(void)
++{
++	struct device_node *np;
++	unsigned int i;
++	struct platform_device *spi_dev;
++	int ret;
++
++	for (np = NULL, i = 0;
++	     (np = of_find_compatible_node(np, "spi", "mpc83xx_spi")) != NULL;
++	     i++) {
++		struct resource r[2];
++		struct fsl_spi_platform_data spi_data;
++		const u32 *mode = NULL;
++
++		memset(&r, 0, sizeof(r));
++		memset(&spi_data, 0, sizeof(spi_data));
++
++		ret = of_address_to_resource(np, 0, &r[0]);
++		if (ret)
++			goto err;
++
++		of_irq_to_resource(np, 0, &r[1]);
++
++		spi_dev = platform_device_register_simple("mpc83xx_spi", i, r, 2);
++		if (IS_ERR(spi_dev)) {
++			ret = PTR_ERR(spi_dev);
++			goto err;
++		}
++
++		mode = get_property(np, "mode", NULL);
++		spi_data.activate_cs = avocent_pmhd_spi_activate_cs;
++		spi_data.deactivate_cs = avocent_pmhd_spi_deactivate_cs;
++		spi_data.max_chipselect = 7;
++		spi_data.initial_spmode = *mode;
++		spi_data.sysclk = fsl_get_sys_freq();
++		ret =
++		    platform_device_add_data(spi_dev, &spi_data,
++					     sizeof(struct
++						    fsl_spi_platform_data));
++		if (ret)
++			goto unreg;
++	}
++
++	return 0;
++
++unreg:
++	platform_device_unregister(spi_dev);
++err:
++	return ret;
++}
++
++static struct spi_board_info avocent_pmhd_spi_board_info[] __initdata = {
++{
++	.modalias	= "max6950",
++	.max_speed_hz	= 129024,
++	.chip_select	= 0,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 129024,
++	.chip_select	= 1,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 129024,
++	.chip_select	= 2,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 129024,
++	.chip_select	= 3,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 129024,
++	.chip_select	= 4,
++},
++{
++	.modalias	= "pmhd-fpga",
++	.max_speed_hz	= 129024,
++	.chip_select	= 5,
++},
++{
++	.modalias	= "cs5463",
++	.max_speed_hz	= 129024,
++	.chip_select	= 6,
++},
++};
++
++static int __init
++avocent_pmhd_spi_info(void)
++{
++	mpc83xx_spi_init();
++	out_be32(gpio_regs, in_be32(gpio_regs) | 0x7c000000L);
++	spi_register_board_info(avocent_pmhd_spi_board_info,
++		ARRAY_SIZE(avocent_pmhd_spi_board_info));
++}
++
++arch_initcall(avocent_pmhd_spi_info);
++
++define_machine(avocent_pmhd) {
++	.name			= "Avocent PM",
++	.probe			= avocent_pmhd_probe,
++	.setup_arch		= avocent_pmhd_setup_arch,
++	.init_IRQ		= avocent_pmhd_init_IRQ,
++	.get_irq		= ipic_get_irq,
++	.restart		= mpc83xx_restart,
++	.time_init		= mpc83xx_time_init,
++	.calibrate_decr		= generic_calibrate_decr,
++};
+Index: linux-2.6.23/arch/powerpc/platforms/83xx/avocent-pmhd.h
+===================================================================
+--- /dev/null
++++ linux-2.6.23/arch/powerpc/platforms/83xx/avocent-pmhd.h
+@@ -0,0 +1,22 @@
++/*
++ * arch/powerpc/platforms/83xx/avocent-pmhd.h
++ *
++ * Description: Avocent PMHD board definitions. This file is based on mpc8313_rbd.h
++ * Author: Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * Copyright (C) 2008 Avocent Corporation.
++ *
++ * This program is free software; you can redistribute  it and/or modify it
++ * under  the terms of  the GNU General  Public License as published by the
++ * Free Software Foundation;  either version 2 of the  License, or (at your
++ * option) any later version.
++ *
++ */
++#ifndef	__MACH_AVOCENT_PMHD_H__
++#define	__MACH_AVOCENT_PMHD_H__
++
++#define CONFIG_AVOCENT_ETHPORTS 1
++#define CFG_AVOCENT_FAMILY_CODE	43
++#define CFG_AVOCENT_SERIAL	1
++#endif				/* __MACH_AVOCENT_PMHD_H__ */
++
+Index: linux-2.6.23/drivers/net/gianfar.c
+===================================================================
+--- linux-2.6.23.orig/drivers/net/gianfar.c
++++ linux-2.6.23/drivers/net/gianfar.c
+@@ -98,6 +98,10 @@
+ #include "gianfar.h"
+ #include "gianfar_mii.h"
+ 
++#ifdef CONFIG_AVOCENT_PMHD
++#include <platforms/83xx/avocent-pmhd.h>
++#endif
++
+ #define TX_TIMEOUT      (1*HZ)
+ #define SKB_ALLOC_TIMEOUT 1000000
+ #undef BRIEF_GFAR_ERRORS
+@@ -650,6 +654,44 @@ static int init_phy(struct net_device *d
+ 	/* Remove any features not supported by the controller */
+ 	phydev->supported &= (GFAR_SUPPORTED | gigabit_support);
+ 	phydev->advertising = phydev->supported;
++#ifdef CONFIG_AVOCENT_GSP
++#ifndef CONFIG_AVOCENT_ETHPORTS
++#define CONFIG_AVOCENT_ETHPORTS 1
++#endif
++	{
++		extern int gsp_ethmode[CONFIG_AVOCENT_ETHPORTS];
++		int devno = dev->name[3] - '0';
++		if (devno >= 0 && devno < CONFIG_AVOCENT_ETHPORTS) {
++			switch(gsp_ethmode[devno]) {
++			case 0:
++				phydev->autoneg = AUTONEG_ENABLE;
++				break;
++			case 1:
++				phydev->autoneg = AUTONEG_DISABLE;
++				phydev->speed = 10;
++				phydev->duplex = DUPLEX_HALF;
++				break;
++			case 2:
++				phydev->autoneg = AUTONEG_DISABLE;
++				phydev->speed = 10;
++				phydev->duplex = DUPLEX_FULL;
++				break;
++			case 3:
++				phydev->autoneg = AUTONEG_DISABLE;
++				phydev->speed = 100;
++				phydev->duplex = DUPLEX_HALF;
++				break;
++			case 4:
++				phydev->autoneg = AUTONEG_DISABLE;
++				phydev->speed = 100;
++				phydev->duplex = DUPLEX_FULL;
++				break;
++			}
++		} else {
++			phydev->autoneg = AUTONEG_ENABLE;
++		}
++	}
++#endif
+ 
+ 	priv->phydev = phydev;
+ 

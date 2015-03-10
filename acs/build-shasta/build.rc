@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# adjust PRE_PATH for your build environment
+export PRE_PATH="/opt/eldk4.0"

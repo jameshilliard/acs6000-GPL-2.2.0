@@ -1,0 +1,33 @@
+Index: smslink-0.56b-3/client/Makefile
+===================================================================
+--- smslink-0.56b-3.orig/client/Makefile
++++ smslink-0.56b-3/client/Makefile
+@@ -43,9 +43,9 @@ CC = gcc
+ #DEBUG = -DINCL_DEBUG_CODE
+ 
+ DEFINES = -D$(PLATFORM) $(DEBUG)
+-PREFIX = /usr/local
++PREFIX = /usr
+ BINDIR = $(PREFIX)/bin
+-MANDIR = $(PREFIX)/man
++MANDIR = $(PREFIX)/share/man
+ 
+ #===========================================================
+ # You shouldn't need to change anything beyond this point
+@@ -74,13 +74,9 @@ listing:
+ 	man -l ./sendsms.1 -t | lpr
+ 
+ install:
+-	cp sendsms $(BINDIR)
+-	strip $(BINDIR)/sendsms
+-	chmod 755 $(BINDIR)/sendsms
+-	chown root:bin $(BINDIR)/sendsms
+-	cp sendsms.1 $(MANDIR)/man1
+-	chmod 644 $(MANDIR)/man1/sendsms.1
+-	chown root:bin $(MANDIR)/man1/sendsms.1
++	install -d -m 0755 $(BINDIR) $(MANDIR)
++	install -m 0755 sendsms $(BINDIR)
++	install -m 0644 sendsms.1 $(MANDIR)/man1
+ 
+ %.1.html: %.1
+ 	rman -f HTML -r '%s.%s.html' $< > $@

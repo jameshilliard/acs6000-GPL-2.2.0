@@ -1,0 +1,265 @@
+From 217fbde82016319de2ee164132b6a0c24dbc68f3 Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Wed, 10 Dec 2008 15:21:03 +0800
+Subject: [PATCH] change SEC OCF driver to use of_platform and get revision information from device tree
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ arch/powerpc/sysdev/fsl_soc.c                      |   39 --------
+ crypto/ocf/talitos/talitos.c                       |   92 +++++++++++---------
+ crypto/ocf/talitos/talitos_soft.h                  |    2 +-
+
+diff --git a/arch/powerpc/sysdev/fsl_soc.c b/arch/powerpc/sysdev/fsl_soc.c
+index 053eb7d..574c941 100644
+--- a/arch/powerpc/sysdev/fsl_soc.c
++++ b/arch/powerpc/sysdev/fsl_soc.c
+@@ -897,45 +897,6 @@ int __init fsl_spi_init(struct spi_board_info *board_infos,
+ 	return spi_register_board_info(board_infos, num_board_infos);
+ }
+ 
+-static int __init fsl_sec2_of_init(void)
+-{
+-       struct device_node *np;
+-       unsigned int i;
+-       struct platform_device *sec2_dev;
+-       int ret;
+-
+-       printk(KERN_DEBUG "fsl_sec2_of_init: start\n");
+-       for (np = NULL, i = 0;
+-            (np = of_find_compatible_node(np, "crypto", "talitos")) != NULL;
+-            i++) {
+-               struct resource r[2];
+-
+-               memset(&r, 0, sizeof(r));
+-
+-               ret = of_address_to_resource(np, 0, &r[0]);
+-               if (ret) {
+-                       printk(KERN_DEBUG "fsl_sec2_of_init: address");
+-                       goto err;
+-               }
+-               r[1].start = irq_of_parse_and_map(np, 0);
+-               r[1].end = irq_of_parse_and_map(np, 0);
+-               r[1].flags = IORESOURCE_IRQ;
+-
+-               sec2_dev = platform_device_register_simple("fsl-sec2", i, r, 2);
+-		if (IS_ERR(sec2_dev)) {
+-                       ret = PTR_ERR(sec2_dev);
+-                       printk(KERN_DEBUG "fsl_sec2_of_init: register");
+-                       goto err;
+-               }
+-       }
+-       return 0;
+-err:
+-       printk(KERN_DEBUG " error: %d\n", ret);
+-       return ret;
+-}
+-
+-arch_initcall(fsl_sec2_of_init);
+-
+ #ifdef CONFIG_CPM2
+ 
+ extern void init_scc_ioports(struct fs_uart_platform_info*);
+diff --git a/crypto/ocf/talitos/talitos.c b/crypto/ocf/talitos/talitos.c
+index 2531c5d..2bd8f2a 100644
+--- a/crypto/ocf/talitos/talitos.c
++++ b/crypto/ocf/talitos/talitos.c
+@@ -4,7 +4,7 @@
+  * An OCF-Linux module that uses Freescale's SEC to do the crypto.
+  * Based on crypto/ocf/hifn and crypto/ocf/safe OCF drivers
+  *
+- * Copyright (c) 2006 Freescale Semiconductor, Inc.
++ * Copyright (c) 2006,2008 Freescale Semiconductor, Inc.
+  *
+  * This code written by Kim A. B. Phillips <kim.phillips@freescale.com>
+  * some code copied from files with the following:
+@@ -128,9 +128,7 @@
+ #include <linux/uio.h>
+ 
+ #include <linux/version.h>
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 15)
+-#include <linux/platform_device.h>
+-#endif
++#include <linux/of_platform.h>
+ 
+ #include <opencrypto/crypto.h>
+ #include <opencrypto/cryptodev.h>
+@@ -167,8 +165,8 @@ static void talitos_errorprocessing(struct talitos_softc *sc,
+ 						unsigned long chnum);
+ static void talitos_print_ip (struct iphdr *ip);
+ static void talitos_print_desc(struct talitos_desc *td);
+-static int talitos_probe(struct platform_device *pdev);
+-static int talitos_remove(struct platform_device *pdev);
++static int talitos_probe(struct of_device *ofdev);
++static int talitos_remove(struct of_device *ofdev);
+ 
+ #ifdef TALITOS_TASKLET
+ int talitos_inline_polling(unsigned long lock_flags);
+@@ -1351,7 +1349,7 @@ talitos_doneprocessing(struct talitos_softc *sc, unsigned long chnum)
+ }
+ 
+ static irqreturn_t
+-talitos_intr(int irq, void *arg, struct pt_regs *regs)
++talitos_intr(int irq, void *arg)
+ {
+ 	struct talitos_softc *sc = arg;
+ 	u_int32_t v;
+@@ -1475,11 +1473,13 @@ talitos_reset_device(struct talitos_softc *sc)
+ 
+ /* Set up the crypto device structure, private data,
+  * and anything else we need before we start */
+-static int talitos_probe(struct platform_device *pdev)
++static int talitos_probe(struct of_device *ofdev)
+ {
++	struct device *dev = &ofdev->dev;
++	struct device_node *np = ofdev->node;
+ 	struct talitos_softc *sc;
+-	struct resource *r;
+ 	static int num_chips;
++	const unsigned int *prop;
+ 	int rc;
+ 	int i;
+ 	int j;
+@@ -1493,13 +1493,13 @@ static int talitos_probe(struct platform_device *pdev)
+ 
+ 	sc->sc_irq = -1;
+ 	sc->sc_cid = -1;
+-	sc->sc_dev = pdev;
++	sc->sc_dev = dev;
+ 	sc->sc_num = num_chips++;
+ 
+-	platform_set_drvdata(sc->sc_dev, sc);
++	dev_set_drvdata(dev, sc);
+ 
+ 	/* get the irq line */
+-	sc->sc_irq = platform_get_irq(pdev, 0);
++	sc->sc_irq = irq_of_parse_and_map(np, 0);
+ 	rc = request_irq(sc->sc_irq, talitos_intr, 0, DRV_NAME, sc);
+ 	if (rc) {
+ 		printk(KERN_ERR DRV_NAME ": failed to hook irq %d\n",
+@@ -1508,10 +1508,7 @@ static int talitos_probe(struct platform_device *pdev)
+ 		goto out;
+ 	}
+ 
+-	/* get a pointer to the register memory */
+-	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-
+-	sc->sc_base_addr = (ocf_iomem_t) ioremap(r->start, (r->end - r->start));
++	sc->sc_base_addr = of_iomap(np, 0);
+ 	if (!sc->sc_base_addr) {
+ 		printk(KERN_ERR DRV_NAME ": failed to ioremap\n");
+ 		goto out;
+@@ -1526,19 +1523,26 @@ static int talitos_probe(struct platform_device *pdev)
+ 		 | talitos_read(sc->sc_base_addr + TALITOS_ID_HI);
+ 	DPRINTF("sec id 0x%llx\n", sc->sc_chiprev);
+ 
+-	/* bulk should go away with openfirmware flat device tree support */
+-	if (sc->sc_chiprev & TALITOS_ID_SEC_2_0) {
+-		sc->sc_num_channels = TALITOS_NCHANNELS_SEC_2_0;
+-		sc->sc_chfifo_len = TALITOS_CHFIFOLEN_SEC_2_0;
+-		sc->sc_exec_units = TALITOS_HAS_EUS_SEC_2_0;
+-		sc->sc_desc_types = TALITOS_HAS_DESCTYPES_SEC_2_0;
+-	} else if (sc->sc_chiprev & TALITOS_ID_SEC_2_1_2) {
+-		sc->sc_num_channels = TALITOS_NCHANNELS_SEC_2_0;
+-		sc->sc_chfifo_len = TALITOS_CHFIFOLEN_SEC_2_0;
+-		sc->sc_exec_units = TALITOS_HAS_EUS_SEC_2_0;
+-		sc->sc_desc_types = TALITOS_HAS_DESCTYPES_SEC_2_0;
+-	} else {
+-		printk(KERN_ERR DRV_NAME ": failed to id device\n");
++	/* get SEC version capabilities from device tree */
++	prop = of_get_property(np, "fsl,num-channels", NULL);
++	if (prop)
++		sc->sc_num_channels = *prop;
++
++	prop = of_get_property(np, "fsl,channel-fifo-len", NULL);
++	if (prop)
++		sc->sc_chfifo_len = *prop;
++
++	prop = of_get_property(np, "fsl,exec-units-mask", NULL);
++	if (prop)
++		sc->sc_exec_units = *prop;
++
++	prop = of_get_property(np, "fsl,descriptor-types-mask", NULL);
++	if (prop)
++		sc->sc_desc_types = *prop;
++
++	if (!is_power_of_2(sc->sc_num_channels) || !sc->sc_chfifo_len ||
++	    !sc->sc_exec_units || !sc->sc_desc_types) {
++		dev_err(dev, "invalid property data in device tree node\n");
+ 		goto out;
+ 	}
+ 
+@@ -1638,13 +1642,14 @@ static int talitos_probe(struct platform_device *pdev)
+ 	return 0;
+ 
+ out:
+-	talitos_remove(pdev);
++	talitos_remove(ofdev);
+ 	return -ENOMEM;
+ }
+ 
+-static int talitos_remove(struct platform_device *pdev)
++static int talitos_remove(struct of_device *ofdev)
+ {
+-	struct talitos_softc *sc = platform_get_drvdata(pdev);
++	struct device *dev = &ofdev->dev;
++	struct talitos_softc *sc = dev_get_drvdata(dev);
+ 	int i;
+ 
+ 	DPRINTF("%s()\n", __FUNCTION__);
+@@ -1668,26 +1673,31 @@ static int talitos_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-/* Structure for a platform device driver */
+-static struct platform_driver talitos_driver = {
++static struct of_device_id talitos_match[] = {
++	{
++		.compatible = "fsl,sec2.0",
++	},
++	{},
++};
++MODULE_DEVICE_TABLE(of, talitos_match);
++
++static struct of_platform_driver talitos_driver = {
++	.name = "talitos",
++	.match_table = talitos_match,
+ 	.probe = talitos_probe,
+ 	.remove = talitos_remove,
+-	.driver = {
+-		.name = "fsl-sec2",
+-	}
+ };
+ 
+ static int __init talitos_init(void)
+ {
+-	return platform_driver_register(&talitos_driver);
++	return of_register_platform_driver(&talitos_driver);
+ }
++module_init(talitos_init);
+ 
+ static void __exit talitos_exit(void)
+ {
+-	platform_driver_unregister(&talitos_driver);
++	of_unregister_platform_driver(&talitos_driver);
+ }
+-
+-module_init(talitos_init);
+ module_exit(talitos_exit);
+ 
+ MODULE_LICENSE("Dual BSD/GPL");
+diff --git a/crypto/ocf/talitos/talitos_soft.h b/crypto/ocf/talitos/talitos_soft.h
+index baddb79..1d33ce5 100644
+--- a/crypto/ocf/talitos/talitos_soft.h
++++ b/crypto/ocf/talitos/talitos_soft.h
+@@ -40,7 +40,7 @@ struct desc_cryptop_pair {
+  * Holds data specific to a single talitos device.
+  */
+ struct talitos_softc {
+-	struct platform_device	*sc_dev;	/* device backpointer */
++	struct device		*sc_dev;	/* device backpointer */
+ 	ocf_iomem_t		sc_base_addr;
+ 	int			sc_irq;
+ 	int			sc_num;		/* if we have multiple chips */
+-- 
+1.5.5.1.248.g4b17
+

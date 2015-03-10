@@ -1,0 +1,533 @@
+diff -r -u -N pam_smb-1.1.7/configure pam_smb-1.1.7+/configure
+--- pam_smb-1.1.7/configure	1998-10-24 09:45:49.000000000 -0700
++++ pam_smb-1.1.7+/configure	2007-07-02 15:30:39.000000000 -0700
+@@ -1233,7 +1233,7 @@
+         # results, and the version is kept in special file).
+ 
+         if test -r /etc/.relid -a "X`uname -n`" = "X`uname -s`" ; then
+-            system=MP-RAS-`awk '{print $3}' /etc/.relid'`
++            system=MP-RAS-`awk '{print $3}' /etc/.relid`
+         fi
+         if test "`uname -s`" = "AIX" ; then
+             system=AIX-`uname -v`.`uname -r`    
+diff -r -u -N pam_smb-1.1.7/Makefile.in pam_smb-1.1.7+/Makefile.in
+--- pam_smb-1.1.7/Makefile.in	2003-08-14 19:55:11.000000000 -0700
++++ pam_smb-1.1.7+/Makefile.in	2007-07-02 10:17:25.000000000 -0700
+@@ -7,7 +7,7 @@
+ EXTRALIBS = @LIBS@
+ 
+ LDFLAGS = @LDFLAGS@
+-CC = @CC@
++#CC = @CC@
+ 
+ SHELL=/bin/sh
+ 
+@@ -18,11 +18,13 @@
+ @SET_MAKE@
+ 
+ CFLAGS = @CFLAGS@ @DEFS@ @SHLIB_CFLAGS@
++CFLAGS += -I$(Linux-PAM)/libpam/include \
++	-I$(samba_source)/include -I$(samba_source) -I$(samba_source)/ubiqx
+ 
+ LIBAUTHSH = pam_smb_auth.so
+ 
+-LIBAUTHOBJ = pam_read_conf.o pam_smb_auth.o support.o
+-LIBAUTHSRC = pam_read_conf.c pam_smb_auth.c support.c
++LIBAUTHOBJ = pam_read_conf.o pam_smb_auth.o support.o valid.o
++LIBAUTHSRC = pam_read_conf.c pam_smb_auth.c support.c valid.c
+ LIBOBJ = $(LIBAUTHOBJ) 
+ LIBSRC = $(LIBAUTHSRC)
+ 
+@@ -44,25 +46,23 @@
+ 	@echo
+ 	@echo
+ 
+-all: dirs smbvalid info $(LIBSHARED) 
++all: dirs info $(LIBSHARED) 
+ 
+ dirs:
+ 	mkdir -p ./dynamic
+ 
+ $(LIBOBJD): $(LIBSRC)
+ 
+-$(LIBAUTHSH):	$(LIBAUTHSRC) $(LIBOBJD) smbvalid
+-		$(SHLIB_LD) $(LD_FLAGS) -o $@ $(addprefix dynamic/,$(LIBAUTHOBJ)) smbval/smbvalid.a $(EXTRALIBS)
++$(LIBAUTHSH):	$(LIBAUTHSRC) $(LIBOBJD)
++		$(SHLIB_LD) -L$(samba_lib) $(LD_FLAGS) -o $@ $(addprefix dynamic/,$(LIBAUTHOBJ)) -lsmbclient -lnsl $(EXTRALIBS)
+ 
+-smbvalid: 
+-	set -e; $(MAKE) -C smbval
+ 
+ clean:
+-	set -e ; $(MAKE) -C smbval clean
+ 	rm -f $(LIBAUTHSH) $(LIBOBJD) $(LIBOBJS) a.out core *~
+ 
+ extraclean: clean
+ 	rm -f *.a *.out *.o *.so *.bak config.log config.cache config.status config.h Makefile
++	rm -fr dynamic
+ 
+ .c.o:	
+ 	$(CC) -c $(CFLAGS) $<
+diff -r -u -N pam_smb-1.1.7/pam_smb_auth.c pam_smb-1.1.7+/pam_smb_auth.c
+--- pam_smb-1.1.7/pam_smb_auth.c	2000-09-07 01:30:10.000000000 -0700
++++ pam_smb-1.1.7+/pam_smb_auth.c	2007-07-02 16:17:13.000000000 -0700
+@@ -65,17 +65,9 @@
+ 	
+ #endif	
+ 
+-#ifdef HAVE_SECURITY_PAM_APPL_H
+-
+-#include <security/pam_appl.h>
+-
+-#endif  
+-
+ #define _PAM_EXTERN_FUNCTIONS
+ 
+-#ifdef HAVE_SECURITY_PAM_MODULES_H
+-#include <security/pam_modules.h>
+-#endif
++#include "security/pam_modules.h"
+ 
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+@@ -84,9 +76,7 @@
+ #define PAM_EXTERN extern
+ 
+ /* Define function phototypes */
+-
+ extern int smb_readpamconf(char *smb_server, char *smb_server2, char *smb_domain);
+-
+ extern char *crypt(const char *key, const char *salt);	/* This should have 
+ 							   been in unistd.h
+ 							   but it is not */
+@@ -108,18 +98,33 @@
+ 					int argc,
+ 					const char ** argv ) ;
+ 
++/**
++ * XXX: accounting is not implemented on pam_smb
++ */
++PAM_EXTERN int pam_sm_acct_mgmt (pam_handle_t * pamh, int flags, int argc, const char **argv)
++{
++	return PAM_SUCCESS;
++}
+ 
+-/* 
+- * 
+- * _pam_auth_smb() actually performs UNIX/shadow authentication and
+- * then performs the NT Validation.
+- *
+- *	First, if shadow support is available, attempt to perform
+- *	authentication using shadow passwords. If shadow is not
+- *	available, or user does not have a shadow password, fallback
+- *	onto a normal UNIX authentication
+- *      If neither shadow nor normal succeed it will send the username
+- *      and password to an NT server donated in the /etc/pam_smb.conf file
++/**
++ * XXX: not implemented 
++ */
++int pam_sm_open_session (pam_handle_t *pamh, int flags, int argc, const char **argv)
++{
++	return PAM_SUCCESS;
++}
++
++/**
++ * XXX: not implemented 
++ */
++int pam_sm_close_session (pam_handle_t *pamh, int flags, int argc, const char **argv)
++
++{
++	return PAM_SUCCESS;
++}
++
++/**
++ * _pam_auth_smb() * performs the NT Validation.
+  */
+ 
+ static int _pam_auth_smb(	pam_handle_t *pamh,
+@@ -137,6 +142,7 @@
+ 	char ntname[32];
+ 	int debug=0, use_first_pass=0;
+ 	int nolocal=0;
++	char *group;
+ 
+ #ifdef HAVE_SHADOW_H
+ 
+@@ -145,7 +151,6 @@
+ #endif
+ 
+ 	/* Parse Command line options */
+-  
+ 	for (loop=0; loop<argc; loop++)
+ 	  {
+ 	    if (!strcmp(argv[loop], "debug"))
+@@ -159,7 +164,7 @@
+ 		else
+ 		  syslog(LOG_AUTHPRIV | LOG_ERR, "pam_smb: Unknown Command Line Option in pam.d : %s", argv[loop]);
+ 	  }
+-	   
++
+ 	/* get the user'name' */
+ 	
+ 	if ( (retval = pam_get_user( pamh, &name, "login: ") ) != PAM_SUCCESS )
+@@ -194,7 +199,17 @@
+ 	   username/password authentication .. this is a command line option
+ 	   to pam_smb_auth.so in /etc/pam.d/ */
+ 
+-	if (nolocal==0)
++	/**
++	 * we don't want to use local authentication
++	 *
++	 * -- rodrigo.novo@cyclades.com @ 200403191148
++	 */
++	/**
++	 * CYCLADES
++	 *
++	 * if (nolocal==0)
++	 */
++	if (0)
+ 	  {
+ 	    
+ 	    pw = getpwnam ( name );
+@@ -249,18 +264,22 @@
+ 	}
+ 
+ 	w=smb_readpamconf(server,server2,domain);
+-	if (w!=0) 
+-	  {
+-	    syslog(LOG_AUTHPRIV | LOG_ALERT, "pam_smb: Missing Configuration file : /etc/pam_smb.conf");
+-	    return PAM_AUTHINFO_UNAVAIL;
+-	  }
+-	
+-	if (debug) {
+-	  syslog(LOG_AUTHPRIV | LOG_DEBUG, "pam_smb: Configuration Data, Primary %s, Backup %s, Domain %s.", server, server2, domain);
+-	}
++    if (w!=0)
++      {
++        syslog(LOG_AUTHPRIV | LOG_ALERT, "pam_smb: Missing Configuration file : /etc/pam_smb.conf");
++        return PAM_AUTHINFO_UNAVAIL;
++      }
++
++    if (debug) {
++      syslog(LOG_AUTHPRIV | LOG_DEBUG, "pam_smb: Configuration Data, Primary %s, Backup %s, Domain %s.", server, server2, domain);
++    }
++
++//    w=Valid_User(ntname, p, server, server2,  domain);
++	group = NULL;
++	w = validUser(ntname, p, server, server2, domain, &group);
++
++	syslog (LOG_AUTHPRIV | LOG_DEBUG, "pam_smb: %d (Valid_User).", w);
+ 
+-	w=Valid_User(ntname, p, server, server2,  domain);
+-		  
+ 	/* Users valid user for return value 0 is success
+ 	   1 and 2 indicate Network and protocol failures and
+ 	   3 is not logged on 
+@@ -270,6 +289,18 @@
+ 	  {
+ 	  case 0 : 
+ 	    if (debug) syslog(LOG_AUTHPRIV | LOG_DEBUG, "pam_smb: Correct NT username/password pair");
++	    if (group) {
++		    struct gsp_auth_group_info *ginfo;
++
++		    ginfo = (struct gsp_auth_group_info *)malloc(sizeof(struct gsp_auth_group_info));
++		    ginfo->group_name = strdup(group);
++		    ginfo->group_name_sz = strlen(group);
++
++		    pam_set_item(pamh, PAM_RGROUP, ginfo);
++
++		    free(group);
++		    group = NULL;
++	    }
+ 	    return PAM_SUCCESS; break;
+ 	  case 1 :
+ 	  case 2 :
+@@ -323,5 +354,3 @@
+ {
+ 	return _pam_set_credentials_smb ( pamh, flags, argc, argv ) ;
+ }
+-
+-
+diff -r -u -N pam_smb-1.1.7/valid.c pam_smb-1.1.7+/valid.c
+--- pam_smb-1.1.7/valid.c	1969-12-31 16:00:00.000000000 -0800
++++ pam_smb-1.1.7+/valid.c	2007-07-02 16:13:25.000000000 -0700
+@@ -0,0 +1,265 @@
++#include <includes.h>
++#include "valid.h"
++
++/****************************************************************************
++ Try samr_connect4 first, then samr_conenct if it fails
++ ****************************************************************************/
++static NTSTATUS try_samr_connects(struct cli_state *cli, TALLOC_CTX *mem_ctx, 
++				  uint32 access_mask, POLICY_HND *connect_pol)
++{
++	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
++	
++	result = cli_samr_connect4(cli, mem_ctx, access_mask, connect_pol);
++	if (!NT_STATUS_IS_OK(result)) {
++		result = cli_samr_connect(cli, mem_ctx, access_mask,
++					  connect_pol);
++	}
++	return result;
++}
++
++/**********************************************************************
++ * Query user information 
++ */
++static NTSTATUS cmd_samr_query_user_by_name(struct cli_state *cli, 
++                                    TALLOC_CTX *mem_ctx,
++                                    const char *username, const char *domain, 
++				    char **group) 
++{
++	DOM_SID domain_sid;
++	POLICY_HND connect_pol, domain_pol, user_pol;
++	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
++	uint32 info_level = 21;
++	uint32 access_mask = MAXIMUM_ALLOWED_ACCESS;
++	SAM_USERINFO_CTR *user_ctr;
++	fstring server;
++	uint32 flags = 0x000003e8; /* Unknown */
++	uint32 num_rids, num_names, *name_types, *user_rid;
++	
++	slprintf(server, sizeof(fstring)-1, "\\\\%s", cli->desthost);
++	strupper_m(server);
++	
++	result = try_samr_connects(cli, mem_ctx, MAXIMUM_ALLOWED_ACCESS,
++				   &connect_pol);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	result = cli_samr_lookup_domain(
++		cli, mem_ctx, &connect_pol, domain, &domain_sid);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	result = cli_samr_open_domain(cli, mem_ctx, &connect_pol,
++				      MAXIMUM_ALLOWED_ACCESS,
++				      &domain_sid, &domain_pol);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	result = cli_samr_lookup_names(cli, mem_ctx, &domain_pol,
++				       flags, 1, &username,
++				       &num_rids, &user_rid, &name_types);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	result = cli_samr_open_user(cli, mem_ctx, &domain_pol,
++				    access_mask,
++				    *user_rid, &user_pol);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	ZERO_STRUCT(user_ctr);
++
++	result = cli_samr_query_userinfo(cli, mem_ctx, &user_pol, 
++					 info_level, &user_ctr);
++
++	if (!NT_STATUS_IS_OK(result))
++		goto done;
++
++	switch (user_ctr->switch_value) {
++	case 21:
++	{
++		SAM_USER_INFO_21 *usr = user_ctr->info.id21;
++		fstring temp;
++		char *s;
++		unistr2_to_ascii(temp, &usr->uni_unknown_str, sizeof(temp)-1);
++		if (s = strstr(temp, "group_name")) {
++			s += 10;
++			while (*s && isspace(*s)) s++;
++			if (*s == '=') {
++				s ++;
++				while (*s && isspace(*s)) s ++;
++				if (*s) {
++					*group = strdup(s);
++				}
++			}
++		}
++		break;
++	}
++	default:
++		//printf("Unsupported infolevel: %d\n", info_level);
++		break;
++	}
++
++done:
++	return result;
++}
++
++/**********************************************************************
++ * This routine is a copy of the cli_full_connection routine from the 
++ * smbclient library, with the difference that it returns a different
++ * value: NTV_SERVER_ERROR, when the server is not accessible, 
++ * NTV_LOGON_ERROR, when the username/password is invalid, NTV_ERROR_OK, 
++ * when the authentication was OK, but it couldn't get further, NTV_NO_ERROR,
++ * when the procedure was OK, so far.
++ */
++static int do_connection(struct cli_state **output_cli, 
++			       const char *my_name, 
++			       const char *dest_host, 
++			       struct in_addr *dest_ip, int port,
++			       const char *service, const char *service_type,
++			       const char *user, const char *domain, 
++			       const char *password, int flags,
++			       int signing_state,
++			       BOOL *retry) 
++{
++	struct ntuser_creds creds;
++	NTSTATUS nt_status;
++	struct cli_state *cli = NULL;
++
++	nt_status = cli_start_connection(&cli, my_name, dest_host, 
++					 dest_ip, port, signing_state, 
++					flags, retry);
++	
++	if (!NT_STATUS_IS_OK(nt_status)) {
++		return NTV_SERVER_ERROR;
++	}
++
++	if (!cli_session_setup(cli, user, password, strlen(password)+1, 
++			       password, strlen(password)+1, 
++			       domain)) {
++		if ((flags & CLI_FULL_CONNECTION_ANNONYMOUS_FALLBACK)
++		    && cli_session_setup(cli, "", "", 0, "", 0, domain)) {
++		} else {
++			nt_status = cli_nt_error(cli);
++			//DEBUG(1,("failed session setup with %s\n", nt_errstr(nt_status)));
++			cli_shutdown(cli);
++			return NTV_LOGON_ERROR;
++		}
++	} 
++
++	if (service) {
++		if (!cli_send_tconX(cli, service, service_type,
++				    password, strlen(password)+1)) {
++			nt_status = cli_nt_error(cli);
++			//DEBUG(1,("failed tcon_X with %s\n", nt_errstr(nt_status)));
++			cli_shutdown(cli);
++			if (NT_STATUS_IS_OK(nt_status)) {
++				nt_status = NT_STATUS_UNSUCCESSFUL;
++			}
++			return NTV_ERROR_OK;
++		}
++	}
++
++	init_creds(&creds, user, domain, password);
++	cli_init_creds(cli, &creds);
++
++	*output_cli = cli;
++	return NTV_NO_ERROR;
++}
++
++/**********************************************************************
++ * This routine tries to validate a username/password in a certain server.
++ * If authentication is OK, it tries to get the group information on the
++ * server database.
++*/
++static int tryValidateUser(char *username, char *password, char *server, 
++	char *domain, char **group)
++{
++	struct cli_state	*cli;
++	NTSTATUS 		nt_status;
++	static int		opt_port = 0;
++	int 			result = 0;
++        NTSTATUS 		cmd_result;
++	TALLOC_CTX		*mem_ctx;
++
++	result = do_connection(&cli, global_myname(), server, 
++		NULL, opt_port, "IPC$", "IPC", username, domain,
++		password, 0, Undefined, NULL);
++	
++	if (result != NTV_NO_ERROR) {
++		if (result == NTV_ERROR_OK) {
++			return NTV_NO_ERROR;
++		} else {
++			return result;
++		}
++	}
++
++	memset(password,'X',sizeof(password));
++
++	/* Create mem_ctx */
++
++	if (!(mem_ctx = talloc_init("do_cmd"))) {
++		//DEBUG(0, ("talloc_init() failed\n"));
++		cmd_result = NT_STATUS_NO_MEMORY;
++		goto cmd_exit;
++	}
++
++	/* Open pipe */
++
++	if (cli->pipe_idx != PI_SAMR) {
++		if (cli->pipes[cli->pipe_idx].fnum != 0)
++			cli_nt_session_close(cli);
++	
++		if (!cli_nt_session_open(cli, PI_SAMR)) {
++			//DEBUG(0, ("Could not initialise %s\n",
++			//	  get_pipe_name_from_index(PI_SAMR)));
++			cmd_result = NT_STATUS_UNSUCCESSFUL;
++			goto cmd_exit;
++		}
++	}
++
++	cmd_result = cmd_samr_query_user_by_name(cli, mem_ctx, 
++		username, domain, group);
++       	//if (!NT_STATUS_IS_OK(cmd_result)) {
++        //      printf("result was %s\n", nt_errstr(cmd_result));
++       	//}
++            
++	/* Cleanup */
++
++	talloc_destroy(mem_ctx);
++
++cmd_exit:
++	result = NT_STATUS_IS_ERR(cmd_result);
++		
++	cli_shutdown(cli);
++        return NTV_NO_ERROR;
++}
++
++
++/**********************************************************************
++ * This routine is called by the authentication module to use one or two 
++ * SMB servers to authenticate a username, and to get the group information
++*/
++ int validUser(char *username, char *password, char *server, char *backup, 
++	char *domain, char **group)
++{
++	int result;
++	load_interfaces();
++
++	if (!init_names())
++		return NTV_SERVER_ERROR;
++
++	lp_load("/etc/smb.conf",True,False,False);
++
++	result = tryValidateUser(username, password, server, domain, group);
++	if (*backup && 
++		(result == NTV_SERVER_ERROR || result == NTV_PROTOCOL_ERROR)) {
++		result = tryValidateUser(username, password, backup, domain, 
++			group);
++	}
++	return result;
++}
+diff -r -u -N pam_smb-1.1.7/valid.h pam_smb-1.1.7+/valid.h
+--- pam_smb-1.1.7/valid.h	1998-10-24 09:45:51.000000000 -0700
++++ pam_smb-1.1.7+/valid.h	2007-07-02 15:50:35.000000000 -0700
+@@ -7,7 +7,9 @@
+ #define NTV_SERVER_ERROR 1
+ #define NTV_PROTOCOL_ERROR 2
+ #define NTV_LOGON_ERROR 3
++#define NTV_ERROR_OK 4
+ 
+-int Valid_User(char *USERNAME,char *PASSWORD,char *SERVER, char *BACKUP, char *DOMAIN);
++ int validUser(char *username, char *password, char *server, char *backup, 
++	char *domain, char **group);
+ 
+ #endif

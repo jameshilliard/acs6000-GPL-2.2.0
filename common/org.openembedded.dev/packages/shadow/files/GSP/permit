@@ -1,0 +1,7 @@
+#
+# The PAM configuration file for the 'adsap' service
+#
+auth     required   pam_permit.so
+account  required   pam_permit.so
+session  required   pam_permit.so
+

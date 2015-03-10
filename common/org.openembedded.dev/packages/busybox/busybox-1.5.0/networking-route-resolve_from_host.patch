@@ -1,0 +1,37 @@
+diff -ruN busybox-1.5.0.orig/networking/route.c busybox-1.5.0/networking/route.c
+--- busybox-1.5.0.orig/networking/route.c	2007-03-22 13:21:23.000000000 -0700
++++ busybox-1.5.0/networking/route.c	2007-07-02 14:11:41.000000000 -0700
+@@ -191,7 +191,33 @@
+ 		isnet = INET_resolve(target, (struct sockaddr_in *) &rt.rt_dst,
+ 							 (xflag & HOST_FLAG));
+ 		if (isnet < 0) {
++#ifdef MASK_FROM_TARGET
++                       /* Accept target also as net/mask */
++                       struct sockaddr mask;
++                       struct in_addr umsk;
++                       char *ptarget, *pmask;
++                       char tgt[128];
++
++                       memset(tgt,0,128);
++                       safe_strncpy(tgt,target,sizeof(tgt)-1);
++                       ptarget = strtok(tgt, "/");
++                       pmask = strtok(NULL, " ");
++                       if (pmask == NULL) {
++                               bb_error_msg_and_die("resolving %s", target);
++                       }
++                       umsk.s_addr = 0xffffffff << (32 - atoi(pmask));
++                       pmask = inet_ntoa(umsk);
++                       if ((isnet = INET_resolve(ptarget, &rt.rt_dst,0)) < 0) {
++                               bb_error_msg_and_die("resolving %s", ptarget);
++                       }
++                       if ((isnet = INET_resolve(pmask, &mask,0)) < 0) {
++                               bb_error_msg_and_die("resolving %s", pmask);
++                       }
++                       rt.rt_genmask = full_mask(mask);
++#else
++
+ 			bb_error_msg_and_die("resolving %s", target);
++#endif
+ 		}
+ 		if(prefix) {
+ 			/* do not destroy prefix for process args */

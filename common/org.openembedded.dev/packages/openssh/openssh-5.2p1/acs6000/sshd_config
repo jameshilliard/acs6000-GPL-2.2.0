@@ -1,0 +1,25 @@
+Port 22
+Protocol 1,2
+UsePrivilegeSeparation yes
+Compression no
+
+PermitRootLogin yes
+kbdinteractiveauthentication yes
+PasswordAuthentication no
+
+# Disable lastlog and motd
+PrintLastLog no
+PrintMotd no
+
+# kerberos options
+KerberosAuthentication yes
+GSSAPIAuthentication yes
+
+LoginGraceTime	3m
+ClientAliveInterval 15
+ClientAliveCountMax 4
+
+Subsystem	sftp	/usr/libexec/sftp-server
+# GSP AAA [EL]
+UsePAM yes
+

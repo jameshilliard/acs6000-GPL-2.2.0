@@ -1,0 +1,3159 @@
+diff -ruN linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0001.c linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0001.c
+--- linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0001.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0001.c	2008-09-15 10:28:59.000000000 -0700
+@@ -397,9 +397,23 @@
+ 	cfi_fixup(mtd, fixup_table);
+ 
+ 	for (i=0; i< cfi->numchips; i++) {
+-		cfi->chips[i].word_write_time = 1<<cfi->cfiq->WordWriteTimeoutTyp;
+-		cfi->chips[i].buffer_write_time = 1<<cfi->cfiq->BufWriteTimeoutTyp;
+-		cfi->chips[i].erase_time = 1000<<cfi->cfiq->BlockEraseTimeoutTyp;
++		if (cfi->cfiq->WordWriteTimeoutTyp)
++			cfi->chips[i].word_write_time =
++				1<<cfi->cfiq->WordWriteTimeoutTyp;
++		else
++			cfi->chips[i].word_write_time = 50000;
++
++		if (cfi->cfiq->BufWriteTimeoutTyp)
++			cfi->chips[i].buffer_write_time =
++				1<<cfi->cfiq->BufWriteTimeoutTyp;
++		/* No default; if it isn't specified, we won't use it */
++
++		if (cfi->cfiq->BlockEraseTimeoutTyp)
++			cfi->chips[i].erase_time =
++				1000<<cfi->cfiq->BlockEraseTimeoutTyp;
++		else
++			cfi->chips[i].erase_time = 2000000;
++
+ 		cfi->chips[i].ref_point_counter = 0;
+ 		init_waitqueue_head(&(cfi->chips[i].wq));
+ 	}
+@@ -546,13 +560,11 @@
+ 			struct cfi_intelext_programming_regioninfo *prinfo;
+ 			prinfo = (struct cfi_intelext_programming_regioninfo *)&extp->extra[offs];
+ 			mtd->writesize = cfi->interleave << prinfo->ProgRegShift;
+-			MTD_PROGREGION_CTRLMODE_VALID(mtd) = cfi->interleave * prinfo->ControlValid;
+-			MTD_PROGREGION_CTRLMODE_INVALID(mtd) = cfi->interleave * prinfo->ControlInvalid;
+ 			mtd->flags &= ~MTD_BIT_WRITEABLE;
+ 			printk(KERN_DEBUG "%s: program region size/ctrl_valid/ctrl_inval = %d/%d/%d\n",
+ 			       map->name, mtd->writesize,
+-			       MTD_PROGREGION_CTRLMODE_VALID(mtd),
+-			       MTD_PROGREGION_CTRLMODE_INVALID(mtd));
++			       cfi->interleave * prinfo->ControlValid,
++			       cfi->interleave * prinfo->ControlInvalid);
+ 		}
+ 
+ 		/*
+diff -ruN linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0002.c linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0002.c
+--- linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0002.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0002.c	2008-09-15 10:28:59.000000000 -0700
+@@ -359,6 +359,8 @@
+ 		cfi->chips[i].word_write_time = 1<<cfi->cfiq->WordWriteTimeoutTyp;
+ 		cfi->chips[i].buffer_write_time = 1<<cfi->cfiq->BufWriteTimeoutTyp;
+ 		cfi->chips[i].erase_time = 1<<cfi->cfiq->BlockEraseTimeoutTyp;
++		cfi->chips[i].ref_point_counter = 0;
++		init_waitqueue_head(&(cfi->chips[i].wq));
+ 	}
+ 
+ 	map->fldrv = &cfi_amdstd_chipdrv;
+diff -ruN linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0020.c linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0020.c
+--- linux-2.6.20.orig/drivers/mtd/chips/cfi_cmdset_0020.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/chips/cfi_cmdset_0020.c	2008-09-15 10:28:59.000000000 -0700
+@@ -158,6 +158,8 @@
+ 		cfi->chips[i].word_write_time = 128;
+ 		cfi->chips[i].buffer_write_time = 128;
+ 		cfi->chips[i].erase_time = 1024;
++		cfi->chips[i].ref_point_counter = 0;
++		init_waitqueue_head(&(cfi->chips[i].wq));
+ 	}
+ 
+ 	return cfi_staa_setup(map);
+@@ -662,7 +664,7 @@
+  * a small buffer for this.
+  * XXX: If the buffer size is not a multiple of 2, this will break
+  */
+-#define ECCBUF_SIZE (mtd->eccsize)
++#define ECCBUF_SIZE (mtd->writesize)
+ #define ECCBUF_DIV(x) ((x) & ~(ECCBUF_SIZE - 1))
+ #define ECCBUF_MOD(x) ((x) &  (ECCBUF_SIZE - 1))
+ static int
+diff -ruN linux-2.6.20.orig/drivers/mtd/chips/cfi_util.c linux-2.6.20/drivers/mtd/chips/cfi_util.c
+--- linux-2.6.20.orig/drivers/mtd/chips/cfi_util.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/chips/cfi_util.c	2008-09-15 10:28:59.000000000 -0700
+@@ -14,7 +14,6 @@
+ #include <linux/module.h>
+ #include <linux/types.h>
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <asm/io.h>
+ #include <asm/byteorder.h>
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/block2mtd.c linux-2.6.20/drivers/mtd/devices/block2mtd.c
+--- linux-2.6.20.orig/drivers/mtd/devices/block2mtd.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/block2mtd.c	2008-09-15 10:28:59.000000000 -0700
+@@ -278,7 +278,8 @@
+ 	kfree(dev->mtd.name);
+ 
+ 	if (dev->blkdev) {
+-		invalidate_inode_pages(dev->blkdev->bd_inode->i_mapping);
++		invalidate_mapping_pages(dev->blkdev->bd_inode->i_mapping,
++					0, -1);
+ 		close_bdev_excl(dev->blkdev);
+ 	}
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/doc2000.c linux-2.6.20/drivers/mtd/devices/doc2000.c
+--- linux-2.6.20.orig/drivers/mtd/devices/doc2000.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/doc2000.c	2008-09-15 10:28:59.000000000 -0700
+@@ -569,7 +569,6 @@
+ 
+ 	mtd->type = MTD_NANDFLASH;
+ 	mtd->flags = MTD_CAP_NANDFLASH;
+-	mtd->ecctype = MTD_ECC_RS_DiskOnChip;
+ 	mtd->size = 0;
+ 	mtd->erasesize = 0;
+ 	mtd->writesize = 512;
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/doc2001.c linux-2.6.20/drivers/mtd/devices/doc2001.c
+--- linux-2.6.20.orig/drivers/mtd/devices/doc2001.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/doc2001.c	2008-09-15 10:28:59.000000000 -0700
+@@ -16,7 +16,6 @@
+ #include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
+ #include <linux/bitops.h>
+@@ -349,7 +348,6 @@
+ 
+ 	mtd->type = MTD_NANDFLASH;
+ 	mtd->flags = MTD_CAP_NANDFLASH;
+-	mtd->ecctype = MTD_ECC_RS_DiskOnChip;
+ 	mtd->size = 0;
+ 
+ 	/* FIXME: erase size is not always 8KiB */
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/doc2001plus.c linux-2.6.20/drivers/mtd/devices/doc2001plus.c
+--- linux-2.6.20.orig/drivers/mtd/devices/doc2001plus.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/doc2001plus.c	2008-09-15 10:28:59.000000000 -0700
+@@ -20,7 +20,6 @@
+ #include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
+ #include <linux/bitops.h>
+@@ -473,7 +472,6 @@
+ 
+ 	mtd->type = MTD_NANDFLASH;
+ 	mtd->flags = MTD_CAP_NANDFLASH;
+-	mtd->ecctype = MTD_ECC_RS_DiskOnChip;
+ 	mtd->size = 0;
+ 
+ 	mtd->erasesize = 0;
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/docecc.c linux-2.6.20/drivers/mtd/devices/docecc.c
+--- linux-2.6.20.orig/drivers/mtd/devices/docecc.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/docecc.c	2008-09-15 10:28:59.000000000 -0700
+@@ -32,7 +32,6 @@
+ #include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/pmc551.c linux-2.6.20/drivers/mtd/devices/pmc551.c
+--- linux-2.6.20.orig/drivers/mtd/devices/pmc551.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/pmc551.c	2008-09-15 10:28:59.000000000 -0700
+@@ -86,7 +86,6 @@
+ #include <linux/module.h>
+ #include <asm/uaccess.h>
+ #include <linux/types.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/ptrace.h>
+ #include <linux/slab.h>
+diff -ruN linux-2.6.20.orig/drivers/mtd/devices/slram.c linux-2.6.20/drivers/mtd/devices/slram.c
+--- linux-2.6.20.orig/drivers/mtd/devices/slram.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/devices/slram.c	2008-09-15 10:28:59.000000000 -0700
+@@ -35,7 +35,6 @@
+ #include <asm/uaccess.h>
+ #include <linux/types.h>
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <linux/ptrace.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+diff -ruN linux-2.6.20.orig/drivers/mtd/ftl.c linux-2.6.20/drivers/mtd/ftl.c
+--- linux-2.6.20.orig/drivers/mtd/ftl.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/ftl.c	2008-09-15 10:28:59.000000000 -0700
+@@ -61,7 +61,6 @@
+ /*#define PSYCHO_DEBUG */
+ 
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <linux/ptrace.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+diff -ruN linux-2.6.20.orig/drivers/mtd/inftlmount.c linux-2.6.20/drivers/mtd/inftlmount.c
+--- linux-2.6.20.orig/drivers/mtd/inftlmount.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/inftlmount.c	2008-09-15 10:28:59.000000000 -0700
+@@ -34,7 +34,6 @@
+ #include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/nftl.h>
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/amd76xrom.c linux-2.6.20/drivers/mtd/maps/amd76xrom.c
+--- linux-2.6.20.orig/drivers/mtd/maps/amd76xrom.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/amd76xrom.c	2008-09-15 10:28:59.000000000 -0700
+@@ -205,8 +205,8 @@
+ 			(((unsigned long)(window->virt)) + offset);
+ 		map->map.size = 0xffffffffUL - map_top + 1UL;
+ 		/* Set the name of the map to the address I am trying */
+-		sprintf(map->map_name, "%s @%08lx",
+-			MOD_NAME, map->map.phys);
++		sprintf(map->map_name, "%s @%08Lx",
++			MOD_NAME, (unsigned long long)map->map.phys);
+ 
+ 		/* There is no generic VPP support */
+ 		for(map->map.bankwidth = 32; map->map.bankwidth;
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/ck804xrom.c linux-2.6.20/drivers/mtd/maps/ck804xrom.c
+--- linux-2.6.20.orig/drivers/mtd/maps/ck804xrom.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/ck804xrom.c	2008-09-15 10:28:59.000000000 -0700
+@@ -207,8 +207,8 @@
+ 			(((unsigned long)(window->virt)) + offset);
+ 		map->map.size = 0xffffffffUL - map_top + 1UL;
+ 		/* Set the name of the map to the address I am trying */
+-		sprintf(map->map_name, "%s @%08lx",
+-			MOD_NAME, map->map.phys);
++		sprintf(map->map_name, "%s @%08Lx",
++			MOD_NAME, (unsigned long long)map->map.phys);
+ 
+ 		/* There is no generic VPP support */
+ 		for(map->map.bankwidth = 32; map->map.bankwidth;
+@@ -327,7 +327,7 @@
+ 	pdev = NULL;
+ 
+ 	for(id = ck804xrom_pci_tbl; id->vendor; id++) {
+-		pdev = pci_find_device(id->vendor, id->device, NULL);
++		pdev = pci_get_device(id->vendor, id->device, NULL);
+ 		if (pdev)
+ 			break;
+ 	}
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/dilnetpc.c linux-2.6.20/drivers/mtd/maps/dilnetpc.c
+--- linux-2.6.20.orig/drivers/mtd/maps/dilnetpc.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/dilnetpc.c	2008-09-15 10:28:59.000000000 -0700
+@@ -402,8 +402,8 @@
+ 			++higlvl_partition_info[i].name;
+ 	}
+ 
+-	printk(KERN_NOTICE "DIL/Net %s flash: 0x%lx at 0x%lx\n",
+-		is_dnp ? "DNPC" : "ADNP", dnpc_map.size, dnpc_map.phys);
++	printk(KERN_NOTICE "DIL/Net %s flash: 0x%lx at 0x%llx\n",
++		is_dnp ? "DNPC" : "ADNP", dnpc_map.size, (unsigned long long)dnpc_map.phys);
+ 
+ 	dnpc_map.virt = ioremap_nocache(dnpc_map.phys, dnpc_map.size);
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/esb2rom.c linux-2.6.20/drivers/mtd/maps/esb2rom.c
+--- linux-2.6.20.orig/drivers/mtd/maps/esb2rom.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/esb2rom.c	2008-09-15 10:28:59.000000000 -0700
+@@ -30,7 +30,7 @@
+ 
+ #define ROM_PROBE_STEP_SIZE (64*1024) /* 64KiB */
+ 
+-#define BIOS_CNTL	0xDC
++#define BIOS_CNTL		0xDC
+ #define BIOS_LOCK_ENABLE	0x02
+ #define BIOS_WRITE_ENABLE	0x01
+ 
+@@ -145,7 +145,7 @@
+ }
+ 
+ static int __devinit esb2rom_init_one(struct pci_dev *pdev,
+-				const struct pci_device_id *ent)
++				      const struct pci_device_id *ent)
+ {
+ 	static char *rom_probe_types[] = { "cfi_probe", "jedec_probe", NULL };
+ 	struct esb2rom_window *window = &esb2rom_window;
+@@ -185,7 +185,7 @@
+ 	/* Find a region continuous to the end of the ROM window  */
+ 	window->phys = 0;
+ 	pci_read_config_word(pdev, FWH_DEC_EN1, &word);
+-	printk(KERN_DEBUG "pci_read_config_byte : %x\n", word);
++	printk(KERN_DEBUG "pci_read_config_word : %x\n", word);
+ 
+ 	if ((word & FWH_8MiB) == FWH_8MiB)
+ 		window->phys = 0xff400000;
+@@ -212,6 +212,11 @@
+ 	else if ((word & FWH_0_5MiB) == FWH_0_5MiB)
+ 		window->phys = 0xfff80000;
+ 
++	if (window->phys == 0) {
++		printk(KERN_ERR MOD_NAME ": Rom window is closed\n");
++		goto out;
++	}
++
+ 	/* reserved  0x0020 and 0x0010 */
+ 	window->phys -= 0x400000UL;
+ 	window->size = (0xffffffffUL - window->phys) + 1UL;
+@@ -289,8 +294,8 @@
+ 			(((unsigned long)(window->virt)) + offset);
+ 		map->map.size = 0xffffffffUL - map_top + 1UL;
+ 		/* Set the name of the map to the address I am trying */
+-		sprintf(map->map_name, "%s @%08lx",
+-			MOD_NAME, map->map.phys);
++		sprintf(map->map_name, "%s @%08Lx",
++			MOD_NAME, (unsigned long long)map->map.phys);
+ 
+ 		/* Firmware hubs only use vpp when being programmed
+ 		 * in a factory setting.  So in-place programming
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/ichxrom.c linux-2.6.20/drivers/mtd/maps/ichxrom.c
+--- linux-2.6.20.orig/drivers/mtd/maps/ichxrom.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/ichxrom.c	2008-09-15 10:28:59.000000000 -0700
+@@ -227,8 +227,8 @@
+ 			(((unsigned long)(window->virt)) + offset);
+ 		map->map.size = 0xffffffffUL - map_top + 1UL;
+ 		/* Set the name of the map to the address I am trying */
+-		sprintf(map->map_name, "%s @%08lx",
+-			MOD_NAME, map->map.phys);
++		sprintf(map->map_name, "%s @%08Lx",
++			MOD_NAME, (unsigned long long)map->map.phys);
+ 
+ 		/* Firmware hubs only use vpp when being programmed
+ 		 * in a factory setting.  So in-place programming
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/Kconfig linux-2.6.20/drivers/mtd/maps/Kconfig
+--- linux-2.6.20.orig/drivers/mtd/maps/Kconfig	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/Kconfig	2008-09-15 10:28:59.000000000 -0700
+@@ -204,7 +204,7 @@
+ 
+ config MTD_CK804XROM
+ 	tristate "BIOS flash chip on Nvidia CK804"
+-	depends on X86 && MTD_JEDECPROBE
++	depends on X86 && MTD_JEDECPROBE && PCI
+ 	help
+ 	  Support for treating the BIOS flash chip on nvidia motherboards
+ 	  as an MTD device - with this you can reprogram your BIOS.
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/netsc520.c linux-2.6.20/drivers/mtd/maps/netsc520.c
+--- linux-2.6.20.orig/drivers/mtd/maps/netsc520.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/netsc520.c	2008-09-15 10:28:59.000000000 -0700
+@@ -94,7 +94,9 @@
+ 
+ static int __init init_netsc520(void)
+ {
+-	printk(KERN_NOTICE "NetSc520 flash device: 0x%lx at 0x%lx\n", netsc520_map.size, netsc520_map.phys);
++	printk(KERN_NOTICE "NetSc520 flash device: 0x%Lx at 0x%Lx\n",
++			(unsigned long long)netsc520_map.size,
++			(unsigned long long)netsc520_map.phys);
+ 	netsc520_map.virt = ioremap_nocache(netsc520_map.phys, netsc520_map.size);
+ 
+ 	if (!netsc520_map.virt) {
+diff -ruN linux-2.6.20.orig/drivers/mtd/maps/sc520cdp.c linux-2.6.20/drivers/mtd/maps/sc520cdp.c
+--- linux-2.6.20.orig/drivers/mtd/maps/sc520cdp.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/maps/sc520cdp.c	2008-09-15 10:28:59.000000000 -0700
+@@ -237,8 +237,9 @@
+ #endif
+ 
+ 	for (i = 0; i < NUM_FLASH_BANKS; i++) {
+-		printk(KERN_NOTICE "SC520 CDP flash device: 0x%lx at 0x%lx\n",
+-		       sc520cdp_map[i].size, sc520cdp_map[i].phys);
++		printk(KERN_NOTICE "SC520 CDP flash device: 0x%Lx at 0x%Lx\n",
++			(unsigned long long)sc520cdp_map[i].size,
++			(unsigned long long)sc520cdp_map[i].phys);
+ 
+ 		sc520cdp_map[i].virt = ioremap_nocache(sc520cdp_map[i].phys, sc520cdp_map[i].size);
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/mtdchar.c linux-2.6.20/drivers/mtd/mtdchar.c
+--- linux-2.6.20.orig/drivers/mtd/mtdchar.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/mtdchar.c	2008-09-15 10:28:59.000000000 -0700
+@@ -419,8 +419,9 @@
+ 		info.erasesize	= mtd->erasesize;
+ 		info.writesize	= mtd->writesize;
+ 		info.oobsize	= mtd->oobsize;
+-		info.ecctype	= mtd->ecctype;
+-		info.eccsize	= mtd->eccsize;
++		/* The below fields are obsolete */
++		info.ecctype	= -1;
++		info.eccsize	= 0;
+ 		if (copy_to_user(argp, &info, sizeof(struct mtd_info_user)))
+ 			return -EFAULT;
+ 		break;
+@@ -759,7 +760,7 @@
+ 	return ret;
+ } /* memory_ioctl */
+ 
+-static struct file_operations mtd_fops = {
++static const struct file_operations mtd_fops = {
+ 	.owner		= THIS_MODULE,
+ 	.llseek		= mtd_lseek,
+ 	.read		= mtd_read,
+diff -ruN linux-2.6.20.orig/drivers/mtd/mtdconcat.c linux-2.6.20/drivers/mtd/mtdconcat.c
+--- linux-2.6.20.orig/drivers/mtd/mtdconcat.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/mtdconcat.c	2008-09-15 10:28:59.000000000 -0700
+@@ -727,8 +727,7 @@
+ 	concat->mtd.erasesize = subdev[0]->erasesize;
+ 	concat->mtd.writesize = subdev[0]->writesize;
+ 	concat->mtd.oobsize = subdev[0]->oobsize;
+-	concat->mtd.ecctype = subdev[0]->ecctype;
+-	concat->mtd.eccsize = subdev[0]->eccsize;
++	concat->mtd.oobavail = subdev[0]->oobavail;
+ 	if (subdev[0]->writev)
+ 		concat->mtd.writev = concat_writev;
+ 	if (subdev[0]->read_oob)
+@@ -774,8 +773,6 @@
+ 		if (concat->mtd.writesize   !=  subdev[i]->writesize ||
+ 		    concat->mtd.subpage_sft != subdev[i]->subpage_sft ||
+ 		    concat->mtd.oobsize    !=  subdev[i]->oobsize ||
+-		    concat->mtd.ecctype    !=  subdev[i]->ecctype ||
+-		    concat->mtd.eccsize    !=  subdev[i]->eccsize ||
+ 		    !concat->mtd.read_oob  != !subdev[i]->read_oob ||
+ 		    !concat->mtd.write_oob != !subdev[i]->write_oob) {
+ 			kfree(concat);
+diff -ruN linux-2.6.20.orig/drivers/mtd/mtdcore.c linux-2.6.20/drivers/mtd/mtdcore.c
+--- linux-2.6.20.orig/drivers/mtd/mtdcore.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/mtdcore.c	2008-09-15 10:28:59.000000000 -0700
+@@ -8,7 +8,6 @@
+ 
+ #include <linux/module.h>
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <linux/ptrace.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+diff -ruN linux-2.6.20.orig/drivers/mtd/mtdpart.c linux-2.6.20/drivers/mtd/mtdpart.c
+--- linux-2.6.20.orig/drivers/mtd/mtdpart.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/mtdpart.c	2008-09-15 10:28:59.000000000 -0700
+@@ -200,6 +200,11 @@
+ 		return -EINVAL;
+ 	instr->addr += part->offset;
+ 	ret = part->master->erase(part->master, instr);
++	if (ret) {
++		if (instr->fail_addr != 0xffffffff)
++			instr->fail_addr -= part->offset;
++		instr->addr -= part->offset;
++	}
+ 	return ret;
+ }
+ 
+@@ -338,8 +343,7 @@
+ 		slave->mtd.size = parts[i].size;
+ 		slave->mtd.writesize = master->writesize;
+ 		slave->mtd.oobsize = master->oobsize;
+-		slave->mtd.ecctype = master->ecctype;
+-		slave->mtd.eccsize = master->eccsize;
++		slave->mtd.oobavail = master->oobavail;
+ 		slave->mtd.subpage_sft = master->subpage_sft;
+ 
+ 		slave->mtd.name = parts[i].name;
+@@ -561,4 +565,3 @@
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Nicolas Pitre <nico@cam.org>");
+ MODULE_DESCRIPTION("Generic support for partitioning of MTD devices");
+-
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/cafe.c linux-2.6.20/drivers/mtd/nand/cafe.c
+--- linux-2.6.20.orig/drivers/mtd/nand/cafe.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/cafe.c	2008-09-15 10:28:59.000000000 -0700
+@@ -78,8 +78,9 @@
+ static int checkecc = 1;
+ module_param(checkecc, int, 0644);
+ 
+-static int slowtiming = 0;
+-module_param(slowtiming, int, 0644);
++static int numtimings;
++static int timing[3];
++module_param_array(timing, int, &numtimings, 0644);
+ 
+ /* Hrm. Why isn't this already conditional on something in the struct device? */
+ #define cafe_dev_dbg(dev, args...) do { if (debug) dev_dbg(dev, ##args); } while(0)
+@@ -264,10 +265,10 @@
+ 	ndelay(100);
+ 
+ 	if (1) {
+-		int c = 500000;
++		int c;
+ 		uint32_t irqs;
+ 
+-		while (c--) {
++		for (c = 500000; c != 0; c--) {
+ 			irqs = cafe_readl(cafe, NAND_IRQ);
+ 			if (irqs & doneint)
+ 				break;
+@@ -529,6 +530,7 @@
+ {
+ 	struct mtd_info *mtd;
+ 	struct cafe_priv *cafe;
++	uint32_t timing1, timing2, timing3;
+ 	uint32_t ctrl;
+ 	int err = 0;
+ 
+@@ -580,30 +582,45 @@
+ 		cafe->nand.block_bad = cafe_nand_block_bad;
+ 	}
+ 
++	if (numtimings && numtimings != 3) {
++		dev_warn(&cafe->pdev->dev, "%d timing register values ignored; precisely three are required\n", numtimings);
++	}
++
++	if (numtimings == 3) {
++		timing1 = timing[0];
++		timing2 = timing[1];
++		timing3 = timing[2];
++		cafe_dev_dbg(&cafe->pdev->dev, "Using provided timings (%08x %08x %08x)\n",
++			     timing1, timing2, timing3);
++	} else {
++		timing1 = cafe_readl(cafe, NAND_TIMING1);
++		timing2 = cafe_readl(cafe, NAND_TIMING2);
++		timing3 = cafe_readl(cafe, NAND_TIMING3);
++
++		if (timing1 | timing2 | timing3) {
++			cafe_dev_dbg(&cafe->pdev->dev, "Timing registers already set (%08x %08x %08x)\n", timing1, timing2, timing3);
++		} else {
++			dev_warn(&cafe->pdev->dev, "Timing registers unset; using most conservative defaults\n");
++			timing1 = timing2 = timing3 = 0xffffffff;
++		}
++	}
++
+ 	/* Start off by resetting the NAND controller completely */
+ 	cafe_writel(cafe, 1, NAND_RESET);
+ 	cafe_writel(cafe, 0, NAND_RESET);
+ 
+-	cafe_writel(cafe, 0xffffffff, NAND_IRQ_MASK);
++	cafe_writel(cafe, timing1, NAND_TIMING1);
++	cafe_writel(cafe, timing2, NAND_TIMING2);
++	cafe_writel(cafe, timing3, NAND_TIMING3);
+ 
+-	/* Timings from Marvell's test code (not verified or calculated by us) */
+-	if (!slowtiming) {
+-		cafe_writel(cafe, 0x01010a0a, NAND_TIMING1);
+-		cafe_writel(cafe, 0x24121212, NAND_TIMING2);
+-		cafe_writel(cafe, 0x11000000, NAND_TIMING3);
+-	} else {
+-		cafe_writel(cafe, 0xffffffff, NAND_TIMING1);
+-		cafe_writel(cafe, 0xffffffff, NAND_TIMING2);
+-		cafe_writel(cafe, 0xffffffff, NAND_TIMING3);
+-	}
+ 	cafe_writel(cafe, 0xffffffff, NAND_IRQ_MASK);
+-	err = request_irq(pdev->irq, &cafe_nand_interrupt, SA_SHIRQ, "CAFE NAND", mtd);
++	err = request_irq(pdev->irq, &cafe_nand_interrupt, IRQF_SHARED,
++			  "CAFE NAND", mtd);
+ 	if (err) {
+ 		dev_warn(&pdev->dev, "Could not register IRQ %d\n", pdev->irq);
+-
+ 		goto out_free_dma;
+ 	}
+-#if 1
++
+ 	/* Disable master reset, enable NAND clock */
+ 	ctrl = cafe_readl(cafe, GLOBAL_CTRL);
+ 	ctrl &= 0xffffeff0;
+@@ -630,32 +647,8 @@
+ 	cafe_writel(cafe, 0x80000007, GLOBAL_IRQ_MASK);
+ 	cafe_dev_dbg(&cafe->pdev->dev, "Control %x, IRQ mask %x\n",
+ 		cafe_readl(cafe, GLOBAL_CTRL), cafe_readl(cafe, GLOBAL_IRQ_MASK));
+-#endif
+-#if 1
+-	mtd->writesize=2048;
+-	mtd->oobsize = 0x40;
+-	memset(cafe->dmabuf, 0x5a, 2112);
+-	cafe->nand.cmdfunc(mtd, NAND_CMD_READID, 0, -1);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-#endif
+-#if 0
+-	cafe->nand.cmdfunc(mtd, NAND_CMD_READ0, 0, 0);
+-	//	nand_wait_ready(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-	cafe->nand.read_byte(mtd);
+-#endif
+-#if 0
+-	writel(0x84600070, cafe->mmio);
+-	udelay(10);
+-	cafe_dev_dbg(&cafe->pdev->dev, "Status %x\n", cafe_readl(cafe, NAND_NONMEM));
+-#endif
+-	/* Scan to find existance of the device */
++
++	/* Scan to find existence of the device */
+ 	if (nand_scan_ident(mtd, 1)) {
+ 		err = -ENXIO;
+ 		goto out_irq;
+@@ -759,13 +752,4 @@
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("David Woodhouse <dwmw2@infradead.org>");
+-MODULE_DESCRIPTION("NAND flash driver for OLPC CAFE chip");
+-
+-/* Correct ECC for 2048 bytes of 0xff:
+-   41 a0 71 65 54 27 f3 93 ec a9 be ed 0b a1 */
+-
+-/* dwmw2's B-test board, in case of completely screwing it:
+-Bad eraseblock 2394 at 0x12b40000
+-Bad eraseblock 2627 at 0x14860000
+-Bad eraseblock 3349 at 0x1a2a0000
+-*/
++MODULE_DESCRIPTION("NAND flash driver for OLPC CAFÉ chip");
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/cafe_ecc.c linux-2.6.20/drivers/mtd/nand/cafe_ecc.c
+--- linux-2.6.20.orig/drivers/mtd/nand/cafe_ecc.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/cafe_ecc.c	2008-09-15 10:28:59.000000000 -0700
+@@ -1045,7 +1045,7 @@
+ 
+ static unsigned short err_pos(unsigned short din)
+ {
+-	BUG_ON(din > 4096);
++	BUG_ON(din >= ARRAY_SIZE(err_pos_lut));
+ 	return err_pos_lut[din];
+ }
+ static int chk_no_err_only(unsigned short *chk_syndrome_list, unsigned short *err_info)
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/diskonchip.c linux-2.6.20/drivers/mtd/nand/diskonchip.c
+--- linux-2.6.20.orig/drivers/mtd/nand/diskonchip.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/diskonchip.c	2008-09-15 10:28:59.000000000 -0700
+@@ -114,7 +114,7 @@
+ static int show_firmware_partition = 0;
+ module_param(show_firmware_partition, int, 0);
+ 
+-#ifdef MTD_NAND_DISKONCHIP_BBTWRITE
++#ifdef CONFIG_MTD_NAND_DISKONCHIP_BBTWRITE
+ static int inftl_bbt_write = 1;
+ #else
+ static int inftl_bbt_write = 0;
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/excite_nandflash.c linux-2.6.20/drivers/mtd/nand/excite_nandflash.c
+--- linux-2.6.20.orig/drivers/mtd/nand/excite_nandflash.c	1969-12-31 16:00:00.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/excite_nandflash.c	2008-09-15 10:28:59.000000000 -0700
+@@ -0,0 +1,248 @@
++/*
++*  Copyright (C) 2005 - 2007 by Basler Vision Technologies AG
++*  Author: Thomas Koeller <thomas.koeller.qbaslerweb.com>
++*  Original code by Thies Moeller <thies.moeller@baslerweb.com>
++*
++*  This program is free software; you can redistribute it and/or modify
++*  it under the terms of the GNU General Public License as published by
++*  the Free Software Foundation; either version 2 of the License, or
++*  (at your option) any later version.
++*
++*  This program is distributed in the hope that it will be useful,
++*  but WITHOUT ANY WARRANTY; without even the implied warranty of
++*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++*  GNU General Public License for more details.
++*
++*  You should have received a copy of the GNU General Public License
++*  along with this program; if not, write to the Free Software
++*  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++*/
++
++#include <linux/module.h>
++#include <linux/types.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/string.h>
++#include <linux/ioport.h>
++#include <linux/platform_device.h>
++#include <linux/delay.h>
++#include <linux/err.h>
++#include <linux/kernel.h>
++
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/nand_ecc.h>
++#include <linux/mtd/partitions.h>
++
++#include <asm/io.h>
++#include <asm/rm9k-ocd.h>
++
++#include <excite_nandflash.h>
++
++#define EXCITE_NANDFLASH_VERSION "0.1"
++
++/* I/O register offsets */
++#define EXCITE_NANDFLASH_DATA_BYTE   0x00
++#define EXCITE_NANDFLASH_STATUS_BYTE 0x0c
++#define EXCITE_NANDFLASH_ADDR_BYTE   0x10
++#define EXCITE_NANDFLASH_CMD_BYTE    0x14
++
++/* prefix for debug output */
++static const char module_id[] = "excite_nandflash";
++
++/*
++ * partition definition
++ */
++static const struct mtd_partition partition_info[] = {
++	{
++		.name = "eXcite RootFS",
++		.offset = 0,
++		.size = MTDPART_SIZ_FULL
++	}
++};
++
++static inline const struct resource *
++excite_nand_get_resource(struct platform_device *d, unsigned long flags,
++			 const char *basename)
++{
++	char buf[80];
++
++	if (snprintf(buf, sizeof buf, "%s_%u", basename, d->id) >= sizeof buf)
++		return NULL;
++	return platform_get_resource_byname(d, flags, buf);
++}
++
++static inline void __iomem *
++excite_nand_map_regs(struct platform_device *d, const char *basename)
++{
++	void *result = NULL;
++	const struct resource *const r =
++	    excite_nand_get_resource(d, IORESOURCE_MEM, basename);
++
++	if (r)
++		result = ioremap_nocache(r->start, r->end + 1 - r->start);
++	return result;
++}
++
++/* controller and mtd information */
++struct excite_nand_drvdata {
++	struct mtd_info board_mtd;
++	struct nand_chip board_chip;
++	void __iomem *regs;
++	void __iomem *tgt;
++};
++
++/* Control function */
++static void excite_nand_control(struct mtd_info *mtd, int cmd,
++				       unsigned int ctrl)
++{
++	struct excite_nand_drvdata * const d =
++	    container_of(mtd, struct excite_nand_drvdata, board_mtd);
++
++	switch (ctrl) {
++	case NAND_CTRL_CHANGE | NAND_CTRL_CLE:
++		d->tgt = d->regs + EXCITE_NANDFLASH_CMD_BYTE;
++		break;
++	case NAND_CTRL_CHANGE | NAND_CTRL_ALE:
++		d->tgt = d->regs + EXCITE_NANDFLASH_ADDR_BYTE;
++		break;
++	case NAND_CTRL_CHANGE | NAND_NCE:
++		d->tgt = d->regs + EXCITE_NANDFLASH_DATA_BYTE;
++		break;
++	}
++
++	if (cmd != NAND_CMD_NONE)
++		__raw_writeb(cmd, d->tgt);
++}
++
++/* Return 0 if flash is busy, 1 if ready */
++static int excite_nand_devready(struct mtd_info *mtd)
++{
++	struct excite_nand_drvdata * const drvdata =
++	    container_of(mtd, struct excite_nand_drvdata, board_mtd);
++
++	return __raw_readb(drvdata->regs + EXCITE_NANDFLASH_STATUS_BYTE);
++}
++
++/*
++ * Called by device layer to remove the driver.
++ * The binding to the mtd and all allocated
++ * resources are released.
++ */
++static int __exit excite_nand_remove(struct device *dev)
++{
++	struct excite_nand_drvdata * const this = dev_get_drvdata(dev);
++
++	dev_set_drvdata(dev, NULL);
++
++	if (unlikely(!this)) {
++		printk(KERN_ERR "%s: called %s without private data!!",
++		       module_id, __func__);
++		return -EINVAL;
++	}
++
++	/* first thing we need to do is release our mtd
++	 * then go through freeing the resource used
++	 */
++	nand_release(&this->board_mtd);
++
++	/* free the common resources */
++	iounmap(this->regs);
++	kfree(this);
++
++	DEBUG(MTD_DEBUG_LEVEL1, "%s: removed\n", module_id);
++	return 0;
++}
++
++/*
++ * Called by device layer when it finds a device matching
++ * one our driver can handle. This code checks to see if
++ * it can allocate all necessary resources then calls the
++ * nand layer to look for devices.
++*/
++static int __init excite_nand_probe(struct device *dev)
++{
++	struct platform_device * const pdev = to_platform_device(dev);
++	struct excite_nand_drvdata *drvdata;	/* private driver data */
++	struct nand_chip *board_chip;	/* private flash chip data */
++	struct mtd_info *board_mtd;	/* mtd info for this board */
++	int scan_res;
++
++	drvdata = kzalloc(sizeof(*drvdata), GFP_KERNEL);
++	if (unlikely(!drvdata)) {
++		printk(KERN_ERR "%s: no memory for drvdata\n",
++		       module_id);
++		return -ENOMEM;
++	}
++
++	/* bind private data into driver */
++	dev_set_drvdata(dev, drvdata);
++
++	/* allocate and map the resource */
++	drvdata->regs =
++		excite_nand_map_regs(pdev, EXCITE_NANDFLASH_RESOURCE_REGS);
++
++	if (unlikely(!drvdata->regs)) {
++		printk(KERN_ERR "%s: cannot reserve register region\n",
++		       module_id);
++		kfree(drvdata);
++		return -ENXIO;
++	}
++	
++	drvdata->tgt = drvdata->regs + EXCITE_NANDFLASH_DATA_BYTE;
++
++	/* initialise our chip */
++	board_chip = &drvdata->board_chip;
++	board_chip->IO_ADDR_R = board_chip->IO_ADDR_W =
++		drvdata->regs + EXCITE_NANDFLASH_DATA_BYTE;
++	board_chip->cmd_ctrl = excite_nand_control;
++	board_chip->dev_ready = excite_nand_devready;
++	board_chip->chip_delay = 25;
++	board_chip->ecc.mode = NAND_ECC_SOFT;
++
++	/* link chip to mtd */
++	board_mtd = &drvdata->board_mtd;
++	board_mtd->priv = board_chip;
++
++	DEBUG(MTD_DEBUG_LEVEL2, "%s: device scan\n", module_id);
++	scan_res = nand_scan(&drvdata->board_mtd, 1);
++
++	if (likely(!scan_res)) {
++		DEBUG(MTD_DEBUG_LEVEL2, "%s: register partitions\n", module_id);
++		add_mtd_partitions(&drvdata->board_mtd, partition_info,
++				   sizeof partition_info / sizeof partition_info[0]);
++	} else {
++		iounmap(drvdata->regs);
++		kfree(drvdata);
++		printk(KERN_ERR "%s: device scan failed\n", module_id);
++		return -EIO;
++	}
++	return 0;
++}
++
++static struct device_driver excite_nand_driver = {
++	.name = "excite_nand",
++	.bus = &platform_bus_type,
++	.probe = excite_nand_probe,
++	.remove = __exit_p(excite_nand_remove)
++};
++
++static int __init excite_nand_init(void)
++{
++	pr_info("Basler eXcite nand flash driver Version "
++		EXCITE_NANDFLASH_VERSION "\n");
++	return driver_register(&excite_nand_driver);
++}
++
++static void __exit excite_nand_exit(void)
++{
++	driver_unregister(&excite_nand_driver);
++}
++
++module_init(excite_nand_init);
++module_exit(excite_nand_exit);
++
++MODULE_AUTHOR("Thomas Koeller <thomas.koeller@baslerweb.com>");
++MODULE_DESCRIPTION("Basler eXcite NAND-Flash driver");
++MODULE_LICENSE("GPL");
++MODULE_VERSION(EXCITE_NANDFLASH_VERSION)
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/Kconfig linux-2.6.20/drivers/mtd/nand/Kconfig
+--- linux-2.6.20.orig/drivers/mtd/nand/Kconfig	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/Kconfig	2008-09-15 10:28:59.000000000 -0700
+@@ -126,10 +126,6 @@
+ 	  incorrect ECC generation, and if using these, the default of
+ 	  software ECC is preferable.
+ 
+-	  If you lay down a device with the hardware ECC, then you will
+-	  currently not be able to switch to software, as there is no
+-	  implementation for ECC method used by the S3C2410
+-
+ config MTD_NAND_NDFC
+ 	tristate "NDFC NanD Flash Controller"
+ 	depends on MTD_NAND && 44x
+@@ -221,9 +217,17 @@
+ 	tristate "Support for NAND Flash on Sharp SL Series (C7xx + others)"
+ 	depends on MTD_NAND && ARCH_PXA
+ 
++config MTD_NAND_BASLER_EXCITE
++	tristate  "Support for NAND Flash on Basler eXcite"
++	depends on MTD_NAND && BASLER_EXCITE
++	help
++          This enables the driver for the NAND flash device found on the
++          Basler eXcite Smart Camera. If built as a module, the driver
++          will be named "excite_nandflash.ko".
++
+ config MTD_NAND_CAFE
+        tristate "NAND support for OLPC CAFÉ chip"
+-       depends on PCI
++       depends on MTD_NAND && PCI
+        help
+ 	 Use NAND flash attached to the CAFÉ chip designed for the $100
+ 	 laptop.
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/Makefile linux-2.6.20/drivers/mtd/nand/Makefile
+--- linux-2.6.20.orig/drivers/mtd/nand/Makefile	2008-09-15 10:18:55.000000000 -0700
++++ linux-2.6.20/drivers/mtd/nand/Makefile	2008-09-15 10:32:29.000000000 -0700
+@@ -25,6 +25,7 @@
+ obj-$(CONFIG_MTD_NAND_NDFC)		+= ndfc.o
+ obj-$(CONFIG_MTD_NAND_AT91)		+= at91_nand.o
+ obj-$(CONFIG_MTD_NAND_FSL_ELBC)		+= fsl_elbc.o
++obj-$(CONFIG_MTD_NAND_BASLER_EXCITE)	+= excite_nandflash.o
+ 
+ nand-objs := nand_base.o nand_bbt.o
+ cafe_nand-objs := cafe.o cafe_ecc.o
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/nand_base.c linux-2.6.20/drivers/mtd/nand/nand_base.c
+--- linux-2.6.20.orig/drivers/mtd/nand/nand_base.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/nand_base.c	2008-09-15 10:28:59.000000000 -0700
+@@ -1272,10 +1272,25 @@
+ 	DEBUG(MTD_DEBUG_LEVEL3, "nand_read_oob: from = 0x%08Lx, len = %i\n",
+ 	      (unsigned long long)from, readlen);
+ 
+-	if (ops->mode == MTD_OOB_RAW)
+-		len = mtd->oobsize;
+-	else
++	if (ops->mode == MTD_OOB_AUTO)
+ 		len = chip->ecc.layout->oobavail;
++	else
++		len = mtd->oobsize;
++
++	if (unlikely(ops->ooboffs >= len)) {
++		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
++			"Attempt to start read outside oob\n");
++		return -EINVAL;
++	}
++
++	/* Do not allow reads past end of device */
++	if (unlikely(from >= mtd->size ||
++		     ops->ooboffs + readlen > ((mtd->size >> chip->page_shift) -
++					(from >> chip->page_shift)) * len)) {
++		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
++			"Attempt read beyond end of device\n");
++		return -EINVAL;
++	}
+ 
+ 	chipnr = (int)(from >> chip->chip_shift);
+ 	chip->select_chip(mtd, chipnr);
+@@ -1742,19 +1757,40 @@
+ static int nand_do_write_oob(struct mtd_info *mtd, loff_t to,
+ 			     struct mtd_oob_ops *ops)
+ {
+-	int chipnr, page, status;
++	int chipnr, page, status, len;
+ 	struct nand_chip *chip = mtd->priv;
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL3, "nand_write_oob: to = 0x%08x, len = %i\n",
+ 	      (unsigned int)to, (int)ops->ooblen);
+ 
++	if (ops->mode == MTD_OOB_AUTO)
++		len = chip->ecc.layout->oobavail;
++	else
++		len = mtd->oobsize;
++
+ 	/* Do not allow write past end of page */
+-	if ((ops->ooboffs + ops->ooblen) > mtd->oobsize) {
++	if ((ops->ooboffs + ops->ooblen) > len) {
+ 		DEBUG(MTD_DEBUG_LEVEL0, "nand_write_oob: "
+ 		      "Attempt to write past end of page\n");
+ 		return -EINVAL;
+ 	}
+ 
++	if (unlikely(ops->ooboffs >= len)) {
++		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
++			"Attempt to start write outside oob\n");
++		return -EINVAL;
++	}
++
++	/* Do not allow reads past end of device */
++	if (unlikely(to >= mtd->size ||
++		     ops->ooboffs + ops->ooblen >
++			((mtd->size >> chip->page_shift) -
++			 (to >> chip->page_shift)) * len)) {
++		DEBUG(MTD_DEBUG_LEVEL0, "nand_read_oob: "
++			"Attempt write beyond end of device\n");
++		return -EINVAL;
++	}
++
+ 	chipnr = (int)(to >> chip->chip_shift);
+ 	chip->select_chip(mtd, chipnr);
+ 
+@@ -2488,6 +2524,7 @@
+ 	for (i = 0; chip->ecc.layout->oobfree[i].length; i++)
+ 		chip->ecc.layout->oobavail +=
+ 			chip->ecc.layout->oobfree[i].length;
++	mtd->oobavail = chip->ecc.layout->oobavail;
+ 
+ 	/*
+ 	 * Set the number of read / write steps for one page depending on ECC
+@@ -2530,7 +2567,6 @@
+ 	/* Fill in remaining MTD driver data */
+ 	mtd->type = MTD_NANDFLASH;
+ 	mtd->flags = MTD_CAP_NANDFLASH;
+-	mtd->ecctype = MTD_ECC_SW;
+ 	mtd->erase = nand_erase;
+ 	mtd->point = NULL;
+ 	mtd->unpoint = NULL;
+diff -ruN linux-2.6.20.orig/drivers/mtd/nand/s3c2410.c linux-2.6.20/drivers/mtd/nand/s3c2410.c
+--- linux-2.6.20.orig/drivers/mtd/nand/s3c2410.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nand/s3c2410.c	2008-09-15 10:28:59.000000000 -0700
+@@ -337,17 +337,69 @@
+ static int s3c2410_nand_correct_data(struct mtd_info *mtd, u_char *dat,
+ 				     u_char *read_ecc, u_char *calc_ecc)
+ {
+-	pr_debug("s3c2410_nand_correct_data(%p,%p,%p,%p)\n", mtd, dat, read_ecc, calc_ecc);
++	struct s3c2410_nand_info *info = s3c2410_nand_mtd_toinfo(mtd);
++	unsigned int diff0, diff1, diff2;
++	unsigned int bit, byte;
+ 
+-	pr_debug("eccs: read %02x,%02x,%02x vs calc %02x,%02x,%02x\n",
+-		 read_ecc[0], read_ecc[1], read_ecc[2], calc_ecc[0], calc_ecc[1], calc_ecc[2]);
++	pr_debug("%s(%p,%p,%p,%p)\n", __func__, mtd, dat, read_ecc, calc_ecc);
+ 
+-	if (read_ecc[0] == calc_ecc[0] && read_ecc[1] == calc_ecc[1] && read_ecc[2] == calc_ecc[2])
+-		return 0;
++	diff0 = read_ecc[0] ^ calc_ecc[0];
++	diff1 = read_ecc[1] ^ calc_ecc[1];
++	diff2 = read_ecc[2] ^ calc_ecc[2];
++
++	pr_debug("%s: rd %02x%02x%02x calc %02x%02x%02x diff %02x%02x%02x\n",
++		 __func__,
++		 read_ecc[0], read_ecc[1], read_ecc[2],
++		 calc_ecc[0], calc_ecc[1], calc_ecc[2],
++		 diff0, diff1, diff2);
++
++	if (diff0 == 0 && diff1 == 0 && diff2 == 0)
++		return 0;		/* ECC is ok */
++
++	/* Can we correct this ECC (ie, one row and column change).
++	 * Note, this is similar to the 256 error code on smartmedia */
++
++	if (((diff0 ^ (diff0 >> 1)) & 0x55) == 0x55 &&
++	    ((diff1 ^ (diff1 >> 1)) & 0x55) == 0x55 &&
++	    ((diff2 ^ (diff2 >> 1)) & 0x55) == 0x55) {
++		/* calculate the bit position of the error */
++
++		bit  = (diff2 >> 2) & 1;
++		bit |= (diff2 >> 3) & 2;
++		bit |= (diff2 >> 4) & 4;
++
++		/* calculate the byte position of the error */
++
++		byte  = (diff1 << 1) & 0x80;
++		byte |= (diff1 << 2) & 0x40;
++		byte |= (diff1 << 3) & 0x20;
++		byte |= (diff1 << 4) & 0x10;
++
++		byte |= (diff0 >> 3) & 0x08;
++		byte |= (diff0 >> 2) & 0x04;
++		byte |= (diff0 >> 1) & 0x02;
++		byte |= (diff0 >> 0) & 0x01;
+ 
+-	/* we curently have no method for correcting the error */
++		byte |= (diff2 << 8) & 0x100;
+ 
+-	return -1;
++		dev_dbg(info->device, "correcting error bit %d, byte %d\n",
++			bit, byte);
++
++		dat[byte] ^= (1 << bit);
++		return 1;
++	}
++
++	/* if there is only one bit difference in the ECC, then
++	 * one of only a row or column parity has changed, which
++	 * means the error is most probably in the ECC itself */
++
++	diff0 |= (diff1 << 8);
++	diff0 |= (diff2 << 16);
++
++	if ((diff0 & ~(1<<fls(diff0))) == 0)
++		return 1;
++
++	return 0;
+ }
+ 
+ /* ECC functions
+@@ -366,6 +418,15 @@
+ 	writel(ctrl, info->regs + S3C2410_NFCONF);
+ }
+ 
++static void s3c2412_nand_enable_hwecc(struct mtd_info *mtd, int mode)
++{
++	struct s3c2410_nand_info *info = s3c2410_nand_mtd_toinfo(mtd);
++	unsigned long ctrl;
++
++	ctrl = readl(info->regs + S3C2440_NFCONT);
++	writel(ctrl | S3C2412_NFCONT_INIT_MAIN_ECC, info->regs + S3C2440_NFCONT);
++}
++
+ static void s3c2440_nand_enable_hwecc(struct mtd_info *mtd, int mode)
+ {
+ 	struct s3c2410_nand_info *info = s3c2410_nand_mtd_toinfo(mtd);
+@@ -383,6 +444,21 @@
+ 	ecc_code[1] = readb(info->regs + S3C2410_NFECC + 1);
+ 	ecc_code[2] = readb(info->regs + S3C2410_NFECC + 2);
+ 
++	pr_debug("%s: returning ecc %02x%02x%02x\n", __func__,
++		 ecc_code[0], ecc_code[1], ecc_code[2]);
++
++	return 0;
++}
++
++static int s3c2412_nand_calculate_ecc(struct mtd_info *mtd, const u_char *dat, u_char *ecc_code)
++{
++	struct s3c2410_nand_info *info = s3c2410_nand_mtd_toinfo(mtd);
++	unsigned long ecc = readl(info->regs + S3C2412_NFMECC0);
++
++	ecc_code[0] = ecc;
++	ecc_code[1] = ecc >> 8;
++	ecc_code[2] = ecc >> 16;
++
+ 	pr_debug("calculate_ecc: returning ecc %02x,%02x,%02x\n", ecc_code[0], ecc_code[1], ecc_code[2]);
+ 
+ 	return 0;
+@@ -397,7 +473,7 @@
+ 	ecc_code[1] = ecc >> 8;
+ 	ecc_code[2] = ecc >> 16;
+ 
+-	pr_debug("calculate_ecc: returning ecc %02x,%02x,%02x\n", ecc_code[0], ecc_code[1], ecc_code[2]);
++	pr_debug("%s: returning ecc %06lx\n", __func__, ecc);
+ 
+ 	return 0;
+ }
+@@ -565,6 +641,10 @@
+ 			break;
+ 
+ 		case TYPE_S3C2412:
++  			chip->ecc.hwctl     = s3c2412_nand_enable_hwecc;
++  			chip->ecc.calculate = s3c2412_nand_calculate_ecc;
++			break;
++
+ 		case TYPE_S3C2440:
+   			chip->ecc.hwctl     = s3c2440_nand_enable_hwecc;
+   			chip->ecc.calculate = s3c2440_nand_calculate_ecc;
+diff -ruN linux-2.6.20.orig/drivers/mtd/nftlcore.c linux-2.6.20/drivers/mtd/nftlcore.c
+--- linux-2.6.20.orig/drivers/mtd/nftlcore.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/nftlcore.c	2008-09-15 10:28:59.000000000 -0700
+@@ -20,7 +20,6 @@
+ #include <linux/pci.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/init.h>
+ #include <linux/hdreg.h>
+ 
+diff -ruN linux-2.6.20.orig/drivers/mtd/onenand/onenand_base.c linux-2.6.20/drivers/mtd/onenand/onenand_base.c
+--- linux-2.6.20.orig/drivers/mtd/onenand/onenand_base.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/onenand/onenand_base.c	2008-09-15 10:28:59.000000000 -0700
+@@ -1,9 +1,14 @@
+ /*
+  *  linux/drivers/mtd/onenand/onenand_base.c
+  *
+- *  Copyright (C) 2005-2006 Samsung Electronics
++ *  Copyright (C) 2005-2007 Samsung Electronics
+  *  Kyungmin Park <kyungmin.park@samsung.com>
+  *
++ *  Credits:
++ *	Adrian Hunter <ext-adrian.hunter@nokia.com>:
++ *	auto-placement support, read-while load support, various fixes
++ *	Copyright (C) Nokia Corporation, 2007
++ *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 as
+  * published by the Free Software Foundation.
+@@ -94,16 +99,9 @@
+  */
+ static int onenand_block_address(struct onenand_chip *this, int block)
+ {
+-	if (this->device_id & ONENAND_DEVICE_IS_DDP) {
+-		/* Device Flash Core select, NAND Flash Block Address */
+-		int dfs = 0;
+-
+-		if (block & this->density_mask)
+-			dfs = 1;
+-
+-		return (dfs << ONENAND_DDP_SHIFT) |
+-			(block & (this->density_mask - 1));
+-	}
++	/* Device Flash Core select, NAND Flash Block Address */
++	if (block & this->density_mask)
++		return ONENAND_DDP_CHIP1 | (block ^ this->density_mask);
+ 
+ 	return block;
+ }
+@@ -118,17 +116,11 @@
+  */
+ static int onenand_bufferram_address(struct onenand_chip *this, int block)
+ {
+-	if (this->device_id & ONENAND_DEVICE_IS_DDP) {
+-		/* Device BufferRAM Select */
+-		int dbs = 0;
+-
+-		if (block & this->density_mask)
+-			dbs = 1;
+-
+-		return (dbs << ONENAND_DDP_SHIFT);
+-	}
++	/* Device BufferRAM Select */
++	if (block & this->density_mask)
++		return ONENAND_DDP_CHIP1;
+ 
+-	return 0;
++	return ONENAND_DDP_CHIP0;
+ }
+ 
+ /**
+@@ -317,22 +309,25 @@
+ 	ctrl = this->read_word(this->base + ONENAND_REG_CTRL_STATUS);
+ 
+ 	if (ctrl & ONENAND_CTRL_ERROR) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_wait: controller error = 0x%04x\n", ctrl);
++		printk(KERN_ERR "onenand_wait: controller error = 0x%04x\n", ctrl);
+ 		if (ctrl & ONENAND_CTRL_LOCK)
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_wait: it's locked error.\n");
++			printk(KERN_ERR "onenand_wait: it's locked error.\n");
+ 		return ctrl;
+ 	}
+ 
+ 	if (interrupt & ONENAND_INT_READ) {
+ 		int ecc = this->read_word(this->base + ONENAND_REG_ECC_STATUS);
+ 		if (ecc) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_wait: ECC error = 0x%04x\n", ecc);
++			printk(KERN_ERR "onenand_wait: ECC error = 0x%04x\n", ecc);
+ 			if (ecc & ONENAND_ECC_2BIT_ALL) {
+ 				mtd->ecc_stats.failed++;
+ 				return ecc;
+ 			} else if (ecc & ONENAND_ECC_1BIT_ALL)
+ 				mtd->ecc_stats.corrected++;
+ 		}
++	} else if (state == FL_READING) {
++		printk(KERN_ERR "onenand_wait: read timeout! ctrl=0x%04x intr=0x%04x\n", ctrl, interrupt);
++		return -EIO;
+ 	}
+ 
+ 	return 0;
+@@ -587,22 +582,32 @@
+ static int onenand_check_bufferram(struct mtd_info *mtd, loff_t addr)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	int block, page;
+-	int i;
++	int blockpage, found = 0;
++	unsigned int i;
+ 
+-	block = (int) (addr >> this->erase_shift);
+-	page = (int) (addr >> this->page_shift);
+-	page &= this->page_mask;
++	blockpage = (int) (addr >> this->page_shift);
+ 
++	/* Is there valid data? */
+ 	i = ONENAND_CURRENT_BUFFERRAM(this);
++	if (this->bufferram[i].blockpage == blockpage)
++		found = 1;
++	else {
++		/* Check another BufferRAM */
++		i = ONENAND_NEXT_BUFFERRAM(this);
++		if (this->bufferram[i].blockpage == blockpage) {
++			ONENAND_SET_NEXT_BUFFERRAM(this);
++			found = 1;
++		}
++	}
+ 
+-	/* Is there valid data? */
+-	if (this->bufferram[i].block == block &&
+-	    this->bufferram[i].page == page &&
+-	    this->bufferram[i].valid)
+-		return 1;
++	if (found && ONENAND_IS_DDP(this)) {
++		/* Select DataRAM for DDP */
++		int block = (int) (addr >> this->erase_shift);
++		int value = onenand_bufferram_address(this, block);
++		this->write_word(value, this->base + ONENAND_REG_START_ADDRESS2);
++	}
+ 
+-	return 0;
++	return found;
+ }
+ 
+ /**
+@@ -613,31 +618,49 @@
+  *
+  * Update BufferRAM information
+  */
+-static int onenand_update_bufferram(struct mtd_info *mtd, loff_t addr,
++static void onenand_update_bufferram(struct mtd_info *mtd, loff_t addr,
+ 		int valid)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	int block, page;
+-	int i;
++	int blockpage;
++	unsigned int i;
+ 
+-	block = (int) (addr >> this->erase_shift);
+-	page = (int) (addr >> this->page_shift);
+-	page &= this->page_mask;
++	blockpage = (int) (addr >> this->page_shift);
+ 
+-	/* Invalidate BufferRAM */
+-	for (i = 0; i < MAX_BUFFERRAM; i++) {
+-		if (this->bufferram[i].block == block &&
+-		    this->bufferram[i].page == page)
+-			this->bufferram[i].valid = 0;
+-	}
++	/* Invalidate another BufferRAM */
++	i = ONENAND_NEXT_BUFFERRAM(this);
++	if (this->bufferram[i].blockpage == blockpage)
++		this->bufferram[i].blockpage = -1;
+ 
+ 	/* Update BufferRAM */
+ 	i = ONENAND_CURRENT_BUFFERRAM(this);
+-	this->bufferram[i].block = block;
+-	this->bufferram[i].page = page;
+-	this->bufferram[i].valid = valid;
++	if (valid)
++		this->bufferram[i].blockpage = blockpage;
++	else
++		this->bufferram[i].blockpage = -1;
++}
+ 
+-	return 0;
++/**
++ * onenand_invalidate_bufferram - [GENERIC] Invalidate BufferRAM information
++ * @param mtd		MTD data structure
++ * @param addr		start address to invalidate
++ * @param len		length to invalidate
++ *
++ * Invalidate BufferRAM information
++ */
++static void onenand_invalidate_bufferram(struct mtd_info *mtd, loff_t addr,
++		unsigned int len)
++{
++	struct onenand_chip *this = mtd->priv;
++	int i;
++	loff_t end_addr = addr + len;
++
++	/* Invalidate BufferRAM */
++	for (i = 0; i < MAX_BUFFERRAM; i++) {
++		loff_t buf_addr = this->bufferram[i].blockpage << this->page_shift;
++		if (buf_addr >= addr && buf_addr < end_addr)
++			this->bufferram[i].blockpage = -1;
++	}
+ }
+ 
+ /**
+@@ -716,7 +739,7 @@
+ 
+ 	/* Do not allow reads past end of device */
+ 	if ((from + len) > mtd->size) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_read: Attempt read beyond end of device\n");
++		printk(KERN_ERR "onenand_read: Attempt read beyond end of device\n");
+ 		*retlen = 0;
+ 		return -EINVAL;
+ 	}
+@@ -724,8 +747,6 @@
+ 	/* Grab the lock and see if the device is available */
+ 	onenand_get_device(mtd, FL_READING);
+ 
+-	/* TODO handling oob */
+-
+ 	stats = mtd->ecc_stats;
+ 
+  	/* Read-while-load method */
+@@ -754,9 +775,9 @@
+  			 * Now we issued chip 1 read and pointed chip 1
+  			 * bufferam so we have to point chip 0 bufferam.
+  			 */
+- 			if (this->device_id & ONENAND_DEVICE_IS_DDP &&
+- 					unlikely(from == (this->chipsize >> 1))) {
+- 				this->write_word(0, this->base + ONENAND_REG_START_ADDRESS2);
++ 			if (ONENAND_IS_DDP(this) &&
++ 			    unlikely(from == (this->chipsize >> 1))) {
++ 				this->write_word(ONENAND_DDP_CHIP0, this->base + ONENAND_REG_START_ADDRESS2);
+  				boundary = 1;
+  			} else
+  				boundary = 0;
+@@ -770,7 +791,7 @@
+  			break;
+  		/* Set up for next read from bufferRAM */
+  		if (unlikely(boundary))
+- 			this->write_word(0x8000, this->base + ONENAND_REG_START_ADDRESS2);
++ 			this->write_word(ONENAND_DDP_CHIP1, this->base + ONENAND_REG_START_ADDRESS2);
+  		ONENAND_SET_NEXT_BUFFERRAM(this);
+  		buf += thislen;
+  		thislen = min_t(int, mtd->writesize, len - read);
+@@ -801,20 +822,60 @@
+ }
+ 
+ /**
++ * onenand_transfer_auto_oob - [Internal] oob auto-placement transfer
++ * @param mtd		MTD device structure
++ * @param buf		destination address
++ * @param column	oob offset to read from
++ * @param thislen	oob length to read
++ */
++static int onenand_transfer_auto_oob(struct mtd_info *mtd, uint8_t *buf, int column,
++				int thislen)
++{
++	struct onenand_chip *this = mtd->priv;
++	struct nand_oobfree *free;
++	int readcol = column;
++	int readend = column + thislen;
++	int lastgap = 0;
++	uint8_t *oob_buf = this->oob_buf;
++
++	for (free = this->ecclayout->oobfree; free->length; ++free) {
++		if (readcol >= lastgap)
++			readcol += free->offset - lastgap;
++		if (readend >= lastgap)
++			readend += free->offset - lastgap;
++		lastgap = free->offset + free->length;
++	}
++	this->read_bufferram(mtd, ONENAND_SPARERAM, oob_buf, 0, mtd->oobsize);
++	for (free = this->ecclayout->oobfree; free->length; ++free) {
++		int free_end = free->offset + free->length;
++		if (free->offset < readend && free_end > readcol) {
++			int st = max_t(int,free->offset,readcol);
++			int ed = min_t(int,free_end,readend);
++			int n = ed - st;
++			memcpy(buf, oob_buf + st, n);
++			buf += n;
++		} else
++			break;
++	}
++	return 0;
++}
++
++/**
+  * onenand_do_read_oob - [MTD Interface] OneNAND read out-of-band
+  * @param mtd		MTD device structure
+  * @param from		offset to read from
+  * @param len		number of bytes to read
+  * @param retlen	pointer to variable to store the number of read bytes
+  * @param buf		the databuffer to put data
++ * @param mode		operation mode
+  *
+  * OneNAND read out-of-band data from the spare area
+  */
+-int onenand_do_read_oob(struct mtd_info *mtd, loff_t from, size_t len,
+-			size_t *retlen, u_char *buf)
++static int onenand_do_read_oob(struct mtd_info *mtd, loff_t from, size_t len,
++			size_t *retlen, u_char *buf, mtd_oob_mode_t mode)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	int read = 0, thislen, column;
++	int read = 0, thislen, column, oobsize;
+ 	int ret = 0;
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL3, "onenand_read_oob: from = 0x%08x, len = %i\n", (unsigned int) from, (int) len);
+@@ -822,21 +883,33 @@
+ 	/* Initialize return length value */
+ 	*retlen = 0;
+ 
++	if (mode == MTD_OOB_AUTO)
++		oobsize = this->ecclayout->oobavail;
++	else
++		oobsize = mtd->oobsize;
++
++	column = from & (mtd->oobsize - 1);
++
++	if (unlikely(column >= oobsize)) {
++		printk(KERN_ERR "onenand_read_oob: Attempted to start read outside oob\n");
++		return -EINVAL;
++	}
++
+ 	/* Do not allow reads past end of device */
+-	if (unlikely((from + len) > mtd->size)) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_read_oob: Attempt read beyond end of device\n");
++	if (unlikely(from >= mtd->size ||
++		     column + len > ((mtd->size >> this->page_shift) -
++				     (from >> this->page_shift)) * oobsize)) {
++		printk(KERN_ERR "onenand_read_oob: Attempted to read beyond end of device\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* Grab the lock and see if the device is available */
+ 	onenand_get_device(mtd, FL_READING);
+ 
+-	column = from & (mtd->oobsize - 1);
+-
+ 	while (read < len) {
+ 		cond_resched();
+ 
+-		thislen = mtd->oobsize - column;
++		thislen = oobsize - column;
+ 		thislen = min_t(int, thislen, len);
+ 
+ 		this->command(mtd, ONENAND_CMD_READOOB, from, mtd->oobsize);
+@@ -846,11 +919,14 @@
+ 		ret = this->wait(mtd, FL_READING);
+ 		/* First copy data and check return value for ECC handling */
+ 
+-		this->read_bufferram(mtd, ONENAND_SPARERAM, buf, column, thislen);
++		if (mode == MTD_OOB_AUTO)
++			onenand_transfer_auto_oob(mtd, buf, column, thislen);
++		else
++			this->read_bufferram(mtd, ONENAND_SPARERAM, buf, column, thislen);
+ 
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_read_oob: read failed = 0x%x\n", ret);
+-			goto out;
++			printk(KERN_ERR "onenand_read_oob: read failed = 0x%x\n", ret);
++			break;
+ 		}
+ 
+ 		read += thislen;
+@@ -868,7 +944,6 @@
+ 		}
+ 	}
+ 
+-out:
+ 	/* Deselect and wake up anyone waiting on the device */
+ 	onenand_release_device(mtd);
+ 
+@@ -878,17 +953,139 @@
+ 
+ /**
+  * onenand_read_oob - [MTD Interface] NAND write data and/or out-of-band
+- * @mtd:	MTD device structure
+- * @from:	offset to read from
+- * @ops:	oob operation description structure
++ * @param mtd:		MTD device structure
++ * @param from:		offset to read from
++ * @param ops:		oob operation description structure
+  */
+ static int onenand_read_oob(struct mtd_info *mtd, loff_t from,
+ 			    struct mtd_oob_ops *ops)
+ {
+-	BUG_ON(ops->mode != MTD_OOB_PLACE);
+-
++	switch (ops->mode) {
++	case MTD_OOB_PLACE:
++	case MTD_OOB_AUTO:
++		break;
++	case MTD_OOB_RAW:
++		/* Not implemented yet */
++	default:
++		return -EINVAL;
++	}
+ 	return onenand_do_read_oob(mtd, from + ops->ooboffs, ops->ooblen,
+-				   &ops->oobretlen, ops->oobbuf);
++				   &ops->oobretlen, ops->oobbuf, ops->mode);
++}
++
++/**
++ * onenand_bbt_wait - [DEFAULT] wait until the command is done
++ * @param mtd		MTD device structure
++ * @param state		state to select the max. timeout value
++ *
++ * Wait for command done.
++ */
++static int onenand_bbt_wait(struct mtd_info *mtd, int state)
++{
++	struct onenand_chip *this = mtd->priv;
++	unsigned long timeout;
++	unsigned int interrupt;
++	unsigned int ctrl;
++
++	/* The 20 msec is enough */
++	timeout = jiffies + msecs_to_jiffies(20);
++	while (time_before(jiffies, timeout)) {
++		interrupt = this->read_word(this->base + ONENAND_REG_INTERRUPT);
++		if (interrupt & ONENAND_INT_MASTER)
++			break;
++	}
++	/* To get correct interrupt status in timeout case */
++	interrupt = this->read_word(this->base + ONENAND_REG_INTERRUPT);
++	ctrl = this->read_word(this->base + ONENAND_REG_CTRL_STATUS);
++
++	if (ctrl & ONENAND_CTRL_ERROR) {
++		printk(KERN_DEBUG "onenand_bbt_wait: controller error = 0x%04x\n", ctrl);
++		/* Initial bad block case */
++		if (ctrl & ONENAND_CTRL_LOAD)
++			return ONENAND_BBT_READ_ERROR;
++		return ONENAND_BBT_READ_FATAL_ERROR;
++	}
++
++	if (interrupt & ONENAND_INT_READ) {
++		int ecc = this->read_word(this->base + ONENAND_REG_ECC_STATUS);
++		if (ecc & ONENAND_ECC_2BIT_ALL)
++			return ONENAND_BBT_READ_ERROR;
++	} else {
++		printk(KERN_ERR "onenand_bbt_wait: read timeout!"
++			"ctrl=0x%04x intr=0x%04x\n", ctrl, interrupt);
++		return ONENAND_BBT_READ_FATAL_ERROR;
++	}
++
++	return 0;
++}
++
++/**
++ * onenand_bbt_read_oob - [MTD Interface] OneNAND read out-of-band for bbt scan
++ * @param mtd		MTD device structure
++ * @param from		offset to read from
++ * @param ops		oob operation description structure
++ *
++ * OneNAND read out-of-band data from the spare area for bbt scan
++ */
++int onenand_bbt_read_oob(struct mtd_info *mtd, loff_t from, 
++			    struct mtd_oob_ops *ops)
++{
++	struct onenand_chip *this = mtd->priv;
++	int read = 0, thislen, column;
++	int ret = 0;
++	size_t len = ops->ooblen;
++	u_char *buf = ops->oobbuf;
++
++	DEBUG(MTD_DEBUG_LEVEL3, "onenand_bbt_read_oob: from = 0x%08x, len = %zi\n", (unsigned int) from, len);
++
++	/* Initialize return value */
++	ops->oobretlen = 0;
++
++	/* Do not allow reads past end of device */
++	if (unlikely((from + len) > mtd->size)) {
++		printk(KERN_ERR "onenand_bbt_read_oob: Attempt read beyond end of device\n");
++		return ONENAND_BBT_READ_FATAL_ERROR;
++	}
++
++	/* Grab the lock and see if the device is available */
++	onenand_get_device(mtd, FL_READING);
++
++	column = from & (mtd->oobsize - 1);
++
++	while (read < len) {
++		cond_resched();
++
++		thislen = mtd->oobsize - column;
++		thislen = min_t(int, thislen, len);
++
++		this->command(mtd, ONENAND_CMD_READOOB, from, mtd->oobsize);
++
++		onenand_update_bufferram(mtd, from, 0);
++
++		ret = onenand_bbt_wait(mtd, FL_READING);
++		if (ret)
++			break;
++
++		this->read_bufferram(mtd, ONENAND_SPARERAM, buf, column, thislen);
++		read += thislen;
++		if (read == len)
++			break;
++
++		buf += thislen;
++
++		/* Read more? */
++		if (read < len) {
++			/* Update Page size */
++			from += mtd->writesize;
++			column = 0;
++		}
++	}
++
++	/* Deselect and wake up anyone waiting on the device */
++	onenand_release_device(mtd);
++
++	ops->oobretlen = read;
++	return ret;
+ }
+ 
+ #ifdef CONFIG_MTD_ONENAND_VERIFY_WRITE
+@@ -897,14 +1094,12 @@
+  * @param mtd		MTD device structure
+  * @param buf		the databuffer to verify
+  * @param to		offset to read from
+- * @param len		number of bytes to read and compare
+  *
+  */
+-static int onenand_verify_oob(struct mtd_info *mtd, const u_char *buf, loff_t to, int len)
++static int onenand_verify_oob(struct mtd_info *mtd, const u_char *buf, loff_t to)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	char *readp = this->page_buf;
+-	int column = to & (mtd->oobsize - 1);
++	char oobbuf[64];
+ 	int status, i;
+ 
+ 	this->command(mtd, ONENAND_CMD_READOOB, to, mtd->oobsize);
+@@ -913,51 +1108,60 @@
+ 	if (status)
+ 		return status;
+ 
+-	this->read_bufferram(mtd, ONENAND_SPARERAM, readp, column, len);
+-
+-	for(i = 0; i < len; i++)
+-		if (buf[i] != 0xFF && buf[i] != readp[i])
++	this->read_bufferram(mtd, ONENAND_SPARERAM, oobbuf, 0, mtd->oobsize);
++	for (i = 0; i < mtd->oobsize; i++)
++		if (buf[i] != 0xFF && buf[i] != oobbuf[i])
+ 			return -EBADMSG;
+ 
+ 	return 0;
+ }
+ 
+ /**
+- * onenand_verify_page - [GENERIC] verify the chip contents after a write
+- * @param mtd		MTD device structure
+- * @param buf		the databuffer to verify
++ * onenand_verify - [GENERIC] verify the chip contents after a write
++ * @param mtd          MTD device structure
++ * @param buf          the databuffer to verify
++ * @param addr         offset to read from
++ * @param len          number of bytes to read and compare
+  *
+- * Check DataRAM area directly
+  */
+-static int onenand_verify_page(struct mtd_info *mtd, u_char *buf, loff_t addr)
++static int onenand_verify(struct mtd_info *mtd, const u_char *buf, loff_t addr, size_t len)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	void __iomem *dataram0, *dataram1;
++	void __iomem *dataram;
+ 	int ret = 0;
++	int thislen, column;
+ 
+-	/* In partial page write, just skip it */
+-	if ((addr & (mtd->writesize - 1)) != 0)
+-		return 0;
++	while (len != 0) {
++		thislen = min_t(int, mtd->writesize, len);
++		column = addr & (mtd->writesize - 1);
++		if (column + thislen > mtd->writesize)
++			thislen = mtd->writesize - column;
+ 
+-	this->command(mtd, ONENAND_CMD_READ, addr, mtd->writesize);
++		this->command(mtd, ONENAND_CMD_READ, addr, mtd->writesize);
+ 
+-	ret = this->wait(mtd, FL_READING);
+-	if (ret)
+-		return ret;
++		onenand_update_bufferram(mtd, addr, 0);
+ 
+-	onenand_update_bufferram(mtd, addr, 1);
++		ret = this->wait(mtd, FL_READING);
++		if (ret)
++			return ret;
+ 
+-	/* Check, if the two dataram areas are same */
+-	dataram0 = this->base + ONENAND_DATARAM;
+-	dataram1 = dataram0 + mtd->writesize;
++		onenand_update_bufferram(mtd, addr, 1);
+ 
+-	if (memcmp(dataram0, dataram1, mtd->writesize))
+-		return -EBADMSG;
++		dataram = this->base + ONENAND_DATARAM;
++		dataram += onenand_bufferram_offset(mtd, ONENAND_DATARAM);
++
++		if (memcmp(buf, dataram + column, thislen))
++			return -EBADMSG;
++
++		len -= thislen;
++		buf += thislen;
++		addr += thislen;
++	}
+ 
+ 	return 0;
+ }
+ #else
+-#define onenand_verify_page(...)	(0)
++#define onenand_verify(...)		(0)
+ #define onenand_verify_oob(...)		(0)
+ #endif
+ 
+@@ -988,60 +1192,57 @@
+ 
+ 	/* Do not allow writes past end of device */
+ 	if (unlikely((to + len) > mtd->size)) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_write: Attempt write to past end of device\n");
++		printk(KERN_ERR "onenand_write: Attempt write to past end of device\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* Reject writes, which are not page aligned */
+         if (unlikely(NOTALIGNED(to)) || unlikely(NOTALIGNED(len))) {
+-                DEBUG(MTD_DEBUG_LEVEL0, "onenand_write: Attempt to write not page aligned data\n");
++                printk(KERN_ERR "onenand_write: Attempt to write not page aligned data\n");
+                 return -EINVAL;
+         }
+ 
+ 	column = to & (mtd->writesize - 1);
+-	subpage = column || (len & (mtd->writesize - 1));
+ 
+ 	/* Grab the lock and see if the device is available */
+ 	onenand_get_device(mtd, FL_WRITING);
+ 
+ 	/* Loop until all data write */
+ 	while (written < len) {
+-		int bytes = mtd->writesize;
+-		int thislen = min_t(int, bytes, len - written);
++		int thislen = min_t(int, mtd->writesize - column, len - written);
+ 		u_char *wbuf = (u_char *) buf;
+ 
+ 		cond_resched();
+ 
+-		this->command(mtd, ONENAND_CMD_BUFFERRAM, to, bytes);
++		this->command(mtd, ONENAND_CMD_BUFFERRAM, to, thislen);
+ 
+ 		/* Partial page write */
++		subpage = thislen < mtd->writesize;
+ 		if (subpage) {
+-			bytes = min_t(int, bytes - column, (int) len);
+ 			memset(this->page_buf, 0xff, mtd->writesize);
+-			memcpy(this->page_buf + column, buf, bytes);
++			memcpy(this->page_buf + column, buf, thislen);
+ 			wbuf = this->page_buf;
+-			/* Even though partial write, we need page size */
+-			thislen = mtd->writesize;
+ 		}
+ 
+-		this->write_bufferram(mtd, ONENAND_DATARAM, wbuf, 0, thislen);
++		this->write_bufferram(mtd, ONENAND_DATARAM, wbuf, 0, mtd->writesize);
+ 		this->write_bufferram(mtd, ONENAND_SPARERAM, ffchars, 0, mtd->oobsize);
+ 
+ 		this->command(mtd, ONENAND_CMD_PROG, to, mtd->writesize);
+ 
++		ret = this->wait(mtd, FL_WRITING);
++
+ 		/* In partial page write we don't update bufferram */
+-		onenand_update_bufferram(mtd, to, !subpage);
++		onenand_update_bufferram(mtd, to, !ret && !subpage);
+ 
+-		ret = this->wait(mtd, FL_WRITING);
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_write: write filaed %d\n", ret);
++			printk(KERN_ERR "onenand_write: write filaed %d\n", ret);
+ 			break;
+ 		}
+ 
+ 		/* Only check verify write turn on */
+-		ret = onenand_verify_page(mtd, (u_char *) wbuf, to);
++		ret = onenand_verify(mtd, (u_char *) wbuf, to, thislen);
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_write: verify failed %d\n", ret);
++			printk(KERN_ERR "onenand_write: verify failed %d\n", ret);
+ 			break;
+ 		}
+ 
+@@ -1064,51 +1265,115 @@
+ }
+ 
+ /**
++ * onenand_fill_auto_oob - [Internal] oob auto-placement transfer
++ * @param mtd		MTD device structure
++ * @param oob_buf	oob buffer
++ * @param buf		source address
++ * @param column	oob offset to write to
++ * @param thislen	oob length to write
++ */
++static int onenand_fill_auto_oob(struct mtd_info *mtd, u_char *oob_buf,
++				  const u_char *buf, int column, int thislen)
++{
++	struct onenand_chip *this = mtd->priv;
++	struct nand_oobfree *free;
++	int writecol = column;
++	int writeend = column + thislen;
++	int lastgap = 0;
++
++	for (free = this->ecclayout->oobfree; free->length; ++free) {
++		if (writecol >= lastgap)
++			writecol += free->offset - lastgap;
++		if (writeend >= lastgap)
++			writeend += free->offset - lastgap;
++		lastgap = free->offset + free->length;
++	}
++	for (free = this->ecclayout->oobfree; free->length; ++free) {
++		int free_end = free->offset + free->length;
++		if (free->offset < writeend && free_end > writecol) {
++			int st = max_t(int,free->offset,writecol);
++			int ed = min_t(int,free_end,writeend);
++			int n = ed - st;
++			memcpy(oob_buf + st, buf, n);
++			buf += n;
++		} else
++			break;
++	}
++	return 0;
++}
++
++/**
+  * onenand_do_write_oob - [Internal] OneNAND write out-of-band
+  * @param mtd		MTD device structure
+  * @param to		offset to write to
+  * @param len		number of bytes to write
+  * @param retlen	pointer to variable to store the number of written bytes
+  * @param buf		the data to write
++ * @param mode		operation mode
+  *
+  * OneNAND write out-of-band
+  */
+ static int onenand_do_write_oob(struct mtd_info *mtd, loff_t to, size_t len,
+-				size_t *retlen, const u_char *buf)
++				size_t *retlen, const u_char *buf, mtd_oob_mode_t mode)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+-	int column, ret = 0;
++	int column, ret = 0, oobsize;
+ 	int written = 0;
++	u_char *oobbuf;
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL3, "onenand_write_oob: to = 0x%08x, len = %i\n", (unsigned int) to, (int) len);
+ 
+ 	/* Initialize retlen, in case of early exit */
+ 	*retlen = 0;
+ 
+-	/* Do not allow writes past end of device */
+-	if (unlikely((to + len) > mtd->size)) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_write_oob: Attempt write to past end of device\n");
++	if (mode == MTD_OOB_AUTO)
++		oobsize = this->ecclayout->oobavail;
++	else
++		oobsize = mtd->oobsize;
++
++	column = to & (mtd->oobsize - 1);
++
++	if (unlikely(column >= oobsize)) {
++		printk(KERN_ERR "onenand_write_oob: Attempted to start write outside oob\n");
++		return -EINVAL;
++	}
++
++	/* For compatibility with NAND: Do not allow write past end of page */
++	if (unlikely(column + len > oobsize)) {
++		printk(KERN_ERR "onenand_write_oob: "
++		      "Attempt to write past end of page\n");
++		return -EINVAL;
++	}
++
++	/* Do not allow reads past end of device */
++	if (unlikely(to >= mtd->size ||
++		     column + len > ((mtd->size >> this->page_shift) -
++				     (to >> this->page_shift)) * oobsize)) {
++		printk(KERN_ERR "onenand_write_oob: Attempted to write past end of device\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* Grab the lock and see if the device is available */
+ 	onenand_get_device(mtd, FL_WRITING);
+ 
++	oobbuf = this->oob_buf;
++
+ 	/* Loop until all data write */
+ 	while (written < len) {
+-		int thislen = min_t(int, mtd->oobsize, len - written);
++		int thislen = min_t(int, oobsize, len - written);
+ 
+ 		cond_resched();
+ 
+-		column = to & (mtd->oobsize - 1);
+-
+ 		this->command(mtd, ONENAND_CMD_BUFFERRAM, to, mtd->oobsize);
+ 
+ 		/* We send data to spare ram with oobsize
+ 		 * to prevent byte access */
+-		memset(this->page_buf, 0xff, mtd->oobsize);
+-		memcpy(this->page_buf + column, buf, thislen);
+-		this->write_bufferram(mtd, ONENAND_SPARERAM, this->page_buf, 0, mtd->oobsize);
++		memset(oobbuf, 0xff, mtd->oobsize);
++		if (mode == MTD_OOB_AUTO)
++			onenand_fill_auto_oob(mtd, oobbuf, buf, column, thislen);
++		else
++			memcpy(oobbuf + column, buf, thislen);
++		this->write_bufferram(mtd, ONENAND_SPARERAM, oobbuf, 0, mtd->oobsize);
+ 
+ 		this->command(mtd, ONENAND_CMD_PROGOOB, to, mtd->oobsize);
+ 
+@@ -1116,26 +1381,25 @@
+ 
+ 		ret = this->wait(mtd, FL_WRITING);
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_write_oob: write filaed %d\n", ret);
+-			goto out;
++			printk(KERN_ERR "onenand_write_oob: write failed %d\n", ret);
++			break;
+ 		}
+ 
+-		ret = onenand_verify_oob(mtd, buf, to, thislen);
++		ret = onenand_verify_oob(mtd, oobbuf, to);
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_write_oob: verify failed %d\n", ret);
+-			goto out;
++			printk(KERN_ERR "onenand_write_oob: verify failed %d\n", ret);
++			break;
+ 		}
+ 
+ 		written += thislen;
+-
+ 		if (written == len)
+ 			break;
+ 
+-		to += thislen;
++		to += mtd->writesize;
+ 		buf += thislen;
++		column = 0;
+ 	}
+ 
+-out:
+ 	/* Deselect and wake up anyone waiting on the device */
+ 	onenand_release_device(mtd);
+ 
+@@ -1146,17 +1410,24 @@
+ 
+ /**
+  * onenand_write_oob - [MTD Interface] NAND write data and/or out-of-band
+- * @mtd:	MTD device structure
+- * @from:	offset to read from
+- * @ops:	oob operation description structure
++ * @param mtd:		MTD device structure
++ * @param to:		offset to write
++ * @param ops:		oob operation description structure
+  */
+ static int onenand_write_oob(struct mtd_info *mtd, loff_t to,
+ 			     struct mtd_oob_ops *ops)
+ {
+-	BUG_ON(ops->mode != MTD_OOB_PLACE);
+-
++	switch (ops->mode) {
++	case MTD_OOB_PLACE:
++	case MTD_OOB_AUTO:
++		break;
++	case MTD_OOB_RAW:
++		/* Not implemented yet */
++	default:
++		return -EINVAL;
++	}
+ 	return onenand_do_write_oob(mtd, to + ops->ooboffs, ops->ooblen,
+-				    &ops->oobretlen, ops->oobbuf);
++				    &ops->oobretlen, ops->oobbuf, ops->mode);
+ }
+ 
+ /**
+@@ -1199,19 +1470,19 @@
+ 
+ 	/* Start address must align on block boundary */
+ 	if (unlikely(instr->addr & (block_size - 1))) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_erase: Unaligned address\n");
++		printk(KERN_ERR "onenand_erase: Unaligned address\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* Length must align on block boundary */
+ 	if (unlikely(instr->len & (block_size - 1))) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_erase: Length not block aligned\n");
++		printk(KERN_ERR "onenand_erase: Length not block aligned\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	/* Do not allow erase past end of device */
+ 	if (unlikely((instr->len + instr->addr) > mtd->size)) {
+-		DEBUG(MTD_DEBUG_LEVEL0, "onenand_erase: Erase past end of device\n");
++		printk(KERN_ERR "onenand_erase: Erase past end of device\n");
+ 		return -EINVAL;
+ 	}
+ 
+@@ -1238,10 +1509,12 @@
+ 
+ 		this->command(mtd, ONENAND_CMD_ERASE, addr, block_size);
+ 
++		onenand_invalidate_bufferram(mtd, addr, block_size);
++
+ 		ret = this->wait(mtd, FL_ERASING);
+ 		/* Check, if it is write protected */
+ 		if (ret) {
+-			DEBUG(MTD_DEBUG_LEVEL0, "onenand_erase: Failed erase, block %d\n", (unsigned) (addr >> this->erase_shift));
++			printk(KERN_ERR "onenand_erase: Failed erase, block %d\n", (unsigned) (addr >> this->erase_shift));
+ 			instr->state = MTD_ERASE_FAILED;
+ 			instr->fail_addr = addr;
+ 			goto erase_exit;
+@@ -1322,7 +1595,7 @@
+ 
+         /* We write two bytes, so we dont have to mess with 16 bit access */
+         ofs += mtd->oobsize + (bbm->badblockpos & ~0x01);
+-        return onenand_do_write_oob(mtd, ofs , 2, &retlen, buf);
++        return onenand_do_write_oob(mtd, ofs , 2, &retlen, buf, MTD_OOB_PLACE);
+ }
+ 
+ /**
+@@ -1353,6 +1626,7 @@
+  * @param mtd		MTD device structure
+  * @param ofs		offset relative to mtd start
+  * @param len		number of bytes to lock or unlock
++ * @param cmd		lock or unlock command
+  *
+  * Lock or unlock one or more blocks
+  */
+@@ -1491,6 +1765,8 @@
+ 	struct onenand_chip *this = mtd->priv;
+ 
+ 	if (this->options & ONENAND_HAS_UNLOCK_ALL) {
++		/* Set start block address */
++		this->write_word(0, this->base + ONENAND_REG_START_BLOCK_ADDRESS);
+ 		/* Write unlock command */
+ 		this->command(mtd, ONENAND_CMD_UNLOCK_ALL, 0, 0);
+ 
+@@ -1503,13 +1779,10 @@
+ 			continue;
+ 
+ 		/* Workaround for all block unlock in DDP */
+-		if (this->device_id & ONENAND_DEVICE_IS_DDP) {
+-			loff_t ofs;
+-			size_t len;
+-
++		if (ONENAND_IS_DDP(this)) {
+ 			/* 1st block on another chip */
+-			ofs = this->chipsize >> 1;
+-			len = 1 << this->erase_shift;
++			loff_t ofs = this->chipsize >> 1;
++			size_t len = mtd->erasesize;
+ 
+ 			onenand_unlock(mtd, ofs, len);
+ 		}
+@@ -1617,7 +1890,7 @@
+ 	this->command(mtd, ONENAND_CMD_OTP_ACCESS, 0, 0);
+ 	this->wait(mtd, FL_OTPING);
+ 
+-	ret = onenand_do_write_oob(mtd, from, len, retlen, buf);
++	ret = onenand_do_write_oob(mtd, from, len, retlen, buf, MTD_OOB_PLACE);
+ 
+ 	/* Exit OTP access mode */
+ 	this->command(mtd, ONENAND_CMD_RESET, 0, 0);
+@@ -1823,12 +2096,13 @@
+ #endif	/* CONFIG_MTD_ONENAND_OTP */
+ 
+ /**
+- * onenand_lock_scheme - Check and set OneNAND lock scheme
++ * onenand_check_features - Check and set OneNAND features
+  * @param mtd		MTD data structure
+  *
+- * Check and set OneNAND lock scheme
++ * Check and set OneNAND features
++ * - lock scheme
+  */
+-static void onenand_lock_scheme(struct mtd_info *mtd)
++static void onenand_check_features(struct mtd_info *mtd)
+ {
+ 	struct onenand_chip *this = mtd->priv;
+ 	unsigned int density, process;
+@@ -1854,10 +2128,11 @@
+ }
+ 
+ /**
+- * onenand_print_device_info - Print device ID
++ * onenand_print_device_info - Print device & version ID
+  * @param device        device ID
++ * @param version	version ID
+  *
+- * Print device ID
++ * Print device & version ID
+  */
+ static void onenand_print_device_info(int device, int version)
+ {
+@@ -1961,26 +2236,28 @@
+ 	density = dev_id >> ONENAND_DEVICE_DENSITY_SHIFT;
+ 	this->chipsize = (16 << density) << 20;
+ 	/* Set density mask. it is used for DDP */
+-	this->density_mask = (1 << (density + 6));
++	if (ONENAND_IS_DDP(this))
++		this->density_mask = (1 << (density + 6));
++	else
++		this->density_mask = 0;
+ 
+ 	/* OneNAND page size & block size */
+ 	/* The data buffer size is equal to page size */
+ 	mtd->writesize = this->read_word(this->base + ONENAND_REG_DATA_BUFFER_SIZE);
+ 	mtd->oobsize = mtd->writesize >> 5;
+-	/* Pagers per block is always 64 in OneNAND */
++	/* Pages per a block are always 64 in OneNAND */
+ 	mtd->erasesize = mtd->writesize << 6;
+ 
+ 	this->erase_shift = ffs(mtd->erasesize) - 1;
+ 	this->page_shift = ffs(mtd->writesize) - 1;
+-	this->ppb_shift = (this->erase_shift - this->page_shift);
+-	this->page_mask = (mtd->erasesize / mtd->writesize) - 1;
++	this->page_mask = (1 << (this->erase_shift - this->page_shift)) - 1;
+ 
+ 	/* REVIST: Multichip handling */
+ 
+ 	mtd->size = this->chipsize;
+ 
+-	/* Check OneNAND lock scheme */
+-	onenand_lock_scheme(mtd);
++	/* Check OneNAND features */
++	onenand_check_features(mtd);
+ 
+ 	return 0;
+ }
+@@ -2021,6 +2298,7 @@
+  */
+ int onenand_scan(struct mtd_info *mtd, int maxchips)
+ {
++	int i;
+ 	struct onenand_chip *this = mtd->priv;
+ 
+ 	if (!this->read_word)
+@@ -2054,15 +2332,25 @@
+ 
+ 	/* Allocate buffers, if necessary */
+ 	if (!this->page_buf) {
+-		size_t len;
+-		len = mtd->writesize + mtd->oobsize;
+-		this->page_buf = kmalloc(len, GFP_KERNEL);
++		this->page_buf = kzalloc(mtd->writesize, GFP_KERNEL);
+ 		if (!this->page_buf) {
+ 			printk(KERN_ERR "onenand_scan(): Can't allocate page_buf\n");
+ 			return -ENOMEM;
+ 		}
+ 		this->options |= ONENAND_PAGEBUF_ALLOC;
+ 	}
++	if (!this->oob_buf) {
++		this->oob_buf = kzalloc(mtd->oobsize, GFP_KERNEL);
++		if (!this->oob_buf) {
++			printk(KERN_ERR "onenand_scan(): Can't allocate oob_buf\n");
++			if (this->options & ONENAND_PAGEBUF_ALLOC) {
++				this->options &= ~ONENAND_PAGEBUF_ALLOC;
++				kfree(this->page_buf);
++			}
++			return -ENOMEM;
++		}
++		this->options |= ONENAND_OOBBUF_ALLOC;
++	}
+ 
+ 	this->state = FL_READY;
+ 	init_waitqueue_head(&this->wq);
+@@ -2092,12 +2380,22 @@
+ 	}
+ 
+ 	this->subpagesize = mtd->writesize >> mtd->subpage_sft;
++
++	/*
++	 * The number of bytes available for a client to place data into
++	 * the out of band area
++	 */
++	this->ecclayout->oobavail = 0;
++	for (i = 0; this->ecclayout->oobfree[i].length; i++)
++		this->ecclayout->oobavail +=
++			this->ecclayout->oobfree[i].length;
++	mtd->oobavail = this->ecclayout->oobavail;
++
+ 	mtd->ecclayout = this->ecclayout;
+ 
+ 	/* Fill in remaining MTD driver data */
+ 	mtd->type = MTD_NANDFLASH;
+ 	mtd->flags = MTD_CAP_NANDFLASH;
+-	mtd->ecctype = MTD_ECC_SW;
+ 	mtd->erase = onenand_erase;
+ 	mtd->point = NULL;
+ 	mtd->unpoint = NULL;
+@@ -2144,11 +2442,16 @@
+ 	del_mtd_device (mtd);
+ 
+ 	/* Free bad block table memory, if allocated */
+-	if (this->bbm)
++	if (this->bbm) {
++		struct bbm_info *bbm = this->bbm;
++		kfree(bbm->bbt);
+ 		kfree(this->bbm);
+-	/* Buffer allocated by onenand_scan */
++	}
++	/* Buffers allocated by onenand_scan */
+ 	if (this->options & ONENAND_PAGEBUF_ALLOC)
+ 		kfree(this->page_buf);
++	if (this->options & ONENAND_OOBBUF_ALLOC)
++		kfree(this->oob_buf);
+ }
+ 
+ EXPORT_SYMBOL_GPL(onenand_scan);
+diff -ruN linux-2.6.20.orig/drivers/mtd/onenand/onenand_bbt.c linux-2.6.20/drivers/mtd/onenand/onenand_bbt.c
+--- linux-2.6.20.orig/drivers/mtd/onenand/onenand_bbt.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/onenand/onenand_bbt.c	2008-09-15 10:28:59.000000000 -0700
+@@ -17,8 +17,8 @@
+ #include <linux/mtd/onenand.h>
+ #include <linux/mtd/compatmac.h>
+ 
+-extern int onenand_do_read_oob(struct mtd_info *mtd, loff_t from, size_t len,
+-			       size_t *retlen, u_char *buf);
++extern int onenand_bbt_read_oob(struct mtd_info *mtd, loff_t from,
++				struct mtd_oob_ops *ops);
+ 
+ /**
+  * check_short_pattern - [GENERIC] check if a pattern is in the buffer
+@@ -65,10 +65,11 @@
+ 	int startblock;
+ 	loff_t from;
+ 	size_t readlen, ooblen;
++	struct mtd_oob_ops ops;
+ 
+ 	printk(KERN_INFO "Scanning device for bad blocks\n");
+ 
+-	len = 1;
++	len = 2;
+ 
+ 	/* We need only read few bytes from the OOB area */
+ 	scanlen = ooblen = 0;
+@@ -82,22 +83,24 @@
+ 	startblock = 0;
+ 	from = 0;
+ 
++	ops.mode = MTD_OOB_PLACE;
++	ops.ooblen = readlen;
++	ops.oobbuf = buf;
++	ops.len = ops.ooboffs = ops.retlen = ops.oobretlen = 0;
++
+ 	for (i = startblock; i < numblocks; ) {
+ 		int ret;
+ 
+ 		for (j = 0; j < len; j++) {
+-			size_t retlen;
+-
+ 			/* No need to read pages fully,
+ 			 * just read required OOB bytes */
+-			ret = onenand_do_read_oob(mtd, from + j * mtd->writesize + bd->offs,
+-						  readlen, &retlen, &buf[0]);
++			ret = onenand_bbt_read_oob(mtd, from + j * mtd->writesize + bd->offs, &ops);
+ 
+ 			/* If it is a initial bad block, just ignore it */
+-			if (ret && !(ret & ONENAND_CTRL_LOAD))
+-				return ret;
++			if (ret == ONENAND_BBT_READ_FATAL_ERROR)
++				return -EIO;
+ 
+-			if (check_short_pattern(&buf[j * scanlen], scanlen, mtd->writesize, bd)) {
++			if (ret || check_short_pattern(&buf[j * scanlen], scanlen, mtd->writesize, bd)) {
+ 				bbm->bbt[i >> 3] |= 0x03 << (i & 0x6);
+ 				printk(KERN_WARNING "Bad eraseblock %d at 0x%08x\n",
+ 					i >> 1, (unsigned int) from);
+@@ -168,8 +171,8 @@
+  * marked good / bad blocks and writes the bad block table(s) to
+  * the selected place.
+  *
+- * The bad block table memory is allocated here. It must be freed
+- * by calling the onenand_free_bbt function.
++ * The bad block table memory is allocated here. It is freed
++ * by the onenand_release function.
+  *
+  */
+ int onenand_scan_bbt(struct mtd_info *mtd, struct nand_bbt_descr *bd)
+diff -ruN linux-2.6.20.orig/drivers/mtd/redboot.c linux-2.6.20/drivers/mtd/redboot.c
+--- linux-2.6.20.orig/drivers/mtd/redboot.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/drivers/mtd/redboot.c	2008-09-15 10:28:59.000000000 -0700
+@@ -94,8 +94,19 @@
+ 			 * (NOTE: this is 'size' not 'data_length'; size is
+ 			 * the full size of the entry.)
+ 			 */
+-			if (swab32(buf[i].size) == master->erasesize) {
++
++			/* RedBoot can combine the FIS directory and
++			   config partitions into a single eraseblock;
++			   we assume wrong-endian if either the swapped
++			   'size' matches the eraseblock size precisely,
++			   or if the swapped size actually fits in an
++			   eraseblock while the unswapped size doesn't. */
++			if (swab32(buf[i].size) == master->erasesize ||
++			    (buf[i].size > master->erasesize
++			     && swab32(buf[i].size) < master->erasesize)) {
+ 				int j;
++				/* Update numslots based on actual FIS directory size */
++				numslots = swab32(buf[i].size) / sizeof (struct fis_image_desc);
+ 				for (j = 0; j < numslots; ++j) {
+ 
+ 					/* A single 0xff denotes a deleted entry.
+@@ -120,11 +131,11 @@
+ 					swab32s(&buf[j].desc_cksum);
+ 					swab32s(&buf[j].file_cksum);
+ 				}
++			} else if (buf[i].size < master->erasesize) {
++				/* Update numslots based on actual FIS directory size */
++				numslots = buf[i].size / sizeof(struct fis_image_desc);
+ 			}
+ 			break;
+-		} else {
+-			/* re-calculate of real numslots */
+-			numslots = buf[i].size / sizeof(struct fis_image_desc);
+ 		}
+ 	}
+ 	if (i == numslots) {
+diff -ruN linux-2.6.20.orig/fs/jffs2/background.c linux-2.6.20/fs/jffs2/background.c
+--- linux-2.6.20.orig/fs/jffs2/background.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/background.c	2008-09-15 10:29:07.000000000 -0700
+@@ -99,7 +99,13 @@
+ 		if (try_to_freeze())
+ 			continue;
+ 
+-		cond_resched();
++		/* This thread is purely an optimisation. But if it runs when
++		   other things could be running, it actually makes things a
++		   lot worse. Use yield() and put it at the back of the runqueue
++		   every time. Especially during boot, pulling an inode in
++		   with read_inode() is much preferable to having the GC thread
++		   get there first. */
++		yield();
+ 
+ 		/* Put_super will send a SIGKILL and then wait on the sem.
+ 		 */
+diff -ruN linux-2.6.20.orig/fs/jffs2/build.c linux-2.6.20/fs/jffs2/build.c
+--- linux-2.6.20.orig/fs/jffs2/build.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/build.c	2008-09-15 10:29:07.000000000 -0700
+@@ -348,23 +348,27 @@
+ 
+ 	ret = jffs2_sum_init(c);
+ 	if (ret)
+-		return ret;
++		goto out_free;
+ 
+ 	if (jffs2_build_filesystem(c)) {
+ 		dbg_fsbuild("build_fs failed\n");
+ 		jffs2_free_ino_caches(c);
+ 		jffs2_free_raw_node_refs(c);
+-#ifndef __ECOS
+-		if (jffs2_blocks_use_vmalloc(c))
+-			vfree(c->blocks);
+-		else
+-#endif
+-			kfree(c->blocks);
+-
+-		return -EIO;
++		ret = -EIO;
++		goto out_free;
+ 	}
+ 
+ 	jffs2_calc_trigger_levels(c);
+ 
+ 	return 0;
++
++ out_free:
++#ifndef __ECOS
++	if (jffs2_blocks_use_vmalloc(c))
++		vfree(c->blocks);
++	else
++#endif
++		kfree(c->blocks);
++
++	return ret;
+ }
+diff -ruN linux-2.6.20.orig/fs/jffs2/compr_zlib.c linux-2.6.20/fs/jffs2/compr_zlib.c
+--- linux-2.6.20.orig/fs/jffs2/compr_zlib.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/compr_zlib.c	2008-09-15 10:29:07.000000000 -0700
+@@ -16,7 +16,6 @@
+ #endif
+ 
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <linux/slab.h>
+ #include <linux/zlib.h>
+ #include <linux/zutil.h>
+diff -ruN linux-2.6.20.orig/fs/jffs2/dir.c linux-2.6.20/fs/jffs2/dir.c
+--- linux-2.6.20.orig/fs/jffs2/dir.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/dir.c	2008-09-15 10:29:07.000000000 -0700
+@@ -13,7 +13,6 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/slab.h>
+-#include <linux/sched.h>
+ #include <linux/fs.h>
+ #include <linux/crc32.h>
+ #include <linux/jffs2.h>
+@@ -46,7 +45,7 @@
+ };
+ 
+ 
+-struct inode_operations jffs2_dir_inode_operations =
++const struct inode_operations jffs2_dir_inode_operations =
+ {
+ 	.create =	jffs2_create,
+ 	.lookup =	jffs2_lookup,
+diff -ruN linux-2.6.20.orig/fs/jffs2/file.c linux-2.6.20/fs/jffs2/file.c
+--- linux-2.6.20.orig/fs/jffs2/file.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/file.c	2008-09-15 10:29:07.000000000 -0700
+@@ -54,7 +54,7 @@
+ 
+ /* jffs2_file_inode_operations */
+ 
+-struct inode_operations jffs2_file_inode_operations =
++const struct inode_operations jffs2_file_inode_operations =
+ {
+ 	.permission =	jffs2_permission,
+ 	.setattr =	jffs2_setattr,
+diff -ruN linux-2.6.20.orig/fs/jffs2/jffs2_fs_sb.h linux-2.6.20/fs/jffs2/jffs2_fs_sb.h
+--- linux-2.6.20.orig/fs/jffs2/jffs2_fs_sb.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/jffs2_fs_sb.h	2008-09-15 10:29:07.000000000 -0700
+@@ -98,20 +98,14 @@
+ 	uint32_t wbuf_pagesize; /* 0 for NOR and other flashes with no wbuf */
+ 
+ #ifdef CONFIG_JFFS2_FS_WRITEBUFFER
+-	/* Write-behind buffer for NAND flash */
+-	unsigned char *wbuf;
+-	unsigned char *oobbuf;
++	unsigned char *wbuf; /* Write-behind buffer for NAND flash */
+ 	uint32_t wbuf_ofs;
+ 	uint32_t wbuf_len;
+ 	struct jffs2_inodirty *wbuf_inodes;
+-
+ 	struct rw_semaphore wbuf_sem;	/* Protects the write buffer */
+ 
+-	/* Information about out-of-band area usage... */
+-	struct nand_ecclayout *ecclayout;
+-	uint32_t badblock_pos;
+-	uint32_t fsdata_pos;
+-	uint32_t fsdata_len;
++	unsigned char *oobbuf;
++	int oobavail; /* How many bytes are available for JFFS2 in OOB */
+ #endif
+ 
+ 	struct jffs2_summary *summary;		/* Summary information */
+diff -ruN linux-2.6.20.orig/fs/jffs2/os-linux.h linux-2.6.20/fs/jffs2/os-linux.h
+--- linux-2.6.20.orig/fs/jffs2/os-linux.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/os-linux.h	2008-09-15 10:29:07.000000000 -0700
+@@ -153,11 +153,11 @@
+ 
+ /* dir.c */
+ extern const struct file_operations jffs2_dir_operations;
+-extern struct inode_operations jffs2_dir_inode_operations;
++extern const struct inode_operations jffs2_dir_inode_operations;
+ 
+ /* file.c */
+ extern const struct file_operations jffs2_file_operations;
+-extern struct inode_operations jffs2_file_inode_operations;
++extern const struct inode_operations jffs2_file_inode_operations;
+ extern const struct address_space_operations jffs2_file_address_operations;
+ int jffs2_fsync(struct file *, struct dentry *, int);
+ int jffs2_do_readpage_unlock (struct inode *inode, struct page *pg);
+@@ -166,7 +166,7 @@
+ int jffs2_ioctl(struct inode *, struct file *, unsigned int, unsigned long);
+ 
+ /* symlink.c */
+-extern struct inode_operations jffs2_symlink_inode_operations;
++extern const struct inode_operations jffs2_symlink_inode_operations;
+ 
+ /* fs.c */
+ int jffs2_setattr (struct dentry *, struct iattr *);
+diff -ruN linux-2.6.20.orig/fs/jffs2/readinode.c linux-2.6.20/fs/jffs2/readinode.c
+--- linux-2.6.20.orig/fs/jffs2/readinode.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/readinode.c	2008-09-15 10:29:07.000000000 -0700
+@@ -373,7 +373,14 @@
+ static inline int read_unknown(struct jffs2_sb_info *c, struct jffs2_raw_node_ref *ref, struct jffs2_unknown_node *un)
+ {
+ 	/* We don't mark unknown nodes as REF_UNCHECKED */
+-	BUG_ON(ref_flags(ref) == REF_UNCHECKED);
++	if (ref_flags(ref) == REF_UNCHECKED) {
++		JFFS2_ERROR("REF_UNCHECKED but unknown node at %#08x\n",
++			    ref_offset(ref));
++		JFFS2_ERROR("Node is {%04x,%04x,%08x,%08x}. Please report this error.\n",
++                            je16_to_cpu(un->magic), je16_to_cpu(un->nodetype),
++                            je32_to_cpu(un->totlen), je32_to_cpu(un->hdr_crc));
++		return 1;
++	}
+ 
+ 	un->nodetype = cpu_to_je16(JFFS2_NODE_ACCURATE | je16_to_cpu(un->nodetype));
+ 
+@@ -576,6 +583,13 @@
+ 			jffs2_mark_node_obsolete(c, ref);
+ 			goto cont;
+ 		}
++		/* Due to poor choice of crc32 seed, an all-zero node will have a correct CRC */
++		if (!je32_to_cpu(node->u.hdr_crc) && !je16_to_cpu(node->u.nodetype) &&
++		    !je16_to_cpu(node->u.magic) && !je32_to_cpu(node->u.totlen)) {
++			JFFS2_NOTICE("All zero node header at %#08x.\n", ref_offset(ref));
++			jffs2_mark_node_obsolete(c, ref);
++			goto cont;
++		}
+ 
+ 		switch (je16_to_cpu(node->u.nodetype)) {
+ 
+diff -ruN linux-2.6.20.orig/fs/jffs2/scan.c linux-2.6.20/fs/jffs2/scan.c
+--- linux-2.6.20.orig/fs/jffs2/scan.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/scan.c	2008-09-15 10:29:07.000000000 -0700
+@@ -450,16 +450,20 @@
+ 
+ #ifdef CONFIG_JFFS2_FS_WRITEBUFFER
+ 	if (jffs2_cleanmarker_oob(c)) {
+-		int ret = jffs2_check_nand_cleanmarker(c, jeb);
++		int ret;
++
++		if (c->mtd->block_isbad(c->mtd, jeb->offset))
++			return BLK_STATE_BADBLOCK;
++
++		ret = jffs2_check_nand_cleanmarker(c, jeb);
+ 		D2(printk(KERN_NOTICE "jffs_check_nand_cleanmarker returned %d\n",ret));
++
+ 		/* Even if it's not found, we still scan to see
+ 		   if the block is empty. We use this information
+ 		   to decide whether to erase it or not. */
+ 		switch (ret) {
+ 		case 0:		cleanmarkerfound = 1; break;
+ 		case 1: 	break;
+-		case 2: 	return BLK_STATE_BADBLOCK;
+-		case 3:		return BLK_STATE_ALLDIRTY; /* Block has failed to erase min. once */
+ 		default: 	return ret;
+ 		}
+ 	}
+@@ -730,6 +734,15 @@
+ 			ofs += 4;
+ 			continue;
+ 		}
++		/* Due to poor choice of crc32 seed, an all-zero node will have a correct CRC */
++		if (!je32_to_cpu(node->hdr_crc) && !je16_to_cpu(node->nodetype) &&
++		    !je16_to_cpu(node->magic) && !je32_to_cpu(node->totlen)) {
++			noisy_printk(&noise, "jffs2_scan_eraseblock(): All zero node header at 0x%08x.\n", ofs);
++			if ((err = jffs2_scan_dirty_space(c, jeb, 4)))
++				return err;
++			ofs += 4;
++			continue;
++		}
+ 
+ 		if (ofs + je32_to_cpu(node->totlen) >
+ 		    jeb->offset + c->sector_size) {
+diff -ruN linux-2.6.20.orig/fs/jffs2/summary.c linux-2.6.20/fs/jffs2/summary.c
+--- linux-2.6.20.orig/fs/jffs2/summary.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/summary.c	2008-09-15 10:29:07.000000000 -0700
+@@ -14,7 +14,6 @@
+  */
+ 
+ #include <linux/kernel.h>
+-#include <linux/sched.h>
+ #include <linux/slab.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/pagemap.h>
+diff -ruN linux-2.6.20.orig/fs/jffs2/super.c linux-2.6.20/fs/jffs2/super.c
+--- linux-2.6.20.orig/fs/jffs2/super.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/super.c	2008-09-15 10:29:07.000000000 -0700
+@@ -66,7 +66,7 @@
+ 	return 0;
+ }
+ 
+-static struct super_operations jffs2_super_operations =
++static const struct super_operations jffs2_super_operations =
+ {
+ 	.alloc_inode =	jffs2_alloc_inode,
+ 	.destroy_inode =jffs2_destroy_inode,
+diff -ruN linux-2.6.20.orig/fs/jffs2/symlink.c linux-2.6.20/fs/jffs2/symlink.c
+--- linux-2.6.20.orig/fs/jffs2/symlink.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/symlink.c	2008-09-15 10:29:07.000000000 -0700
+@@ -20,7 +20,7 @@
+ 
+ static void *jffs2_follow_link(struct dentry *dentry, struct nameidata *nd);
+ 
+-struct inode_operations jffs2_symlink_inode_operations =
++const struct inode_operations jffs2_symlink_inode_operations =
+ {
+ 	.readlink =	generic_readlink,
+ 	.follow_link =	jffs2_follow_link,
+diff -ruN linux-2.6.20.orig/fs/jffs2/wbuf.c linux-2.6.20/fs/jffs2/wbuf.c
+--- linux-2.6.20.orig/fs/jffs2/wbuf.c	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/fs/jffs2/wbuf.c	2008-09-15 10:29:07.000000000 -0700
+@@ -238,7 +238,10 @@
+ 	jeb = &c->blocks[c->wbuf_ofs / c->sector_size];
+ 
+ 	spin_lock(&c->erase_completion_lock);
+-	jffs2_block_refile(c, jeb, REFILE_NOTEMPTY);
++	if (c->wbuf_ofs % c->mtd->erasesize)
++		jffs2_block_refile(c, jeb, REFILE_NOTEMPTY);
++	else
++		jffs2_block_refile(c, jeb, REFILE_ANYWAY);
+ 	spin_unlock(&c->erase_completion_lock);
+ 
+ 	BUG_ON(!ref_obsolete(jeb->last_node));
+@@ -957,43 +960,48 @@
+ 	return ret;
+ }
+ 
+-#define NR_OOB_SCAN_PAGES	4
++#define NR_OOB_SCAN_PAGES 4
++
++/* For historical reasons we use only 12 bytes for OOB clean marker */
++#define OOB_CM_SIZE 12
++
++static const struct jffs2_unknown_node oob_cleanmarker =
++{
++	.magic = cpu_to_je16(JFFS2_MAGIC_BITMASK),
++	.nodetype = cpu_to_je16(JFFS2_NODETYPE_CLEANMARKER),
++	.totlen = cpu_to_je32(8)
++};
+ 
+ /*
+- * Check, if the out of band area is empty
++ * Check, if the out of band area is empty. This function knows about the clean
++ * marker and if it is present in OOB, treats the OOB as empty anyway.
+  */
+ int jffs2_check_oob_empty(struct jffs2_sb_info *c,
+ 			  struct jffs2_eraseblock *jeb, int mode)
+ {
+-	int i, page, ret;
+-	int oobsize = c->mtd->oobsize;
++	int i, ret;
++	int cmlen = min_t(int, c->oobavail, OOB_CM_SIZE);
+ 	struct mtd_oob_ops ops;
+ 
+-	ops.ooblen = NR_OOB_SCAN_PAGES * oobsize;
++	ops.mode = MTD_OOB_AUTO;
++	ops.ooblen = NR_OOB_SCAN_PAGES * c->oobavail;
+ 	ops.oobbuf = c->oobbuf;
+-	ops.ooboffs = 0;
++	ops.len = ops.ooboffs = ops.retlen = ops.oobretlen = 0;
+ 	ops.datbuf = NULL;
+-	ops.mode = MTD_OOB_PLACE;
+ 
+ 	ret = c->mtd->read_oob(c->mtd, jeb->offset, &ops);
+-	if (ret) {
+-		D1(printk(KERN_WARNING "jffs2_check_oob_empty(): Read OOB "
+-			  "failed %d for block at %08x\n", ret, jeb->offset));
++	if (ret || ops.oobretlen != ops.ooblen) {
++		printk(KERN_ERR "cannot read OOB for EB at %08x, requested %zd"
++				" bytes, read %zd bytes, error %d\n",
++				jeb->offset, ops.ooblen, ops.oobretlen, ret);
++		if (!ret)
++			ret = -EIO;
+ 		return ret;
+ 	}
+ 
+-	if (ops.oobretlen < ops.ooblen) {
+-		D1(printk(KERN_WARNING "jffs2_check_oob_empty(): Read OOB "
+-			  "returned short read (%zd bytes not %d) for block "
+-			  "at %08x\n", ops.oobretlen, ops.ooblen, jeb->offset));
+-		return -EIO;
+-	}
+-
+-	/* Special check for first page */
+-	for(i = 0; i < oobsize ; i++) {
+-		/* Yeah, we know about the cleanmarker. */
+-		if (mode && i >= c->fsdata_pos &&
+-		    i < c->fsdata_pos + c->fsdata_len)
++	for(i = 0; i < ops.ooblen; i++) {
++		if (mode && i < cmlen)
++			/* Yeah, we know about the cleanmarker */
+ 			continue;
+ 
+ 		if (ops.oobbuf[i] != 0xFF) {
+@@ -1003,111 +1011,63 @@
+ 		}
+ 	}
+ 
+-	/* we know, we are aligned :) */
+-	for (page = oobsize; page < ops.ooblen; page += sizeof(long)) {
+-		long dat = *(long *)(&ops.oobbuf[page]);
+-		if(dat != -1)
+-			return 1;
+-	}
+ 	return 0;
+ }
+ 
+ /*
+- * Scan for a valid cleanmarker and for bad blocks
++ * Check for a valid cleanmarker.
++ * Returns: 0 if a valid cleanmarker was found
++ *          1 if no cleanmarker was found
++ *          negative error code if an error occurred
+  */
+-int jffs2_check_nand_cleanmarker (struct jffs2_sb_info *c,
+-				  struct jffs2_eraseblock *jeb)
++int jffs2_check_nand_cleanmarker(struct jffs2_sb_info *c,
++				 struct jffs2_eraseblock *jeb)
+ {
+-	struct jffs2_unknown_node n;
+ 	struct mtd_oob_ops ops;
+-	int oobsize = c->mtd->oobsize;
+-	unsigned char *p,*b;
+-	int i, ret;
+-	size_t offset = jeb->offset;
++	int ret, cmlen = min_t(int, c->oobavail, OOB_CM_SIZE);
+ 
+-	/* Check first if the block is bad. */
+-	if (c->mtd->block_isbad(c->mtd, offset)) {
+-		D1 (printk(KERN_WARNING "jffs2_check_nand_cleanmarker()"
+-			   ": Bad block at %08x\n", jeb->offset));
+-		return 2;
+-	}
+-
+-	ops.ooblen = oobsize;
++	ops.mode = MTD_OOB_AUTO;
++	ops.ooblen = cmlen;
+ 	ops.oobbuf = c->oobbuf;
+-	ops.ooboffs = 0;
++	ops.len = ops.ooboffs = ops.retlen = ops.oobretlen = 0;
+ 	ops.datbuf = NULL;
+-	ops.mode = MTD_OOB_PLACE;
+ 
+-	ret = c->mtd->read_oob(c->mtd, offset, &ops);
+-	if (ret) {
+-		D1 (printk(KERN_WARNING "jffs2_check_nand_cleanmarker(): "
+-			   "Read OOB failed %d for block at %08x\n",
+-			   ret, jeb->offset));
++	ret = c->mtd->read_oob(c->mtd, jeb->offset, &ops);
++	if (ret || ops.oobretlen != ops.ooblen) {
++		printk(KERN_ERR "cannot read OOB for EB at %08x, requested %zd"
++				" bytes, read %zd bytes, error %d\n",
++				jeb->offset, ops.ooblen, ops.oobretlen, ret);
++		if (!ret)
++			ret = -EIO;
+ 		return ret;
+ 	}
+ 
+-	if (ops.oobretlen < ops.ooblen) {
+-		D1 (printk (KERN_WARNING "jffs2_check_nand_cleanmarker(): "
+-			    "Read OOB return short read (%zd bytes not %d) "
+-			    "for block at %08x\n", ops.oobretlen, ops.ooblen,
+-			    jeb->offset));
+-		return -EIO;
+-	}
+-
+-	n.magic = cpu_to_je16 (JFFS2_MAGIC_BITMASK);
+-	n.nodetype = cpu_to_je16 (JFFS2_NODETYPE_CLEANMARKER);
+-	n.totlen = cpu_to_je32 (8);
+-	p = (unsigned char *) &n;
+-	b = c->oobbuf + c->fsdata_pos;
+-
+-	for (i = c->fsdata_len; i; i--) {
+-		if (*b++ != *p++)
+-			ret = 1;
+-	}
+-
+-	D1(if (ret == 1) {
+-		printk(KERN_WARNING "jffs2_check_nand_cleanmarker(): "
+-		       "Cleanmarker node not detected in block at %08x\n",
+-		       offset);
+-		printk(KERN_WARNING "OOB at %08zx was ", offset);
+-		for (i=0; i < oobsize; i++)
+-			printk("%02x ", c->oobbuf[i]);
+-		printk("\n");
+-	});
+-	return ret;
++	return !!memcmp(&oob_cleanmarker, c->oobbuf, cmlen);
+ }
+ 
+ int jffs2_write_nand_cleanmarker(struct jffs2_sb_info *c,
+ 				 struct jffs2_eraseblock *jeb)
+ {
+-	struct jffs2_unknown_node n;
+-	int	ret;
++	int ret;
+ 	struct mtd_oob_ops ops;
++	int cmlen = min_t(int, c->oobavail, OOB_CM_SIZE);
+ 
+-	n.magic = cpu_to_je16(JFFS2_MAGIC_BITMASK);
+-	n.nodetype = cpu_to_je16(JFFS2_NODETYPE_CLEANMARKER);
+-	n.totlen = cpu_to_je32(8);
+-
+-	ops.ooblen = c->fsdata_len;
+-	ops.oobbuf = (uint8_t *)&n;
+-	ops.ooboffs = c->fsdata_pos;
++	ops.mode = MTD_OOB_AUTO;
++	ops.ooblen = cmlen;
++	ops.oobbuf = (uint8_t *)&oob_cleanmarker;
++	ops.len = ops.ooboffs = ops.retlen = ops.oobretlen = 0;
+ 	ops.datbuf = NULL;
+-	ops.mode = MTD_OOB_PLACE;
+ 
+ 	ret = c->mtd->write_oob(c->mtd, jeb->offset, &ops);
+-
+-	if (ret) {
+-		D1(printk(KERN_WARNING "jffs2_write_nand_cleanmarker(): "
+-			  "Write failed for block at %08x: error %d\n",
+-			  jeb->offset, ret));
++	if (ret || ops.oobretlen != ops.ooblen) {
++		printk(KERN_ERR "cannot write OOB for EB at %08x, requested %zd"
++				" bytes, read %zd bytes, error %d\n",
++				jeb->offset, ops.ooblen, ops.oobretlen, ret);
++		if (!ret)
++			ret = -EIO;
+ 		return ret;
+ 	}
+-	if (ops.oobretlen != ops.ooblen) {
+-		D1(printk(KERN_WARNING "jffs2_write_nand_cleanmarker(): "
+-			  "Short write for block at %08x: %zd not %d\n",
+-			  jeb->offset, ops.oobretlen, ops.ooblen));
+-		return -EIO;
+-	}
++
+ 	return 0;
+ }
+ 
+@@ -1130,7 +1090,7 @@
+ 	if (!c->mtd->block_markbad)
+ 		return 1; // What else can we do?
+ 
+-	D1(printk(KERN_WARNING "jffs2_write_nand_badblock(): Marking bad block at %08x\n", bad_offset));
++	printk(KERN_WARNING "JFFS2: marking eraseblock at %08x\n as bad", bad_offset);
+ 	ret = c->mtd->block_markbad(c->mtd, bad_offset);
+ 
+ 	if (ret) {
+@@ -1140,41 +1100,24 @@
+ 	return 1;
+ }
+ 
+-static int jffs2_nand_set_oobinfo(struct jffs2_sb_info *c)
++int jffs2_nand_flash_setup(struct jffs2_sb_info *c)
+ {
+ 	struct nand_ecclayout *oinfo = c->mtd->ecclayout;
+ 
+-	/* Do this only, if we have an oob buffer */
+ 	if (!c->mtd->oobsize)
+ 		return 0;
+ 
+ 	/* Cleanmarker is out-of-band, so inline size zero */
+ 	c->cleanmarker_size = 0;
+ 
+-	/* Should we use autoplacement ? */
+-	if (!oinfo) {
+-		D1(printk(KERN_DEBUG "JFFS2 on NAND. No autoplacment info found\n"));
++	if (!oinfo || oinfo->oobavail == 0) {
++		printk(KERN_ERR "inconsistent device description\n");
+ 		return -EINVAL;
+ 	}
+ 
+-	D1(printk(KERN_DEBUG "JFFS2 using autoplace on NAND\n"));
+-	/* Get the position of the free bytes */
+-	if (!oinfo->oobfree[0].length) {
+-		printk (KERN_WARNING "jffs2_nand_set_oobinfo(): Eeep."
+-			" Autoplacement selected and no empty space in oob\n");
+-		return -ENOSPC;
+-	}
+-	c->fsdata_pos = oinfo->oobfree[0].offset;
+-	c->fsdata_len = oinfo->oobfree[0].length;
+-	if (c->fsdata_len > 8)
+-		c->fsdata_len = 8;
++	D1(printk(KERN_DEBUG "JFFS2 using OOB on NAND\n"));
+ 
+-	return 0;
+-}
+-
+-int jffs2_nand_flash_setup(struct jffs2_sb_info *c)
+-{
+-	int res;
++	c->oobavail = oinfo->oobavail;
+ 
+ 	/* Initialise write buffer */
+ 	init_rwsem(&c->wbuf_sem);
+@@ -1185,22 +1128,13 @@
+ 	if (!c->wbuf)
+ 		return -ENOMEM;
+ 
+-	c->oobbuf = kmalloc(NR_OOB_SCAN_PAGES * c->mtd->oobsize, GFP_KERNEL);
+-	if (!c->oobbuf)
+-		return -ENOMEM;
+-
+-	res = jffs2_nand_set_oobinfo(c);
+-
+-#ifdef BREAKME
+-	if (!brokenbuf)
+-		brokenbuf = kmalloc(c->wbuf_pagesize, GFP_KERNEL);
+-	if (!brokenbuf) {
++	c->oobbuf = kmalloc(NR_OOB_SCAN_PAGES * c->oobavail, GFP_KERNEL);
++	if (!c->oobbuf) {
+ 		kfree(c->wbuf);
+ 		return -ENOMEM;
+ 	}
+-	memset(brokenbuf, 0xdb, c->wbuf_pagesize);
+-#endif
+-	return res;
++
++	return 0;
+ }
+ 
+ void jffs2_nand_flash_cleanup(struct jffs2_sb_info *c)
+diff -ruN linux-2.6.20.orig/include/linux/mtd/bbm.h linux-2.6.20/include/linux/mtd/bbm.h
+--- linux-2.6.20.orig/include/linux/mtd/bbm.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/bbm.h	2008-09-15 10:29:03.000000000 -0700
+@@ -92,6 +92,13 @@
+  */
+ #define ONENAND_BADBLOCK_POS	0
+ 
++/*
++ * Bad block scanning errors
++ */
++#define ONENAND_BBT_READ_ERROR		1
++#define ONENAND_BBT_READ_ECC_ERROR	2
++#define ONENAND_BBT_READ_FATAL_ERROR	4
++
+ /**
+  * struct bbm_info - [GENERIC] Bad Block Table data structure
+  * @bbt_erase_shift:	[INTERN] number of address bits in a bbt entry
+diff -ruN linux-2.6.20.orig/include/linux/mtd/map.h linux-2.6.20/include/linux/mtd/map.h
+--- linux-2.6.20.orig/include/linux/mtd/map.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/map.h	2008-09-15 10:29:03.000000000 -0700
+@@ -183,7 +183,7 @@
+ struct map_info {
+ 	char *name;
+ 	unsigned long size;
+-	unsigned long phys;
++	resource_size_t phys;
+ #define NO_XIP (-1UL)
+ 
+ 	void __iomem *virt;
+diff -ruN linux-2.6.20.orig/include/linux/mtd/mtd.h linux-2.6.20/include/linux/mtd/mtd.h
+--- linux-2.6.20.orig/include/linux/mtd/mtd.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/mtd.h	2008-09-15 10:29:03.000000000 -0700
+@@ -85,6 +85,10 @@
+  *		mode = MTD_OOB_PLACE)
+  * @datbuf:	data buffer - if NULL only oob data are read/written
+  * @oobbuf:	oob data buffer
++ *
++ * Note, it is allowed to read more then one OOB area at one go, but not write.
++ * The interface assumes that the OOB write requests program only one page's
++ * OOB area.
+  */
+ struct mtd_oob_ops {
+ 	mtd_oob_mode_t	mode;
+@@ -117,18 +121,7 @@
+ 	u_int32_t writesize;
+ 
+ 	u_int32_t oobsize;   // Amount of OOB data per block (e.g. 16)
+-	u_int32_t ecctype;
+-	u_int32_t eccsize;
+-
+-	/*
+-	 * Reuse some of the above unused fields in the case of NOR flash
+-	 * with configurable programming regions to avoid modifying the
+-	 * user visible structure layout/size.  Only valid when the
+-	 * MTD_PROGRAM_REGIONS flag is set.
+-	 * (Maybe we should have an union for those?)
+-	 */
+-#define MTD_PROGREGION_CTRLMODE_VALID(mtd)  (mtd)->oobsize
+-#define MTD_PROGREGION_CTRLMODE_INVALID(mtd)  (mtd)->ecctype
++	u_int32_t oobavail;  // Available OOB bytes per block
+ 
+ 	// Kernel-only stuff starts here.
+ 	char *name;
+diff -ruN linux-2.6.20.orig/include/linux/mtd/nand.h linux-2.6.20/include/linux/mtd/nand.h
+--- linux-2.6.20.orig/include/linux/mtd/nand.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/nand.h	2008-09-15 10:29:03.000000000 -0700
+@@ -343,6 +343,7 @@
+  * @options:		[BOARDSPECIFIC] various chip options. They can partly be set to inform nand_scan about
+  *			special functionality. See the defines for further explanation
+  * @badblockpos:	[INTERN] position of the bad block marker in the oob area
++ * @cellinfo:		[INTERN] MLC/multichip data from chip ident
+  * @numchips:		[INTERN] number of physical chips
+  * @chipsize:		[INTERN] the size of one chip for multichip arrays
+  * @pagemask:		[INTERN] page number mask = number of (pages / chip) - 1
+diff -ruN linux-2.6.20.orig/include/linux/mtd/onenand.h linux-2.6.20/include/linux/mtd/onenand.h
+--- linux-2.6.20.orig/include/linux/mtd/onenand.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/onenand.h	2008-09-15 10:29:03.000000000 -0700
+@@ -1,7 +1,7 @@
+ /*
+  *  linux/include/linux/mtd/onenand.h
+  *
+- *  Copyright (C) 2005-2006 Samsung Electronics
++ *  Copyright (C) 2005-2007 Samsung Electronics
+  *  Kyungmin Park <kyungmin.park@samsung.com>
+  *
+  * This program is free software; you can redistribute it and/or modify
+@@ -42,14 +42,10 @@
+ 
+ /**
+  * struct onenand_bufferram - OneNAND BufferRAM Data
+- * @block:		block address in BufferRAM
+- * @page:		page address in BufferRAM
+- * @valid:		valid flag
++ * @blockpage:		block & page address in BufferRAM
+  */
+ struct onenand_bufferram {
+-	int block;
+-	int page;
+-	int valid;
++	int	blockpage;
+ };
+ 
+ /**
+@@ -63,7 +59,6 @@
+  *			partly be set to inform onenand_scan about
+  * @erase_shift:	[INTERN] number of address bits in a block
+  * @page_shift:		[INTERN] number of address bits in a page
+- * @ppb_shift:		[INTERN] number of address bits in a pages per block
+  * @page_mask:		[INTERN] a page per block mask
+  * @bufferram_index:	[INTERN] BufferRAM index
+  * @bufferram:		[INTERN] BufferRAM info
+@@ -87,7 +82,8 @@
+  * @wq:			[INTERN] wait queue to sleep on if a OneNAND
+  *			operation is in progress
+  * @state:		[INTERN] the current state of the OneNAND device
+- * @page_buf:		data buffer
++ * @page_buf:		[INTERN] page main data buffer
++ * @oob_buf:		[INTERN] page oob data buffer
+  * @subpagesize:	[INTERN] holds the subpagesize
+  * @ecclayout:		[REPLACEABLE] the default ecc placement scheme
+  * @bbm:		[REPLACEABLE] pointer to Bad Block Management
+@@ -103,7 +99,6 @@
+ 
+ 	unsigned int		erase_shift;
+ 	unsigned int		page_shift;
+-	unsigned int		ppb_shift;	/* Pages per block shift */
+ 	unsigned int		page_mask;
+ 
+ 	unsigned int		bufferram_index;
+@@ -128,6 +123,7 @@
+ 	wait_queue_head_t	wq;
+ 	onenand_state_t		state;
+ 	unsigned char		*page_buf;
++	unsigned char		*oob_buf;
+ 
+ 	int			subpagesize;
+ 	struct nand_ecclayout	*ecclayout;
+@@ -150,6 +146,9 @@
+ #define ONENAND_SET_SYS_CFG1(v, this)					\
+ 	(this->write_word(v, this->base + ONENAND_REG_SYS_CFG1))
+ 
++#define ONENAND_IS_DDP(this)						\
++	(this->device_id & ONENAND_DEVICE_IS_DDP)
++
+ /* Check byte access in OneNAND */
+ #define ONENAND_CHECK_BYTE_ACCESS(addr)		(addr & 0x1)
+ 
+@@ -159,6 +158,7 @@
+ #define ONENAND_HAS_CONT_LOCK		(0x0001)
+ #define ONENAND_HAS_UNLOCK_ALL		(0x0002)
+ #define ONENAND_PAGEBUF_ALLOC		(0x1000)
++#define ONENAND_OOBBUF_ALLOC		(0x2000)
+ 
+ /*
+  * OneNAND Flash Manufacturer ID Codes
+diff -ruN linux-2.6.20.orig/include/linux/mtd/onenand_regs.h linux-2.6.20/include/linux/mtd/onenand_regs.h
+--- linux-2.6.20.orig/include/linux/mtd/onenand_regs.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/onenand_regs.h	2008-09-15 10:29:03.000000000 -0700
+@@ -3,7 +3,8 @@
+  *
+  *  OneNAND Register header file
+  *
+- *  Copyright (C) 2005-2006 Samsung Electronics
++ *  Copyright (C) 2005-2007 Samsung Electronics
++ *  Kyungmin Park <kyungmin.park@samsung.com>
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 as
+@@ -80,9 +81,11 @@
+ #define ONENAND_VERSION_PROCESS_SHIFT	(8)
+ 
+ /*
+- * Start Address 1 F100h (R/W)
++ * Start Address 1 F100h (R/W) & Start Address 2 F101h (R/W)
+  */
+ #define ONENAND_DDP_SHIFT		(15)
++#define ONENAND_DDP_CHIP0		(0)
++#define ONENAND_DDP_CHIP1		(1 << ONENAND_DDP_SHIFT)
+ 
+ /*
+  * Start Address 8 F107h (R/W)
+diff -ruN linux-2.6.20.orig/include/linux/mtd/physmap.h linux-2.6.20/include/linux/mtd/physmap.h
+--- linux-2.6.20.orig/include/linux/mtd/physmap.h	2007-02-04 10:44:54.000000000 -0800
++++ linux-2.6.20/include/linux/mtd/physmap.h	2008-09-15 10:29:03.000000000 -0700
+@@ -18,9 +18,10 @@
+ #define __LINUX_MTD_PHYSMAP__
+ 
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/map.h>
+ #include <linux/mtd/partitions.h>
+ 
++struct map_info;
++
+ struct physmap_flash_data {
+ 	unsigned int		width;
+ 	void			(*set_vpp)(struct map_info *, int);

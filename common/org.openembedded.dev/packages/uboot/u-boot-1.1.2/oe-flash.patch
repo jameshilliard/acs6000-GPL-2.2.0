@@ -1,0 +1,10 @@
+--- u-boot-1.1.2/include/configs/AMAZON.h	2007-07-17 08:14:46.000000000 -0500
++++ u-boot-1.1.2/include/configs/AMAZON.h	2007-07-18 08:20:41.000000000 -0500
+@@ -190,6 +190,7 @@
+ #define CFG_FLASH_CFI_DRIVER
+ #define CFG_FLASH_CFI
+ #define CFG_FLASH_EMPTY_INFO
++#define CFG_ENV_FILE            "/dev/mtdblock1"
+ 
+ #undef CONFIG_CLOCKS_IN_MHZ
+ 

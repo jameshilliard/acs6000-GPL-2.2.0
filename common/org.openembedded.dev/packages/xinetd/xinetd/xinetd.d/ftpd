@@ -1,0 +1,13 @@
+service ftp
+{
+	disable = yes
+	socket_type             = stream        
+	wait                    = no
+	user                    = root
+# Server with kerberos ticket support
+#	server                  = /usr/sbin/ftpd
+# Server with IPV6 support
+	server                  = /sbin/ftpd
+	log_on_failure += USERID
+	flags			= IPv6
+}

@@ -1,0 +1,14 @@
+Index: httpd-2.0.59/modules/fastcgi/Makefile.in
+===================================================================
+--- /dev/null
++++ httpd-2.0.59/modules/fastcgi/Makefile.in
+@@ -0,0 +1,9 @@
++
++include $(top_srcdir)/build/special.mk
++
++APXS      = apxs
++APACHECTL = apachectl
++
++all: local-shared-build
++
++install: install-modules

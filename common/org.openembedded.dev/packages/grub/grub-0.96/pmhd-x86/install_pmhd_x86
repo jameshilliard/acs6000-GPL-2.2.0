@@ -1,0 +1,63 @@
+#!/bin/bash
+
+/etc/init.d/gsp-sessiond stop
+
+# parition the disks
+/boot/part_disk
+
+if [ $? -ne 0 ] ; then
+  echo "*"
+  echo "* * Error: creation of partions failed..."
+  echo "*"
+  /etc/init.d/gsp-sessiond start
+  exit 1
+fi
+
+# mount the iso on /dev/hda
+
+CDROM=
+
+if [ $# -gt 0 ] ; then
+  CDROM=$1
+fi
+
+if [ -z "${CDROM}" ] ; then
+  for x in a c e 
+  do
+    if [ "${x}" = "a" -a ! -d /sys/block/sda ]; then
+      continue
+    fi
+    if [ -d /sys/block/hd${x} ] ; then
+      CDROM=hd${x}
+      break
+    fi
+  done
+fi
+
+if [ -z "${CDROM}" ] ; then
+  echo "*"
+  echo "* * Error: Failed to find CDROM/ISOimage."
+  echo "* * Try to call the script passing a device name like 'hdc'"
+  echo "*"
+  /etc/init.d/gsp-sessiond start
+  exit 1
+fi
+
+[ -d /mnt/hda ] || mkdir /mnt/hda
+mount -t auto /dev/${CDROM} /mnt/hda
+
+if [ $? -ne 0 ] ; then
+  echo "*"
+  echo "* * Error: failed to mount the CDROM/ISOimage..."
+  echo "*"
+  /etc/init.d/gsp-sessiond start
+  exit 1
+fi
+
+# installthe grub in the boot and the ACS VM in location 1
+/bin/installImageVM -g -u -i 1
+
+umount /mnt/hda
+
+echo "Installation of ACS-X86 finished. Poweroff/reboot the machine..."
+exit 0

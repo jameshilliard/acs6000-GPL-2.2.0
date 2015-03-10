@@ -1,0 +1,100 @@
+/** \mainpage
+
+This package aids in reading, writing and manipulating text-based configuration files.
+
+The C API allows programs to directly use the llconf functionality to select a parser, read a configuration file using the parser, query and manipulate the contents, and rewrite the file if desired.
+
+\section pathspec Path Specification
+
+A path may be used to refer to one or more nodes within the tree of a configuration file. Path components are always separated by slashes.  Some examples:
+<dl>
+	<dt><tt>iface/eth0/address</tt></dt>
+	<dd>Return <strong>all</strong> nodes matching that path; if
+		multiple matching nodes exist, all will be returned.</dd>
+	<dt><tt>iface/eth0[1]</tt></dt>
+	<dd>Return only the second node named <tt>eth0</tt> underneath any
+		first-level node named <tt>iface</tt>.</dd>
+	<dt><tt>iface/eth0/address=1.2.3.4</tt></dt>
+	<dd>Return any <tt>address</tt> nodes that are a child of a node named
+		<tt>eth0</tt> under <tt>iface</tt>.</dd>
+</dl>
+
+\subsection escaping Escaping in Paths
+
+The backslash is the escape character.  Since the (forward) slash is used as the path delimiter, a node name containing a slash must be escaped by inserting a backslash before the slash.  Likewise, if a node name contains a backslash, the backslash should be duplicated.
+
+\section example Examples
+
+The contrived configuration file
+
+<pre>
+[top]
+	foo = value
+	branch = {
+		key = val1
+		key = val2
+	}
+	branch = {
+		key = val3
+		key = val4
+	}
+	branch = {
+	}
+[top]
+	branch = {
+		key = val5
+	}
+	branch = {
+		key = val6
+		key = val7
+	}
+[with/slashes]
+	key/with\\slashes = val8
+</pre>
+
+is seen by llconf as the following tree structure:
+
+<pre>
+(root)
+	top
+		foo = 'value'
+		branch
+			key = 'val1'
+			key = 'val2'
+		branch
+			key = 'val3'
+			key = 'val4'
+		branch
+	top
+		branch
+			key = 'val5'
+		branch
+			key = 'val6'
+			key = 'val7'
+	with/slashes
+		key/with\\slashes = 'val8'
+</pre>
+
+Given that tree,
+ - #cnf_get_entry for path <code>"top/foo"</code> will return the string <code>"value"</code>,
+ - #cnf_get_entry for path <code>"with\/slashes/key\/with\\slashes"</code> will return the string <code>"val8"</code>.
+ - #cnf_find_entry for path <code>"top/branch"</code> will return a list containing four nodes:
+   - path <code>"top[0]/branch[0]"</code>, which refers to the parent of the node with value <code>"val1"</code>,
+   - path <code>"top[0]/branch[1]"</code>, which refers to the parent of the node with value <code>"val3"</code>,
+   - path <code>"top[1]/branch[0]"</code>, which refers to the parent of the node with value <code>"val5"</code>, and
+   - path <code>"top[1]/branch[1]"</code>, which refers to the parent of the node with value <code>"val6"</code>.
+ - #cnf_find_entry for path <code>"top/branch/key"</code> will return a list containing seven nodes:
+   - path <code>"top[0]/branch[0]/key[0]"</code>, which refers to the node with value <code>"val1"</code>,
+   - path <code>"top[0]/branch[0]/key[1]"</code>, which refers to the node with value <code>"val2"</code>,
+   - path <code>"top[0]/branch[1]/key[0]"</code>, which refers to the node with value <code>"val3"</code>,
+   - path <code>"top[0]/branch[1]/key[1]"</code>, which refers to the node with value <code>"val4"</code>,
+   - path <code>"top[1]/branch[0]/key"</code>, which refers to the node with value <code>"val5"</code> (although the #cnfresult will actually contain the fully-qualified path <code>"top[1]/branch[0]/key[0]"</code>),
+   - path <code>"top[1]/branch[1]/key[0]"</code>, which refers to the node with value <code>"val6"</code>, and
+   - path <code>"top[1]/branch[1]/key[1]"</code>, which refers to the node with value <code>"val7"</code>.
+ - #cnf_find_entry for path <code>"top[1]/branch[0]/key"</code> will return a list with only one entry:
+   - path <code>"top[1]/branch[0]/key"</code>, which refers to the node with value <code>"val5"</code>.
+ - #cnf_get_entry for path <code>"top[1]/branch[0]/key"</code> will return the string <code>"val5"</code>.
+ - #cnf_find_entry for path <code>"top/branch/key=val4"</code> will return a list with only one entry:
+   - path <code>"top[0]/branch[1]/key[1]"</code>, which refers to the node with value <code>"val4"</code>.
+
+*/

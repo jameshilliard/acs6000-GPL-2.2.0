@@ -1,0 +1,137 @@
+--- busybox-1.5.0.orig/networking/ping.c	2007-03-22 13:21:23.000000000 -0700
++++ busybox-1.5.0/networking/ping.c	2007-08-21 16:42:51.000000000 -0700
+@@ -113,7 +113,7 @@
+ 	/* listen for replies */
+ 	while (1) {
+ 		struct sockaddr_in from;
+-		socklen_t fromlen = sizeof(from);
++		size_t fromlen = sizeof(from);
+ 
+ 		c = recvfrom(pingsock, packet, sizeof(packet), 0,
+ 				(struct sockaddr *) &from, &fromlen);
+@@ -235,15 +235,16 @@
+ 
+ /* full(er) version */
+ 
+-#define OPT_STRING ("qvc:s:I:4" USE_PING6("6"))
++#define OPT_STRING ("qvc:s:I:w:4" USE_PING6("6"))
+ enum {
+ 	OPT_QUIET = 1 << 0,
+ 	OPT_VERBOSE = 1 << 1,
+ 	OPT_c = 1 << 2,
+ 	OPT_s = 1 << 3,
+ 	OPT_I = 1 << 4,
+-	OPT_IPV4 = 1 << 5,
+-	OPT_IPV6 = (1 << 6) * ENABLE_PING6,
++	OPT_w = 1 << 5,
++	OPT_IPV4 = 1 << 6,
++	OPT_IPV6 = (1 << 7) * ENABLE_PING6,
+ };
+ 
+ 
+@@ -260,7 +261,12 @@
+ 
+ static int if_index;
+ 
++#ifdef CYTIME
++static long ntransmitted=0, nreceived=0, nrepeats=0, pingcount=0, pingtime=0;
++#else
+ static unsigned long ntransmitted, nreceived, nrepeats, pingcount;
++#endif
++
+ static int myid;
+ static unsigned tmin = UINT_MAX, tmax;
+ static unsigned long tsum;
+@@ -517,6 +523,10 @@
+ 	char packet[datalen + MAXIPLEN + MAXICMPLEN];
+ 	int sockopt;
+ 
++#ifdef CYTIME
++	struct timeval tv;
++	unsigned long starttime;
++#endif
+ 	pingsock = create_icmp_socket();
+ 	pingaddr.sin = lsa->sin;
+ 	if (source_lsa)
+@@ -531,6 +541,11 @@
+ 
+ 	signal(SIGINT, pingstats);
+ 
++#ifdef CYTIME
++	gettimeofday(&tv,NULL);
++	starttime = tv.tv_sec;
++#endif
++
+ 	/* start the ping's going ... */
+ 	sendping4(0);
+ 
+@@ -548,6 +563,12 @@
+ 			continue;
+ 		}
+ 		unpack4(packet, c, &from);
++#ifdef CYTIME
++		gettimeofday(&tv,NULL);
++		if ((pingtime > 0) && ((tv.tv_sec - starttime) >= pingtime)) {
++			break;
++		}
++#endif
+ 		if (pingcount > 0 && nreceived >= pingcount)
+ 			break;
+ 	}
+@@ -562,6 +583,10 @@
+ 	struct sockaddr_in6 from;
+ 	struct iovec iov;
+ 	char control_buf[CMSG_SPACE(36)];
++#ifdef CYTIME
++	struct timeval tv;
++	unsigned long starttime;
++#endif
+ 
+ 	pingsock = create_icmp6_socket();
+ 	pingaddr.sin6 = lsa->sin6;
+@@ -637,6 +662,12 @@
+ 			}
+ 		}
+ 		unpack6(packet, c, &from, hoplimit);
++#ifdef CYTIME
++		gettimeofday(&tv,NULL);
++		if ((pingtime > 0) && ((tv.tv_sec - starttime) >= pingtime)) {
++			break;
++		}
++#endif
+ 		if (pingcount > 0 && nreceived >= pingcount)
+ 			break;
+ 	}
+@@ -664,14 +695,22 @@
+ int ping_main(int argc, char **argv)
+ {
+ 	len_and_sockaddr *lsa;
++#ifdef CYTIME
++	char *opt_c, *opt_s, *opt_I, *opt_w;
++#else
+ 	char *opt_c, *opt_s, *opt_I;
++#endif
+ 	USE_PING6(sa_family_t af = AF_UNSPEC;)
+ 
+ 	datalen = DEFDATALEN; /* initialized here rather than in global scope to work around gcc bug */
+ 
+ 	/* exactly one argument needed, -v and -q don't mix */
+ 	opt_complementary = "=1:q--v:v--q";
++#ifdef CYTIME
++	getopt32(argc, argv, OPT_STRING, &opt_c, &opt_s, &opt_I, &opt_w);
++#else
+ 	getopt32(argc, argv, OPT_STRING, &opt_c, &opt_s, &opt_I);
++#endif
+ 	if (option_mask32 & OPT_c) pingcount = xatoul(opt_c); // -c
+ 	if (option_mask32 & OPT_s) datalen = xatou16(opt_s); // -s
+ 	if (option_mask32 & OPT_I) { // -I
+@@ -682,6 +721,9 @@
+ 			source_lsa = xdotted2sockaddr(opt_I, 0);
+ 		}
+ 	}
++#ifdef CYTIME
++	if (option_mask32 & OPT_w) pingtime = xatoul(opt_w); // -w
++#endif
+ 	myid = (int16_t) getpid();
+ 	hostname = argv[optind];
+ #if ENABLE_PING6

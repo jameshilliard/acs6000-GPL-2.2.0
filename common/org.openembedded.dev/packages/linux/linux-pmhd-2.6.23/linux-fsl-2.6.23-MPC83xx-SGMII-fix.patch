@@ -1,0 +1,35 @@
+From 5d421cf748d89665fde40506ff6325d94bf1dcf1 Mon Sep 17 00:00:00 2001
+From: Leo Li <leo@rock.ap.freescale.net>
+Date: Thu, 26 Jun 2008 18:32:48 +0800
+Subject: [PATCH] Workaround for MPC8313RDB SGMII unstable issue.
+
+We found that the SGMII link on MPC8313RDB is not stable.  After changing
+a few times between 100Mbps and 1Gbps the link stops working.  The
+R100M bit in ECNTRL register should be meaningless in 1Gbps mode according
+to the RM.  But somehow this change can workaround the unstable issue.
+
+Is anyone from the hardware design team has a clue?
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ drivers/net/gianfar.c |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index ccffccb..ce4fd88 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -2126,6 +2126,10 @@ static void adjust_link(struct net_device *dev)
+ 			case 1000:
+ 				tempval =
+ 				    ((tempval & ~(MACCFG2_IF)) | MACCFG2_GMII);
++
++				/* Irrelevant according to the RM, but do works
++				 * as a workaround for SGMII link change */
++				ecntrl &= ~(ECNTRL_R100);
+ 				break;
+ 			case 100:
+ 			case 10:
+-- 
+1.5.4
+

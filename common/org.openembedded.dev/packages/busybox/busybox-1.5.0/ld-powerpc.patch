@@ -1,0 +1,11 @@
+Index: busybox-1.5.1/arch/powerpc/Makefile
+===================================================================
+--- /dev/null
++++ busybox-1.5.1/arch/powerpc/Makefile
+@@ -0,0 +1,6 @@
++cmd_busybox__ = $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
++      -o $@ -Wl,-M \
++      -Wl,--warn-common -Wl,--sort-common -Wl,--no-gc-sections \
++      -Wl,--start-group $(busybox-all) -Wl,--end-group \
++      $(LDLIBS)
++

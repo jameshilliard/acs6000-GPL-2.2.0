@@ -1,0 +1,124 @@
+Index: linux-2.6.19/arch/ppc/platforms/Makefile
+===================================================================
+--- linux-2.6.19.orig/arch/ppc/platforms/Makefile	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/arch/ppc/platforms/Makefile	2007-08-14 15:06:55.000000000 -0700
+@@ -34,3 +34,4 @@
+ obj-$(CONFIG_MPC885ADS)		+= mpc885ads_setup.o
+ obj-$(CONFIG_ADS8272)		+= mpc8272ads_setup.o
+ obj-$(CONFIG_TQM8272)		+= tqm8272_setup.o
++obj-$(CONFIG_AVOCENT_GSP)	+= gsp-sysctl.o
+Index: linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ linux-2.6.19/arch/ppc/platforms/gsp-sysctl.c	2007-08-15 14:07:58.000000000 -0700
+@@ -0,0 +1,110 @@
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/sysctl.h>
++#include <linux/fs.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++#include <asm/ppcboot.h>
++
++enum {
++	CTL_BDINFO = 1,
++	CTL_BOARD,
++};
++
++enum {
++	CTL_BDINFO_DUMMY = 0,
++	CTL_BDINFO_MAC1,
++	CTL_BDINFO_MAC2,
++};
++
++extern bd_t __res;
++
++static int proc_handle_mac(ctl_table *table, int write, struct file *filp,
++	void *buffer, size_t *lenp, loff_t *ppos)
++{
++	char string[19];
++	unsigned char *mac;
++
++	if (!table->maxlen || !*lenp || (*ppos && !write)) {
++		*lenp = 0;
++		return 0;
++        }
++	if (!write) {
++		if (table->data) {
++			mac = __res.bi_enet1addr;
++		} else {
++			mac = __res.bi_enetaddr;
++		}
++		memset(string, 0, 18);
++		sprintf(string, "%02X:%02X:%02X:%02X:%02X:%02X",
++			mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
++		if (copy_to_user(buffer, string, 18)) {
++			return -EFAULT;
++		}
++		*lenp = 18;
++		*ppos += 18;
++	}
++	return 0;
++}
++
++static struct ctl_table bdinfo_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO_MAC1,
++		.procname = "mac1",
++		.maxlen = 18,
++		.data = (void *)0,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{
++		.ctl_name = CTL_BDINFO_MAC2,
++		.procname = "mac2",
++		.maxlen = 18,
++		.data = (void *)1,
++		.mode = 0644,
++		.proc_handler = &proc_handle_mac,
++	},
++	{0}
++};
++
++static struct ctl_table avocent_dir_table[] =
++{
++	{
++		.ctl_name = CTL_BDINFO,
++                .procname = "bdinfo",
++                .mode = 0555,
++                .child = bdinfo_dir_table,
++        },
++	{
++		.ctl_name = CTL_BOARD,
++                .procname = "board",
++                .mode = 0555,
++                .child = board_dir_table,
++        },
++        {0}
++};
++
++#define CTL_AVOCENT 1
++
++static struct ctl_table avocent_table[] =
++{
++	{
++		.ctl_name = CTL_AVOCENT,
++                .procname = "avocent",
++                .mode = 0555,
++                .child = avocent_dir_table,
++        },
++        {0}
++};
++
++static int __init gsp_avocent_init(void)
++{
++	printk("Avocent sysctl\n");
++
++	register_sysctl_table(avocent_table, 1);
++	return 0;
++}
++
++__initcall(gsp_avocent_init);
++

@@ -1,0 +1,2165 @@
+diff -ruN linux-2.6.24.1/include/linux/usb/audio.h linux-2.6.25.6/include/linux/usb/audio.h
+--- linux-2.6.24.1/include/linux/usb/audio.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/audio.h	2008-06-09 11:27:19.000000000 -0700
+@@ -27,13 +27,13 @@
+ 
+ /* 4.3.2  Class-Specific AC Interface Descriptor */
+ struct usb_ac_header_descriptor {
+-	__u8  bLength;			// 8+n
+-	__u8  bDescriptorType;		// USB_DT_CS_INTERFACE
+-	__u8  bDescriptorSubtype;	// USB_MS_HEADER
+-	__le16 bcdADC;			// 0x0100
+-	__le16 wTotalLength;		// includes Unit and Terminal desc.
+-	__u8  bInCollection;		// n
+-	__u8  baInterfaceNr[];		// [n]
++	__u8  bLength;			/* 8+n */
++	__u8  bDescriptorType;		/* USB_DT_CS_INTERFACE */
++	__u8  bDescriptorSubtype;	/* USB_MS_HEADER */
++	__le16 bcdADC;			/* 0x0100 */
++	__le16 wTotalLength;		/* includes Unit and Terminal desc. */
++	__u8  bInCollection;		/* n */
++	__u8  baInterfaceNr[];		/* [n] */
+ } __attribute__ ((packed));
+ 
+ #define USB_DT_AC_HEADER_SIZE(n)	(8+(n))
+diff -ruN linux-2.6.24.1/include/linux/usb/cdc.h linux-2.6.25.6/include/linux/usb/cdc.h
+--- linux-2.6.24.1/include/linux/usb/cdc.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/cdc.h	2008-06-09 11:27:19.000000000 -0700
+@@ -29,16 +29,16 @@
+  * Class-Specific descriptors ... there are a couple dozen of them
+  */
+ 
+-#define USB_CDC_HEADER_TYPE		0x00		/* header_desc */
+-#define USB_CDC_CALL_MANAGEMENT_TYPE	0x01		/* call_mgmt_descriptor */
+-#define USB_CDC_ACM_TYPE		0x02		/* acm_descriptor */
+-#define USB_CDC_UNION_TYPE		0x06		/* union_desc */
++#define USB_CDC_HEADER_TYPE		0x00	/* header_desc */
++#define USB_CDC_CALL_MANAGEMENT_TYPE	0x01	/* call_mgmt_descriptor */
++#define USB_CDC_ACM_TYPE		0x02	/* acm_descriptor */
++#define USB_CDC_UNION_TYPE		0x06	/* union_desc */
+ #define USB_CDC_COUNTRY_TYPE		0x07
+-#define USB_CDC_NETWORK_TERMINAL_TYPE	0x0a		/* network_terminal_desc */
+-#define USB_CDC_ETHERNET_TYPE		0x0f		/* ether_desc */
++#define USB_CDC_NETWORK_TERMINAL_TYPE	0x0a	/* network_terminal_desc */
++#define USB_CDC_ETHERNET_TYPE		0x0f	/* ether_desc */
+ #define USB_CDC_WHCM_TYPE		0x11
+-#define USB_CDC_MDLM_TYPE		0x12		/* mdlm_desc */
+-#define USB_CDC_MDLM_DETAIL_TYPE	0x13		/* mdlm_detail_desc */
++#define USB_CDC_MDLM_TYPE		0x12	/* mdlm_desc */
++#define USB_CDC_MDLM_DETAIL_TYPE	0x13	/* mdlm_detail_desc */
+ #define USB_CDC_DMM_TYPE		0x14
+ #define USB_CDC_OBEX_TYPE		0x15
+ 
+diff -ruN linux-2.6.24.1/include/linux/usb/gadgetfs.h linux-2.6.25.6/include/linux/usb/gadgetfs.h
+--- linux-2.6.24.1/include/linux/usb/gadgetfs.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/gadgetfs.h	2008-06-09 11:27:19.000000000 -0700
+@@ -36,7 +36,7 @@
+ 	GADGETFS_DISCONNECT,
+ 	GADGETFS_SETUP,
+ 	GADGETFS_SUSPEND,
+-	// and likely more !
++	/* and likely more ! */
+ };
+ 
+ /* NOTE:  this structure must stay the same size and layout on
+@@ -44,21 +44,28 @@
+  */
+ struct usb_gadgetfs_event {
+ 	union {
+-		// NOP, DISCONNECT, SUSPEND: nothing
+-		// ... some hardware can't report disconnection
++		/* NOP, DISCONNECT, SUSPEND: nothing
++		 * ... some hardware can't report disconnection
++		 */
+ 
+-		// CONNECT: just the speed
++		/* CONNECT: just the speed */
+ 		enum usb_device_speed	speed;
+ 
+-		// SETUP: packet; DATA phase i/o precedes next event
+-		// (setup.bmRequestType & USB_DIR_IN) flags direction
+-		// ... includes SET_CONFIGURATION, SET_INTERFACE
++		/* SETUP: packet; DATA phase i/o precedes next event
++		 *(setup.bmRequestType & USB_DIR_IN) flags direction
++		 * ... includes SET_CONFIGURATION, SET_INTERFACE
++		 */
+ 		struct usb_ctrlrequest	setup;
+ 	} u;
+ 	enum usb_gadgetfs_event_type	type;
+ };
+ 
+ 
++/* The 'g' code is also used by printer gadget ioctl requests.
++ * Don't add any colliding codes to either driver, and keep
++ * them in unique ranges (size 0x20 for now).
++ */
++
+ /* endpoint ioctls */
+ 
+ /* IN transfers may be reported to the gadget driver as complete
+@@ -68,14 +75,14 @@
+  * THIS returns how many bytes are "unclaimed" in the endpoint fifo
+  * (needed for precise fault handling, when the hardware allows it)
+  */
+-#define	GADGETFS_FIFO_STATUS	_IO('g',1)
++#define	GADGETFS_FIFO_STATUS	_IO('g', 1)
+ 
+ /* discards any unclaimed data in the fifo. */
+-#define	GADGETFS_FIFO_FLUSH	_IO('g',2)
++#define	GADGETFS_FIFO_FLUSH	_IO('g', 2)
+ 
+ /* resets endpoint halt+toggle; used to implement set_interface.
+  * some hardware (like pxa2xx) can't support this.
+  */
+-#define	GADGETFS_CLEAR_HALT	_IO('g',3)
++#define	GADGETFS_CLEAR_HALT	_IO('g', 3)
+ 
+ #endif /* __LINUX_USB_GADGETFS_H */
+diff -ruN linux-2.6.24.1/include/linux/usb/gadget.h linux-2.6.25.6/include/linux/usb/gadget.h
+--- linux-2.6.24.1/include/linux/usb/gadget.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/gadget.h	2008-06-09 11:27:19.000000000 -0700
+@@ -15,8 +15,6 @@
+ #ifndef __LINUX_USB_GADGET_H
+ #define __LINUX_USB_GADGET_H
+ 
+-#ifdef __KERNEL__
+-
+ struct usb_ep;
+ 
+ /**
+@@ -70,9 +68,10 @@
+  *
+  * Bulk endpoints can use any size buffers, and can also be used for interrupt
+  * transfers. interrupt-only endpoints can be much less functional.
++ *
++ * NOTE:  this is analagous to 'struct urb' on the host side, except that
++ * it's thinner and promotes more pre-allocation.
+  */
+-	// NOTE this is analagous to 'struct urb' on the host side,
+-	// except that it's thinner and promotes more pre-allocation.
+ 
+ struct usb_request {
+ 	void			*buf;
+@@ -168,10 +167,10 @@
+  *
+  * returns zero, or a negative error code.
+  */
+-static inline int
+-usb_ep_enable (struct usb_ep *ep, const struct usb_endpoint_descriptor *desc)
++static inline int usb_ep_enable(struct usb_ep *ep,
++				const struct usb_endpoint_descriptor *desc)
+ {
+-	return ep->ops->enable (ep, desc);
++	return ep->ops->enable(ep, desc);
+ }
+ 
+ /**
+@@ -186,10 +185,9 @@
+  *
+  * returns zero, or a negative error code.
+  */
+-static inline int
+-usb_ep_disable (struct usb_ep *ep)
++static inline int usb_ep_disable(struct usb_ep *ep)
+ {
+-	return ep->ops->disable (ep);
++	return ep->ops->disable(ep);
+ }
+ 
+ /**
+@@ -206,10 +204,10 @@
+  *
+  * Returns the request, or null if one could not be allocated.
+  */
+-static inline struct usb_request *
+-usb_ep_alloc_request (struct usb_ep *ep, gfp_t gfp_flags)
++static inline struct usb_request *usb_ep_alloc_request(struct usb_ep *ep,
++						       gfp_t gfp_flags)
+ {
+-	return ep->ops->alloc_request (ep, gfp_flags);
++	return ep->ops->alloc_request(ep, gfp_flags);
+ }
+ 
+ /**
+@@ -221,10 +219,10 @@
+  * Caller guarantees the request is not queued, and that it will
+  * no longer be requeued (or otherwise used).
+  */
+-static inline void
+-usb_ep_free_request (struct usb_ep *ep, struct usb_request *req)
++static inline void usb_ep_free_request(struct usb_ep *ep,
++				       struct usb_request *req)
+ {
+-	ep->ops->free_request (ep, req);
++	ep->ops->free_request(ep, req);
+ }
+ 
+ /**
+@@ -281,10 +279,10 @@
+  * report errors; errors will also be
+  * reported when the usb peripheral is disconnected.
+  */
+-static inline int
+-usb_ep_queue (struct usb_ep *ep, struct usb_request *req, gfp_t gfp_flags)
++static inline int usb_ep_queue(struct usb_ep *ep,
++			       struct usb_request *req, gfp_t gfp_flags)
+ {
+-	return ep->ops->queue (ep, req, gfp_flags);
++	return ep->ops->queue(ep, req, gfp_flags);
+ }
+ 
+ /**
+@@ -301,9 +299,9 @@
+  * restrictions prevent drivers from supporting configuration changes,
+  * even to configuration zero (a "chapter 9" requirement).
+  */
+-static inline int usb_ep_dequeue (struct usb_ep *ep, struct usb_request *req)
++static inline int usb_ep_dequeue(struct usb_ep *ep, struct usb_request *req)
+ {
+-	return ep->ops->dequeue (ep, req);
++	return ep->ops->dequeue(ep, req);
+ }
+ 
+ /**
+@@ -327,10 +325,9 @@
+  * transfer requests are still queued, or if the controller hardware
+  * (usually a FIFO) still holds bytes that the host hasn't collected.
+  */
+-static inline int
+-usb_ep_set_halt (struct usb_ep *ep)
++static inline int usb_ep_set_halt(struct usb_ep *ep)
+ {
+-	return ep->ops->set_halt (ep, 1);
++	return ep->ops->set_halt(ep, 1);
+ }
+ 
+ /**
+@@ -346,10 +343,9 @@
+  * Note that some hardware can't support this request (like pxa2xx_udc),
+  * and accordingly can't correctly implement interface altsettings.
+  */
+-static inline int
+-usb_ep_clear_halt (struct usb_ep *ep)
++static inline int usb_ep_clear_halt(struct usb_ep *ep)
+ {
+-	return ep->ops->set_halt (ep, 0);
++	return ep->ops->set_halt(ep, 0);
+ }
+ 
+ /**
+@@ -367,11 +363,10 @@
+  * errno if the endpoint doesn't use a FIFO or doesn't support such
+  * precise handling.
+  */
+-static inline int
+-usb_ep_fifo_status (struct usb_ep *ep)
++static inline int usb_ep_fifo_status(struct usb_ep *ep)
+ {
+ 	if (ep->ops->fifo_status)
+-		return ep->ops->fifo_status (ep);
++		return ep->ops->fifo_status(ep);
+ 	else
+ 		return -EOPNOTSUPP;
+ }
+@@ -385,11 +380,10 @@
+  * must never be used except when endpoint is not being used for any
+  * protocol translation.
+  */
+-static inline void
+-usb_ep_fifo_flush (struct usb_ep *ep)
++static inline void usb_ep_fifo_flush(struct usb_ep *ep)
+ {
+ 	if (ep->ops->fifo_flush)
+-		ep->ops->fifo_flush (ep);
++		ep->ops->fifo_flush(ep);
+ }
+ 
+ 
+@@ -469,10 +463,10 @@
+ 	struct device			dev;
+ };
+ 
+-static inline void set_gadget_data (struct usb_gadget *gadget, void *data)
+-	{ dev_set_drvdata (&gadget->dev, data); }
+-static inline void *get_gadget_data (struct usb_gadget *gadget)
+-	{ return dev_get_drvdata (&gadget->dev); }
++static inline void set_gadget_data(struct usb_gadget *gadget, void *data)
++	{ dev_set_drvdata(&gadget->dev, data); }
++static inline void *get_gadget_data(struct usb_gadget *gadget)
++	{ return dev_get_drvdata(&gadget->dev); }
+ 
+ /* iterates the non-control endpoints; 'tmp' is a struct usb_ep pointer */
+ #define gadget_for_each_ep(tmp,gadget) \
+@@ -511,7 +505,6 @@
+ #endif
+ }
+ 
+-
+ /**
+  * usb_gadget_frame_number - returns the current frame number
+  * @gadget: controller that reports the frame number
+@@ -519,9 +512,9 @@
+  * Returns the usb frame number, normally eleven bits from a SOF packet,
+  * or negative errno if this device doesn't support this capability.
+  */
+-static inline int usb_gadget_frame_number (struct usb_gadget *gadget)
++static inline int usb_gadget_frame_number(struct usb_gadget *gadget)
+ {
+-	return gadget->ops->get_frame (gadget);
++	return gadget->ops->get_frame(gadget);
+ }
+ 
+ /**
+@@ -537,11 +530,11 @@
+  * even if OTG isn't otherwise in use.  OTG devices may also start
+  * remote wakeup even when hosts don't explicitly enable it.
+  */
+-static inline int usb_gadget_wakeup (struct usb_gadget *gadget)
++static inline int usb_gadget_wakeup(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->wakeup)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->wakeup (gadget);
++	return gadget->ops->wakeup(gadget);
+ }
+ 
+ /**
+@@ -553,12 +546,11 @@
+  *
+  * returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_set_selfpowered (struct usb_gadget *gadget)
++static inline int usb_gadget_set_selfpowered(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->set_selfpowered)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->set_selfpowered (gadget, 1);
++	return gadget->ops->set_selfpowered(gadget, 1);
+ }
+ 
+ /**
+@@ -571,12 +563,11 @@
+  *
+  * returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_clear_selfpowered (struct usb_gadget *gadget)
++static inline int usb_gadget_clear_selfpowered(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->set_selfpowered)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->set_selfpowered (gadget, 0);
++	return gadget->ops->set_selfpowered(gadget, 0);
+ }
+ 
+ /**
+@@ -591,12 +582,11 @@
+  *
+  * Returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_vbus_connect(struct usb_gadget *gadget)
++static inline int usb_gadget_vbus_connect(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->vbus_session)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->vbus_session (gadget, 1);
++	return gadget->ops->vbus_session(gadget, 1);
+ }
+ 
+ /**
+@@ -611,12 +601,11 @@
+  *
+  * Returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_vbus_draw(struct usb_gadget *gadget, unsigned mA)
++static inline int usb_gadget_vbus_draw(struct usb_gadget *gadget, unsigned mA)
+ {
+ 	if (!gadget->ops->vbus_draw)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->vbus_draw (gadget, mA);
++	return gadget->ops->vbus_draw(gadget, mA);
+ }
+ 
+ /**
+@@ -629,12 +618,11 @@
+  *
+  * Returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_vbus_disconnect(struct usb_gadget *gadget)
++static inline int usb_gadget_vbus_disconnect(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->vbus_session)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->vbus_session (gadget, 0);
++	return gadget->ops->vbus_session(gadget, 0);
+ }
+ 
+ /**
+@@ -648,12 +636,11 @@
+  *
+  * Returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_connect (struct usb_gadget *gadget)
++static inline int usb_gadget_connect(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->pullup)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->pullup (gadget, 1);
++	return gadget->ops->pullup(gadget, 1);
+ }
+ 
+ /**
+@@ -671,16 +658,14 @@
+  *
+  * Returns zero on success, else negative errno.
+  */
+-static inline int
+-usb_gadget_disconnect (struct usb_gadget *gadget)
++static inline int usb_gadget_disconnect(struct usb_gadget *gadget)
+ {
+ 	if (!gadget->ops->pullup)
+ 		return -EOPNOTSUPP;
+-	return gadget->ops->pullup (gadget, 0);
++	return gadget->ops->pullup(gadget, 0);
+ }
+ 
+ 
+-
+ /*-------------------------------------------------------------------------*/
+ 
+ /**
+@@ -764,7 +749,7 @@
+ 	void			(*suspend)(struct usb_gadget *);
+ 	void			(*resume)(struct usb_gadget *);
+ 
+-	// FIXME support safe rmmod
++	/* FIXME support safe rmmod */
+ 	struct device_driver	driver;
+ };
+ 
+@@ -790,7 +775,7 @@
+  * the bind() functions will be in init sections.
+  * This function must be called in a context that can sleep.
+  */
+-int usb_gadget_register_driver (struct usb_gadget_driver *driver);
++int usb_gadget_register_driver(struct usb_gadget_driver *driver);
+ 
+ /**
+  * usb_gadget_unregister_driver - unregister a gadget driver
+@@ -805,7 +790,7 @@
+  * will in in exit sections, so may not be linked in some kernels.
+  * This function must be called in a context that can sleep.
+  */
+-int usb_gadget_unregister_driver (struct usb_gadget_driver *driver);
++int usb_gadget_unregister_driver(struct usb_gadget_driver *driver);
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+@@ -838,7 +823,7 @@
+ };
+ 
+ /* put descriptor for string with that id into buf (buflen >= 256) */
+-int usb_gadget_get_string (struct usb_gadget_strings *table, int id, u8 *buf);
++int usb_gadget_get_string(struct usb_gadget_strings *table, int id, u8 *buf);
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+@@ -856,11 +841,9 @@
+ 
+ /* utility wrapping a simple endpoint selection policy */
+ 
+-extern struct usb_ep *usb_ep_autoconfig (struct usb_gadget *,
++extern struct usb_ep *usb_ep_autoconfig(struct usb_gadget *,
+ 			struct usb_endpoint_descriptor *) __devinit;
+ 
+-extern void usb_ep_autoconfig_reset (struct usb_gadget *) __devinit;
+-
+-#endif  /* __KERNEL__ */
++extern void usb_ep_autoconfig_reset(struct usb_gadget *) __devinit;
+ 
+ #endif	/* __LINUX_USB_GADGET_H */
+diff -ruN linux-2.6.24.1/include/linux/usb/g_printer.h linux-2.6.25.6/include/linux/usb/g_printer.h
+--- linux-2.6.24.1/include/linux/usb/g_printer.h	1969-12-31 16:00:00.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/g_printer.h	2008-06-09 11:27:19.000000000 -0700
+@@ -0,0 +1,31 @@
++/*
++ * g_printer.h -- Header file for USB Printer gadget driver
++ *
++ * Copyright (C) 2007 Craig W. Nadler
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++
++#define PRINTER_NOT_ERROR	0x08
++#define PRINTER_SELECTED	0x10
++#define PRINTER_PAPER_EMPTY	0x20
++
++/* The 'g' code is also used by gadgetfs ioctl requests.
++ * Don't add any colliding codes to either driver, and keep
++ * them in unique ranges (size 0x20 for now).
++ */
++#define GADGET_GET_PRINTER_STATUS	_IOR('g', 0x21, unsigned char)
++#define GADGET_SET_PRINTER_STATUS	_IOWR('g', 0x22, unsigned char)
+diff -ruN linux-2.6.24.1/include/linux/usb/iowarrior.h linux-2.6.25.6/include/linux/usb/iowarrior.h
+--- linux-2.6.24.1/include/linux/usb/iowarrior.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/iowarrior.h	2008-06-09 11:27:19.000000000 -0700
+@@ -14,14 +14,23 @@
+    this information.
+ */
+ struct iowarrior_info {
+-	__u32 vendor;		/* vendor id : supposed to be USB_VENDOR_ID_CODEMERCS in all cases */
+-	__u32 product;		/* product id : depends on type of chip (USB_DEVICE_ID_CODEMERCS_XXXXX) */
+-	__u8 serial[9];		/* the serial number of our chip (if a serial-number is not available this is empty string) */
+-	__u32 revision;		/* revision number of the chip */
+-	__u32 speed;		/* USB-speed of the device (0=UNKNOWN, 1=LOW, 2=FULL 3=HIGH) */
+-	__u32 power;		/* power consumption of the device in mA */
+-	__u32 if_num;		/* the number of the endpoint */
+-	__u32 report_size;	/* size of the data-packets on this interface */
++	/* vendor id : supposed to be USB_VENDOR_ID_CODEMERCS in all cases */
++	__u32 vendor;
++	/* product id : depends on type of chip (USB_DEVICE_ID_CODEMERCS_X) */
++	__u32 product;
++	/* the serial number of our chip (if a serial-number is not available
++	 * this is empty string) */
++	__u8 serial[9];
++	/* revision number of the chip */
++	__u32 revision;
++	/* USB-speed of the device (0=UNKNOWN, 1=LOW, 2=FULL 3=HIGH) */
++	__u32 speed;
++	/* power consumption of the device in mA */
++	__u32 power;
++	/* the number of the endpoint */
++	__u32 if_num;
++	/* size of the data-packets on this interface */
++	__u32 report_size;
+ };
+ 
+ /*
+diff -ruN linux-2.6.24.1/include/linux/usb/isp116x.h linux-2.6.25.6/include/linux/usb/isp116x.h
+--- linux-2.6.24.1/include/linux/usb/isp116x.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/isp116x.h	2008-06-09 11:27:19.000000000 -0700
+@@ -25,5 +25,5 @@
+ 	   300ns delay between access to ADDR_REG and DATA_REG
+ 	   OE, WE MUST NOT be changed during these intervals
+ 	 */
+-	void (*delay) (struct device * dev, int delay);
++	void (*delay) (struct device *dev, int delay);
+ };
+diff -ruN linux-2.6.24.1/include/linux/usb/Kbuild linux-2.6.25.6/include/linux/usb/Kbuild
+--- linux-2.6.24.1/include/linux/usb/Kbuild	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/Kbuild	2008-06-09 11:27:19.000000000 -0700
+@@ -1,6 +1,7 @@
+-unifdef-y += audio.h
+-unifdef-y += cdc.h
+-unifdef-y += ch9.h
+-unifdef-y += gadgetfs.h
+-unifdef-y += midi.h
++header-y += audio.h
++header-y += cdc.h
++header-y += ch9.h
++header-y += gadgetfs.h
++header-y += midi.h
++header-y += g_printer.h
+ 
+diff -ruN linux-2.6.24.1/include/linux/usb/midi.h linux-2.6.25.6/include/linux/usb/midi.h
+--- linux-2.6.24.1/include/linux/usb/midi.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/midi.h	2008-06-09 11:27:19.000000000 -0700
+@@ -47,9 +47,9 @@
+ /* 6.1.2.2  MIDI IN Jack Descriptor */
+ struct usb_midi_in_jack_descriptor {
+ 	__u8  bLength;
+-	__u8  bDescriptorType;		// USB_DT_CS_INTERFACE
+-	__u8  bDescriptorSubtype;	// USB_MS_MIDI_IN_JACK
+-	__u8  bJackType;		// USB_MS_EMBEDDED/EXTERNAL
++	__u8  bDescriptorType;		/* USB_DT_CS_INTERFACE */
++	__u8  bDescriptorSubtype;	/* USB_MS_MIDI_IN_JACK */
++	__u8  bJackType;		/* USB_MS_EMBEDDED/EXTERNAL */
+ 	__u8  bJackID;
+ 	__u8  iJack;
+ } __attribute__ ((packed));
+@@ -64,12 +64,12 @@
+ /* 6.1.2.3  MIDI OUT Jack Descriptor */
+ struct usb_midi_out_jack_descriptor {
+ 	__u8  bLength;
+-	__u8  bDescriptorType;		// USB_DT_CS_INTERFACE
+-	__u8  bDescriptorSubtype;	// USB_MS_MIDI_OUT_JACK
+-	__u8  bJackType;		// USB_MS_EMBEDDED/EXTERNAL
++	__u8  bDescriptorType;		/* USB_DT_CS_INTERFACE */
++	__u8  bDescriptorSubtype;	/* USB_MS_MIDI_OUT_JACK */
++	__u8  bJackType;		/* USB_MS_EMBEDDED/EXTERNAL */
+ 	__u8  bJackID;
+-	__u8  bNrInputPins;		// p
+-	struct usb_midi_source_pin pins[]; // [p]
++	__u8  bNrInputPins;		/* p */
++	struct usb_midi_source_pin pins[]; /* [p] */
+ 	/*__u8  iJack;  -- ommitted due to variable-sized pins[] */
+ } __attribute__ ((packed));
+ 
+@@ -90,11 +90,11 @@
+ 
+ /* 6.2.2  Class-Specific MS Bulk Data Endpoint Descriptor */
+ struct usb_ms_endpoint_descriptor {
+-	__u8  bLength;			// 4+n
+-	__u8  bDescriptorType;		// USB_DT_CS_ENDPOINT
+-	__u8  bDescriptorSubtype;	// USB_MS_GENERAL
+-	__u8  bNumEmbMIDIJack;		// n
+-	__u8  baAssocJackID[];		// [n]
++	__u8  bLength;			/* 4+n */
++	__u8  bDescriptorType;		/* USB_DT_CS_ENDPOINT */
++	__u8  bDescriptorSubtype;	/* USB_MS_GENERAL */
++	__u8  bNumEmbMIDIJack;		/* n */
++	__u8  baAssocJackID[];		/* [n] */
+ } __attribute__ ((packed));
+ 
+ #define USB_DT_MS_ENDPOINT_SIZE(n)	(4 + (n))
+diff -ruN linux-2.6.24.1/include/linux/usb/net2280.h linux-2.6.25.6/include/linux/usb/net2280.h
+--- linux-2.6.24.1/include/linux/usb/net2280.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/net2280.h	2008-06-09 11:27:19.000000000 -0700
+@@ -37,7 +37,7 @@
+ 
+ /* main registers, BAR0 + 0x0000 */
+ struct net2280_regs {
+-	// offset 0x0000
++	/* offset 0x0000 */
+ 	u32		devinit;
+ #define     LOCAL_CLOCK_FREQUENCY                               8
+ #define     FORCE_PCI_RESET                                     7
+@@ -61,7 +61,7 @@
+ #define     EEPROM_WRITE_DATA                                   0
+ 	u32		eeclkfreq;
+ 	u32		_unused0;
+-	// offset 0x0010
++	/* offset 0x0010 */
+ 
+ 	u32		pciirqenb0;		/* interrupt PCI master ... */
+ #define     SETUP_PACKET_INTERRUPT_ENABLE                       7
+@@ -131,7 +131,7 @@
+ #define     RESUME_INTERRUPT_ENABLE                             1
+ #define     SOF_INTERRUPT_ENABLE                                0
+ 
+-	// offset 0x0020
++	/* offset 0x0020 */
+ 	u32		_unused1;
+ 	u32		usbirqenb1;
+ #define     USB_INTERRUPT_ENABLE                                31
+@@ -195,7 +195,7 @@
+ #define     SUSPEND_REQUEST_CHANGE_INTERRUPT                    2
+ #define     RESUME_INTERRUPT                                    1
+ #define     SOF_INTERRUPT                                       0
+-	// offset 0x0030
++	/* offset 0x0030 */
+ 	u32		idxaddr;
+ 	u32		idxdata;
+ 	u32		fifoctl;
+@@ -204,7 +204,7 @@
+ #define     PCI_BASE2_SELECT                                    2
+ #define     FIFO_CONFIGURATION_SELECT                           0
+ 	u32		_unused2;
+-	// offset 0x0040
++	/* offset 0x0040 */
+ 	u32		memaddr;
+ #define     START                                               28
+ #define     DIRECTION                                           27
+@@ -213,7 +213,7 @@
+ 	u32		memdata0;
+ 	u32		memdata1;
+ 	u32		_unused3;
+-	// offset 0x0050
++	/* offset 0x0050 */
+ 	u32		gpioctl;
+ #define     GPIO3_LED_SELECT                                    12
+ #define     GPIO3_INTERRUPT_ENABLE                              11
+@@ -237,7 +237,7 @@
+ 
+ /* usb control, BAR0 + 0x0080 */
+ struct net2280_usb_regs {
+-	// offset 0x0080
++	/* offset 0x0080 */
+ 	u32		stdrsp;
+ #define     STALL_UNSUPPORTED_REQUESTS                          31
+ #define     SET_TEST_MODE                                       16
+@@ -275,7 +275,7 @@
+ #define     PME_WAKEUP_ENABLE                                   2
+ #define     DEVICE_REMOTE_WAKEUP_ENABLE                         1
+ #define     SELF_POWERED_STATUS                                 0
+-	// offset 0x0090
++	/* offset 0x0090 */
+ 	u32		usbstat;
+ #define     HIGH_SPEED                                          7
+ #define     FULL_SPEED                                          6
+@@ -291,7 +291,7 @@
+ #define     TERMINATION_SELECT                                  0
+ 	u32		setup0123;
+ 	u32		setup4567;
+-	// offset 0x0090
++	/* offset 0x0090 */
+ 	u32		_unused0;
+ 	u32		ouraddr;
+ #define     FORCE_IMMEDIATE                                     7
+@@ -301,7 +301,7 @@
+ 
+ /* pci control, BAR0 + 0x0100 */
+ struct net2280_pci_regs {
+-	// offset 0x0100
++	/* offset 0x0100 */
+ 	u32		 pcimstctl;
+ #define     PCI_ARBITER_PARK_SELECT                             13
+ #define     PCI_MULTI LEVEL_ARBITER                             12
+@@ -331,7 +331,7 @@
+  * that can be loaded into some of these registers.
+  */
+ struct net2280_dma_regs {	/* [11.7] */
+-	// offset 0x0180, 0x01a0, 0x01c0, 0x01e0,
++	/* offset 0x0180, 0x01a0, 0x01c0, 0x01e0, */
+ 	u32		dmactl;
+ #define     DMA_SCATTER_GATHER_DONE_INTERRUPT_ENABLE            25
+ #define     DMA_CLEAR_COUNT_ENABLE                              21
+@@ -355,7 +355,7 @@
+ #define     DMA_ABORT                                           1
+ #define     DMA_START                                           0
+ 	u32		_unused0 [2];
+-	// offset 0x0190, 0x01b0, 0x01d0, 0x01f0,
++	/* offset 0x0190, 0x01b0, 0x01d0, 0x01f0, */
+ 	u32		dmacount;
+ #define     VALID_BIT                                           31
+ #define     DMA_DIRECTION                                       30
+@@ -371,9 +371,9 @@
+ /* dedicated endpoint registers, BAR0 + 0x0200 */
+ 
+ struct net2280_dep_regs {	/* [11.8] */
+-	// offset 0x0200, 0x0210, 0x220, 0x230, 0x240
++	/* offset 0x0200, 0x0210, 0x220, 0x230, 0x240 */
+ 	u32		dep_cfg;
+-	// offset 0x0204, 0x0214, 0x224, 0x234, 0x244
++	/* offset 0x0204, 0x0214, 0x224, 0x234, 0x244 */
+ 	u32		dep_rsp;
+ 	u32		_unused [2];
+ } __attribute__ ((packed));
+@@ -383,7 +383,7 @@
+  * ep0 reserved for control; E and F have only 64 bytes of fifo
+  */
+ struct net2280_ep_regs {	/* [11.9] */
+-	// offset 0x0300, 0x0320, 0x0340, 0x0360, 0x0380, 0x03a0, 0x03c0
++	/* offset 0x0300, 0x0320, 0x0340, 0x0360, 0x0380, 0x03a0, 0x03c0 */
+ 	u32		ep_cfg;
+ #define     ENDPOINT_BYTE_COUNT                                 16
+ #define     ENDPOINT_ENABLE                                     10
+@@ -435,7 +435,7 @@
+ #define     DATA_PACKET_TRANSMITTED_INTERRUPT                   2
+ #define     DATA_OUT_PING_TOKEN_INTERRUPT                       1
+ #define     DATA_IN_TOKEN_INTERRUPT                             0
+-	// offset 0x0310, 0x0330, 0x0350, 0x0370, 0x0390, 0x03b0, 0x03d0
++	/* offset 0x0310, 0x0330, 0x0350, 0x0370, 0x0390, 0x03b0, 0x03d0 */
+ 	u32		ep_avail;
+ 	u32		ep_data;
+ 	u32		_unused0 [2];
+diff -ruN linux-2.6.24.1/include/linux/usb/otg.h linux-2.6.25.6/include/linux/usb/otg.h
+--- linux-2.6.24.1/include/linux/usb/otg.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/otg.h	2008-06-09 11:27:19.000000000 -0700
+@@ -1,4 +1,4 @@
+-// include/linux/usb/otg.h
++/* USB OTG (On The Go) defines */
+ 
+ /*
+  * These APIs may be used between USB controllers.  USB device drivers
+diff -ruN linux-2.6.24.1/include/linux/usb/quirks.h linux-2.6.25.6/include/linux/usb/quirks.h
+--- linux-2.6.24.1/include/linux/usb/quirks.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/quirks.h	2008-06-09 11:27:19.000000000 -0700
+@@ -9,3 +9,6 @@
+ 
+ /* device can't resume correctly so reset it instead */
+ #define USB_QUIRK_RESET_RESUME		0x00000002
++
++/* device can't handle Set-Interface requests */
++#define USB_QUIRK_NO_SET_INTF		0x00000004
+diff -ruN linux-2.6.24.1/include/linux/usb/rndis_host.h linux-2.6.25.6/include/linux/usb/rndis_host.h
+--- linux-2.6.24.1/include/linux/usb/rndis_host.h	1969-12-31 16:00:00.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/rndis_host.h	2008-06-09 11:27:19.000000000 -0700
+@@ -0,0 +1,274 @@
++/*
++ * Host Side support for RNDIS Networking Links
++ * Copyright (C) 2005 by David Brownell
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++
++#ifndef	__RNDIS_HOST_H
++#define	__RNDIS_HOST_H
++
++
++/*
++ * CONTROL uses CDC "encapsulated commands" with funky notifications.
++ *  - control-out:  SEND_ENCAPSULATED
++ *  - interrupt-in:  RESPONSE_AVAILABLE
++ *  - control-in:  GET_ENCAPSULATED
++ *
++ * We'll try to ignore the RESPONSE_AVAILABLE notifications.
++ *
++ * REVISIT some RNDIS implementations seem to have curious issues still
++ * to be resolved.
++ */
++struct rndis_msg_hdr {
++	__le32	msg_type;			/* RNDIS_MSG_* */
++	__le32	msg_len;
++	// followed by data that varies between messages
++	__le32	request_id;
++	__le32	status;
++	// ... and more
++} __attribute__ ((packed));
++
++/* MS-Windows uses this strange size, but RNDIS spec says 1024 minimum */
++#define	CONTROL_BUFFER_SIZE		1025
++
++/* RNDIS defines an (absurdly huge) 10 second control timeout,
++ * but ActiveSync seems to use a more usual 5 second timeout
++ * (which matches the USB 2.0 spec).
++ */
++#define	RNDIS_CONTROL_TIMEOUT_MS	(5 * 1000)
++
++
++#define ccpu2 __constant_cpu_to_le32
++
++#define RNDIS_MSG_COMPLETION	ccpu2(0x80000000)
++
++/* codes for "msg_type" field of rndis messages;
++ * only the data channel uses packet messages (maybe batched);
++ * everything else goes on the control channel.
++ */
++#define RNDIS_MSG_PACKET	ccpu2(0x00000001)	/* 1-N packets */
++#define RNDIS_MSG_INIT		ccpu2(0x00000002)
++#define RNDIS_MSG_INIT_C	(RNDIS_MSG_INIT|RNDIS_MSG_COMPLETION)
++#define RNDIS_MSG_HALT		ccpu2(0x00000003)
++#define RNDIS_MSG_QUERY		ccpu2(0x00000004)
++#define RNDIS_MSG_QUERY_C	(RNDIS_MSG_QUERY|RNDIS_MSG_COMPLETION)
++#define RNDIS_MSG_SET		ccpu2(0x00000005)
++#define RNDIS_MSG_SET_C		(RNDIS_MSG_SET|RNDIS_MSG_COMPLETION)
++#define RNDIS_MSG_RESET		ccpu2(0x00000006)
++#define RNDIS_MSG_RESET_C	(RNDIS_MSG_RESET|RNDIS_MSG_COMPLETION)
++#define RNDIS_MSG_INDICATE	ccpu2(0x00000007)
++#define RNDIS_MSG_KEEPALIVE	ccpu2(0x00000008)
++#define RNDIS_MSG_KEEPALIVE_C	(RNDIS_MSG_KEEPALIVE|RNDIS_MSG_COMPLETION)
++
++/* codes for "status" field of completion messages */
++#define	RNDIS_STATUS_SUCCESS		ccpu2(0x00000000)
++#define	RNDIS_STATUS_FAILURE		ccpu2(0xc0000001)
++#define	RNDIS_STATUS_INVALID_DATA	ccpu2(0xc0010015)
++#define	RNDIS_STATUS_NOT_SUPPORTED	ccpu2(0xc00000bb)
++#define	RNDIS_STATUS_MEDIA_CONNECT	ccpu2(0x4001000b)
++#define	RNDIS_STATUS_MEDIA_DISCONNECT	ccpu2(0x4001000c)
++
++/* codes for OID_GEN_PHYSICAL_MEDIUM */
++#define	RNDIS_PHYSICAL_MEDIUM_UNSPECIFIED	ccpu2(0x00000000)
++#define	RNDIS_PHYSICAL_MEDIUM_WIRELESS_LAN	ccpu2(0x00000001)
++#define	RNDIS_PHYSICAL_MEDIUM_CABLE_MODEM	ccpu2(0x00000002)
++#define	RNDIS_PHYSICAL_MEDIUM_PHONE_LINE	ccpu2(0x00000003)
++#define	RNDIS_PHYSICAL_MEDIUM_POWER_LINE	ccpu2(0x00000004)
++#define	RNDIS_PHYSICAL_MEDIUM_DSL		ccpu2(0x00000005)
++#define	RNDIS_PHYSICAL_MEDIUM_FIBRE_CHANNEL	ccpu2(0x00000006)
++#define	RNDIS_PHYSICAL_MEDIUM_1394		ccpu2(0x00000007)
++#define	RNDIS_PHYSICAL_MEDIUM_WIRELESS_WAN	ccpu2(0x00000008)
++#define	RNDIS_PHYSICAL_MEDIUM_MAX		ccpu2(0x00000009)
++
++struct rndis_data_hdr {
++	__le32	msg_type;		/* RNDIS_MSG_PACKET */
++	__le32	msg_len;		// rndis_data_hdr + data_len + pad
++	__le32	data_offset;		// 36 -- right after header
++	__le32	data_len;		// ... real packet size
++
++	__le32	oob_data_offset;	// zero
++	__le32	oob_data_len;		// zero
++	__le32	num_oob;		// zero
++	__le32	packet_data_offset;	// zero
++
++	__le32	packet_data_len;	// zero
++	__le32	vc_handle;		// zero
++	__le32	reserved;		// zero
++} __attribute__ ((packed));
++
++struct rndis_init {		/* OUT */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_INIT */
++	__le32	msg_len;			// 24
++	__le32	request_id;
++	__le32	major_version;			// of rndis (1.0)
++	__le32	minor_version;
++	__le32	max_transfer_size;
++} __attribute__ ((packed));
++
++struct rndis_init_c {		/* IN */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_INIT_C */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	status;
++	__le32	major_version;			// of rndis (1.0)
++	__le32	minor_version;
++	__le32	device_flags;
++	__le32	medium;				// zero == 802.3
++	__le32	max_packets_per_message;
++	__le32	max_transfer_size;
++	__le32	packet_alignment;		// max 7; (1<<n) bytes
++	__le32	af_list_offset;			// zero
++	__le32	af_list_size;			// zero
++} __attribute__ ((packed));
++
++struct rndis_halt {		/* OUT (no reply) */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_HALT */
++	__le32	msg_len;
++	__le32	request_id;
++} __attribute__ ((packed));
++
++struct rndis_query {		/* OUT */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_QUERY */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	oid;
++	__le32	len;
++	__le32	offset;
++/*?*/	__le32	handle;				// zero
++} __attribute__ ((packed));
++
++struct rndis_query_c {		/* IN */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_QUERY_C */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	status;
++	__le32	len;
++	__le32	offset;
++} __attribute__ ((packed));
++
++struct rndis_set {		/* OUT */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_SET */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	oid;
++	__le32	len;
++	__le32	offset;
++/*?*/	__le32	handle;				// zero
++} __attribute__ ((packed));
++
++struct rndis_set_c {		/* IN */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_SET_C */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	status;
++} __attribute__ ((packed));
++
++struct rndis_reset {		/* IN */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_RESET */
++	__le32	msg_len;
++	__le32	reserved;
++} __attribute__ ((packed));
++
++struct rndis_reset_c {		/* OUT */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_RESET_C */
++	__le32	msg_len;
++	__le32	status;
++	__le32	addressing_lost;
++} __attribute__ ((packed));
++
++struct rndis_indicate {		/* IN (unrequested) */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_INDICATE */
++	__le32	msg_len;
++	__le32	status;
++	__le32	length;
++	__le32	offset;
++/**/	__le32	diag_status;
++	__le32	error_offset;
++/**/	__le32	message;
++} __attribute__ ((packed));
++
++struct rndis_keepalive {	/* OUT (optionally IN) */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_KEEPALIVE */
++	__le32	msg_len;
++	__le32	request_id;
++} __attribute__ ((packed));
++
++struct rndis_keepalive_c {	/* IN (optionally OUT) */
++	// header and:
++	__le32	msg_type;			/* RNDIS_MSG_KEEPALIVE_C */
++	__le32	msg_len;
++	__le32	request_id;
++	__le32	status;
++} __attribute__ ((packed));
++
++/* NOTE:  about 30 OIDs are "mandatory" for peripherals to support ... and
++ * there are gobs more that may optionally be supported.  We'll avoid as much
++ * of that mess as possible.
++ */
++#define OID_802_3_PERMANENT_ADDRESS	ccpu2(0x01010101)
++#define OID_GEN_MAXIMUM_FRAME_SIZE	ccpu2(0x00010106)
++#define OID_GEN_CURRENT_PACKET_FILTER	ccpu2(0x0001010e)
++#define OID_GEN_PHYSICAL_MEDIUM		ccpu2(0x00010202)
++
++/* packet filter bits used by OID_GEN_CURRENT_PACKET_FILTER */
++#define RNDIS_PACKET_TYPE_DIRECTED		ccpu2(0x00000001)
++#define RNDIS_PACKET_TYPE_MULTICAST		ccpu2(0x00000002)
++#define RNDIS_PACKET_TYPE_ALL_MULTICAST		ccpu2(0x00000004)
++#define RNDIS_PACKET_TYPE_BROADCAST		ccpu2(0x00000008)
++#define RNDIS_PACKET_TYPE_SOURCE_ROUTING	ccpu2(0x00000010)
++#define RNDIS_PACKET_TYPE_PROMISCUOUS		ccpu2(0x00000020)
++#define RNDIS_PACKET_TYPE_SMT			ccpu2(0x00000040)
++#define RNDIS_PACKET_TYPE_ALL_LOCAL		ccpu2(0x00000080)
++#define RNDIS_PACKET_TYPE_GROUP			ccpu2(0x00001000)
++#define RNDIS_PACKET_TYPE_ALL_FUNCTIONAL	ccpu2(0x00002000)
++#define RNDIS_PACKET_TYPE_FUNCTIONAL		ccpu2(0x00004000)
++#define RNDIS_PACKET_TYPE_MAC_FRAME		ccpu2(0x00008000)
++
++/* default filter used with RNDIS devices */
++#define RNDIS_DEFAULT_FILTER ( \
++	RNDIS_PACKET_TYPE_DIRECTED | \
++	RNDIS_PACKET_TYPE_BROADCAST | \
++	RNDIS_PACKET_TYPE_ALL_MULTICAST | \
++	RNDIS_PACKET_TYPE_PROMISCUOUS)
++
++/* Flags to require specific physical medium type for generic_rndis_bind() */
++#define FLAG_RNDIS_PHYM_NOT_WIRELESS	0x0001
++#define FLAG_RNDIS_PHYM_WIRELESS	0x0002
++
++
++extern void rndis_status(struct usbnet *dev, struct urb *urb);
++extern int rndis_command(struct usbnet *dev, struct rndis_msg_hdr *buf);
++extern int
++generic_rndis_bind(struct usbnet *dev, struct usb_interface *intf, int flags);
++extern void rndis_unbind(struct usbnet *dev, struct usb_interface *intf);
++extern int rndis_rx_fixup(struct usbnet *dev, struct sk_buff *skb);
++extern struct sk_buff *
++rndis_tx_fixup(struct usbnet *dev, struct sk_buff *skb, gfp_t flags);
++
++#endif	/* __RNDIS_HOST_H */
++
+diff -ruN linux-2.6.24.1/include/linux/usb/serial.h linux-2.6.25.6/include/linux/usb/serial.h
+--- linux-2.6.24.1/include/linux/usb/serial.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/serial.h	2008-06-09 11:27:19.000000000 -0700
+@@ -20,7 +20,8 @@
+ #define SERIAL_TTY_MAJOR	188	/* Nice legal number now */
+ #define SERIAL_TTY_MINORS	255	/* loads of devices :) */
+ 
+-#define MAX_NUM_PORTS		8	/* The maximum number of ports one device can grab at once */
++/* The maximum number of ports one device can grab at once */
++#define MAX_NUM_PORTS		8
+ 
+ /* parity check flag */
+ #define RELEVANT_IFLAG(iflag)	(iflag & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
+@@ -61,29 +62,29 @@
+  * ports of a device.
+  */
+ struct usb_serial_port {
+-	struct usb_serial *	serial;
+-	struct tty_struct *	tty;
++	struct usb_serial	*serial;
++	struct tty_struct	*tty;
+ 	spinlock_t		lock;
+ 	struct mutex            mutex;
+ 	unsigned char		number;
+ 
+-	unsigned char *		interrupt_in_buffer;
+-	struct urb *		interrupt_in_urb;
++	unsigned char		*interrupt_in_buffer;
++	struct urb		*interrupt_in_urb;
+ 	__u8			interrupt_in_endpointAddress;
+ 
+-	unsigned char *		interrupt_out_buffer;
++	unsigned char		*interrupt_out_buffer;
+ 	int			interrupt_out_size;
+-	struct urb *		interrupt_out_urb;
++	struct urb		*interrupt_out_urb;
+ 	__u8			interrupt_out_endpointAddress;
+ 
+-	unsigned char *		bulk_in_buffer;
++	unsigned char		*bulk_in_buffer;
+ 	int			bulk_in_size;
+-	struct urb *		read_urb;
++	struct urb		*read_urb;
+ 	__u8			bulk_in_endpointAddress;
+ 
+-	unsigned char *		bulk_out_buffer;
++	unsigned char		*bulk_out_buffer;
+ 	int			bulk_out_size;
+-	struct urb *		write_urb;
++	struct urb		*write_urb;
+ 	int			write_urb_busy;
+ 	__u8			bulk_out_endpointAddress;
+ 
+@@ -92,17 +93,19 @@
+ 	int			open_count;
+ 	char			throttled;
+ 	char			throttle_req;
++	char			console;
+ 	struct device		dev;
+ };
+ #define to_usb_serial_port(d) container_of(d, struct usb_serial_port, dev)
+ 
+ /* get and set the port private data pointer helper functions */
+-static inline void *usb_get_serial_port_data (struct usb_serial_port *port)
++static inline void *usb_get_serial_port_data(struct usb_serial_port *port)
+ {
+ 	return dev_get_drvdata(&port->dev);
+ }
+ 
+-static inline void usb_set_serial_port_data (struct usb_serial_port *port, void *data)
++static inline void usb_set_serial_port_data(struct usb_serial_port *port,
++					    void *data)
+ {
+ 	dev_set_drvdata(&port->dev, data);
+ }
+@@ -125,9 +128,10 @@
+  *	usb_set_serial_data() to access this.
+  */
+ struct usb_serial {
+-	struct usb_device *		dev;
+-	struct usb_serial_driver *	type;
+-	struct usb_interface *		interface;
++	struct usb_device		*dev;
++	struct usb_serial_driver	*type;
++	struct usb_interface		*interface;
++	unsigned char			disconnected;
+ 	unsigned char			minor;
+ 	unsigned char			num_ports;
+ 	unsigned char			num_port_pointers;
+@@ -135,29 +139,30 @@
+ 	char				num_interrupt_out;
+ 	char				num_bulk_in;
+ 	char				num_bulk_out;
+-	struct usb_serial_port *	port[MAX_NUM_PORTS];
++	struct usb_serial_port		*port[MAX_NUM_PORTS];
+ 	struct kref			kref;
+-	void *				private;
++	struct mutex			disc_mutex;
++	void				*private;
+ };
+ #define to_usb_serial(d) container_of(d, struct usb_serial, kref)
+ 
+ #define NUM_DONT_CARE	99
+ 
+ /* get and set the serial private data pointer helper functions */
+-static inline void *usb_get_serial_data (struct usb_serial *serial)
++static inline void *usb_get_serial_data(struct usb_serial *serial)
+ {
+ 	return serial->private;
+ }
+ 
+-static inline void usb_set_serial_data (struct usb_serial *serial, void *data)
++static inline void usb_set_serial_data(struct usb_serial *serial, void *data)
+ {
+ 	serial->private = data;
+ }
+ 
+ /**
+  * usb_serial_driver - describes a usb serial driver
+- * @description: pointer to a string that describes this driver.  This string used
+- *	in the syslog messages when a device is inserted or removed.
++ * @description: pointer to a string that describes this driver.  This string
++ *	used in the syslog messages when a device is inserted or removed.
+  * @id_table: pointer to a list of usb_device_id structures that define all
+  *	of the devices this structure can support.
+  * @num_interrupt_in: If a device doesn't have this many interrupt-in
+@@ -218,82 +223,91 @@
+ 	struct usb_driver	*usb_driver;
+ 	struct usb_dynids	dynids;
+ 
+-	int (*probe) (struct usb_serial *serial, const struct usb_device_id *id);
+-	int (*attach) (struct usb_serial *serial);
++	int (*probe)(struct usb_serial *serial, const struct usb_device_id *id);
++	int (*attach)(struct usb_serial *serial);
+ 	int (*calc_num_ports) (struct usb_serial *serial);
+ 
+-	void (*shutdown) (struct usb_serial *serial);
++	void (*shutdown)(struct usb_serial *serial);
+ 
+-	int (*port_probe) (struct usb_serial_port *port);
+-	int (*port_remove) (struct usb_serial_port *port);
++	int (*port_probe)(struct usb_serial_port *port);
++	int (*port_remove)(struct usb_serial_port *port);
+ 
+-	int (*suspend) (struct usb_serial *serial, pm_message_t message);
+-	int (*resume) (struct usb_serial *serial);
++	int (*suspend)(struct usb_serial *serial, pm_message_t message);
++	int (*resume)(struct usb_serial *serial);
+ 
+ 	/* serial function calls */
+-	int  (*open)		(struct usb_serial_port *port, struct file * filp);
+-	void (*close)		(struct usb_serial_port *port, struct file * filp);
+-	int  (*write)		(struct usb_serial_port *port, const unsigned char *buf, int count);
+-	int  (*write_room)	(struct usb_serial_port *port);
+-	int  (*ioctl)		(struct usb_serial_port *port, struct file * file, unsigned int cmd, unsigned long arg);
+-	void (*set_termios)	(struct usb_serial_port *port, struct ktermios * old);
+-	void (*break_ctl)	(struct usb_serial_port *port, int break_state);
+-	int  (*chars_in_buffer)	(struct usb_serial_port *port);
+-	void (*throttle)	(struct usb_serial_port *port);
+-	void (*unthrottle)	(struct usb_serial_port *port);
+-	int  (*tiocmget)	(struct usb_serial_port *port, struct file *file);
+-	int  (*tiocmset)	(struct usb_serial_port *port, struct file *file, unsigned int set, unsigned int clear);
++	int  (*open)(struct usb_serial_port *port, struct file *filp);
++	void (*close)(struct usb_serial_port *port, struct file *filp);
++	int  (*write)(struct usb_serial_port *port, const unsigned char *buf,
++		      int count);
++	int  (*write_room)(struct usb_serial_port *port);
++	int  (*ioctl)(struct usb_serial_port *port, struct file *file,
++		      unsigned int cmd, unsigned long arg);
++	void (*set_termios)(struct usb_serial_port *port, struct ktermios *old);
++	void (*break_ctl)(struct usb_serial_port *port, int break_state);
++	int  (*chars_in_buffer)(struct usb_serial_port *port);
++	void (*throttle)(struct usb_serial_port *port);
++	void (*unthrottle)(struct usb_serial_port *port);
++	int  (*tiocmget)(struct usb_serial_port *port, struct file *file);
++	int  (*tiocmset)(struct usb_serial_port *port, struct file *file,
++			 unsigned int set, unsigned int clear);
+ 
+ 	void (*read_int_callback)(struct urb *urb);
+ 	void (*write_int_callback)(struct urb *urb);
+ 	void (*read_bulk_callback)(struct urb *urb);
+ 	void (*write_bulk_callback)(struct urb *urb);
+ };
+-#define to_usb_serial_driver(d) container_of(d, struct usb_serial_driver, driver)
++#define to_usb_serial_driver(d) \
++	container_of(d, struct usb_serial_driver, driver)
+ 
+ extern int  usb_serial_register(struct usb_serial_driver *driver);
+ extern void usb_serial_deregister(struct usb_serial_driver *driver);
+ extern void usb_serial_port_softint(struct usb_serial_port *port);
+ 
+-extern int usb_serial_probe(struct usb_interface *iface, const struct usb_device_id *id);
++extern int usb_serial_probe(struct usb_interface *iface,
++			    const struct usb_device_id *id);
+ extern void usb_serial_disconnect(struct usb_interface *iface);
+ 
+ extern int usb_serial_suspend(struct usb_interface *intf, pm_message_t message);
+ extern int usb_serial_resume(struct usb_interface *intf);
+ 
+-extern int ezusb_writememory (struct usb_serial *serial, int address, unsigned char *data, int length, __u8 bRequest);
+-extern int ezusb_set_reset (struct usb_serial *serial, unsigned char reset_bit);
++extern int ezusb_writememory(struct usb_serial *serial, int address,
++			     unsigned char *data, int length, __u8 bRequest);
++extern int ezusb_set_reset(struct usb_serial *serial, unsigned char reset_bit);
+ 
+ /* USB Serial console functions */
+ #ifdef CONFIG_USB_SERIAL_CONSOLE
+-extern void usb_serial_console_init (int debug, int minor);
+-extern void usb_serial_console_exit (void);
++extern void usb_serial_console_init(int debug, int minor);
++extern void usb_serial_console_exit(void);
+ extern void usb_serial_console_disconnect(struct usb_serial *serial);
+ #else
+-static inline void usb_serial_console_init (int debug, int minor) { }
+-static inline void usb_serial_console_exit (void) { }
++static inline void usb_serial_console_init(int debug, int minor) { }
++static inline void usb_serial_console_exit(void) { }
+ static inline void usb_serial_console_disconnect(struct usb_serial *serial) {}
+ #endif
+ 
+ /* Functions needed by other parts of the usbserial core */
+-extern struct usb_serial *usb_serial_get_by_index (unsigned int minor);
++extern struct usb_serial *usb_serial_get_by_index(unsigned int minor);
+ extern void usb_serial_put(struct usb_serial *serial);
+-extern int usb_serial_generic_open (struct usb_serial_port *port, struct file *filp);
+-extern int usb_serial_generic_write (struct usb_serial_port *port, const unsigned char *buf, int count);
+-extern void usb_serial_generic_close (struct usb_serial_port *port, struct file *filp);
+-extern int usb_serial_generic_resume (struct usb_serial *serial);
+-extern int usb_serial_generic_write_room (struct usb_serial_port *port);
+-extern int usb_serial_generic_chars_in_buffer (struct usb_serial_port *port);
+-extern void usb_serial_generic_read_bulk_callback (struct urb *urb);
+-extern void usb_serial_generic_write_bulk_callback (struct urb *urb);
+-extern void usb_serial_generic_throttle (struct usb_serial_port *port);
+-extern void usb_serial_generic_unthrottle (struct usb_serial_port *port);
+-extern void usb_serial_generic_shutdown (struct usb_serial *serial);
+-extern int usb_serial_generic_register (int debug);
+-extern void usb_serial_generic_deregister (void);
++extern int usb_serial_generic_open(struct usb_serial_port *port,
++				   struct file *filp);
++extern int usb_serial_generic_write(struct usb_serial_port *port,
++				    const unsigned char *buf, int count);
++extern void usb_serial_generic_close(struct usb_serial_port *port,
++				     struct file *filp);
++extern int usb_serial_generic_resume(struct usb_serial *serial);
++extern int usb_serial_generic_write_room(struct usb_serial_port *port);
++extern int usb_serial_generic_chars_in_buffer(struct usb_serial_port *port);
++extern void usb_serial_generic_read_bulk_callback(struct urb *urb);
++extern void usb_serial_generic_write_bulk_callback(struct urb *urb);
++extern void usb_serial_generic_throttle(struct usb_serial_port *port);
++extern void usb_serial_generic_unthrottle(struct usb_serial_port *port);
++extern void usb_serial_generic_shutdown(struct usb_serial *serial);
++extern int usb_serial_generic_register(int debug);
++extern void usb_serial_generic_deregister(void);
+ 
+-extern int usb_serial_bus_register (struct usb_serial_driver *device);
+-extern void usb_serial_bus_deregister (struct usb_serial_driver *device);
++extern int usb_serial_bus_register(struct usb_serial_driver *device);
++extern void usb_serial_bus_deregister(struct usb_serial_driver *device);
+ 
+ extern struct usb_serial_driver usb_serial_generic_device;
+ extern struct bus_type usb_serial_bus_type;
+@@ -307,16 +321,22 @@
+ 	int i;
+ 
+ 	if (debug) {
+-		dev_printk(KERN_DEBUG, dev, "%s - length = %d, data = ", function, size);
++		dev_printk(KERN_DEBUG, dev, "%s - length = %d, data = ",
++			   function, size);
+ 		for (i = 0; i < size; ++i)
+-			printk ("%.2x ", data[i]);
+-		printk ("\n");
++			printk("%.2x ", data[i]);
++		printk("\n");
+ 	}
+ }
+ 
+ /* Use our own dbg macro */
+ #undef dbg
+-#define dbg(format, arg...) do { if (debug) printk(KERN_DEBUG "%s: " format "\n" , __FILE__ , ## arg); } while (0)
++#define dbg(format, arg...) \
++	do { \
++		if (debug) \
++			printk(KERN_DEBUG "%s: " format "\n" , __FILE__ , \
++				## arg); \
++	} while (0)
+ 
+ 
+ 
+diff -ruN linux-2.6.24.1/include/linux/usb/sl811.h linux-2.6.25.6/include/linux/usb/sl811.h
+--- linux-2.6.24.1/include/linux/usb/sl811.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/sl811.h	2008-06-09 11:27:19.000000000 -0700
+@@ -19,8 +19,8 @@
+ 	/* pulse sl811 nRST (probably with a GPIO) */
+ 	void		(*reset)(struct device *dev);
+ 
+-	// some boards need something like these:
+-	// int		(*check_overcurrent)(struct device *dev);
+-	// void		(*clock_enable)(struct device *dev, int is_on);
++	/* some boards need something like these: */
++	/* int		(*check_overcurrent)(struct device *dev); */
++	/* void		(*clock_enable)(struct device *dev, int is_on); */
+ };
+ 
+diff -ruN linux-2.6.24.1/include/linux/usb/usbnet.h linux-2.6.25.6/include/linux/usb/usbnet.h
+--- linux-2.6.24.1/include/linux/usb/usbnet.h	1969-12-31 16:00:00.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb/usbnet.h	2008-06-09 11:27:19.000000000 -0700
+@@ -0,0 +1,214 @@
++/*
++ * USB Networking Link Interface
++ *
++ * Copyright (C) 2000-2005 by David Brownell <dbrownell@users.sourceforge.net>
++ * Copyright (C) 2003-2005 David Hollis <dhollis@davehollis.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++
++#ifndef	__USBNET_H
++#define	__USBNET_H
++
++
++/* interface from usbnet core to each USB networking link we handle */
++struct usbnet {
++	/* housekeeping */
++	struct usb_device	*udev;
++	struct usb_interface	*intf;
++	struct driver_info	*driver_info;
++	const char		*driver_name;
++	void			*driver_priv;
++	wait_queue_head_t	*wait;
++	struct mutex		phy_mutex;
++	unsigned char		suspend_count;
++
++	/* i/o info: pipes etc */
++	unsigned		in, out;
++	struct usb_host_endpoint *status;
++	unsigned		maxpacket;
++	struct timer_list	delay;
++
++	/* protocol/interface state */
++	struct net_device	*net;
++	struct net_device_stats	stats;
++	int			msg_enable;
++	unsigned long		data [5];
++	u32			xid;
++	u32			hard_mtu;	/* count any extra framing */
++	size_t			rx_urb_size;	/* size for rx urbs */
++	struct mii_if_info	mii;
++
++	/* various kinds of pending driver work */
++	struct sk_buff_head	rxq;
++	struct sk_buff_head	txq;
++	struct sk_buff_head	done;
++	struct urb		*interrupt;
++	struct tasklet_struct	bh;
++
++	struct work_struct	kevent;
++	unsigned long		flags;
++#		define EVENT_TX_HALT	0
++#		define EVENT_RX_HALT	1
++#		define EVENT_RX_MEMORY	2
++#		define EVENT_STS_SPLIT	3
++#		define EVENT_LINK_RESET	4
++};
++
++static inline struct usb_driver *driver_of(struct usb_interface *intf)
++{
++	return to_usb_driver(intf->dev.driver);
++}
++
++/* interface from the device/framing level "minidriver" to core */
++struct driver_info {
++	char		*description;
++
++	int		flags;
++/* framing is CDC Ethernet, not writing ZLPs (hw issues), or optionally: */
++#define FLAG_FRAMING_NC	0x0001		/* guard against device dropouts */
++#define FLAG_FRAMING_GL	0x0002		/* genelink batches packets */
++#define FLAG_FRAMING_Z	0x0004		/* zaurus adds a trailer */
++#define FLAG_FRAMING_RN	0x0008		/* RNDIS batches, plus huge header */
++
++#define FLAG_NO_SETINT	0x0010		/* device can't set_interface() */
++#define FLAG_ETHER	0x0020		/* maybe use "eth%d" names */
++
++#define FLAG_FRAMING_AX 0x0040		/* AX88772/178 packets */
++#define FLAG_WLAN	0x0080		/* use "wlan%d" names */
++
++
++	/* init device ... can sleep, or cause probe() failure */
++	int	(*bind)(struct usbnet *, struct usb_interface *);
++
++	/* cleanup device ... can sleep, but can't fail */
++	void	(*unbind)(struct usbnet *, struct usb_interface *);
++
++	/* reset device ... can sleep */
++	int	(*reset)(struct usbnet *);
++
++	/* see if peer is connected ... can sleep */
++	int	(*check_connect)(struct usbnet *);
++
++	/* for status polling */
++	void	(*status)(struct usbnet *, struct urb *);
++
++	/* link reset handling, called from defer_kevent */
++	int	(*link_reset)(struct usbnet *);
++
++	/* fixup rx packet (strip framing) */
++	int	(*rx_fixup)(struct usbnet *dev, struct sk_buff *skb);
++
++	/* fixup tx packet (add framing) */
++	struct sk_buff	*(*tx_fixup)(struct usbnet *dev,
++				struct sk_buff *skb, gfp_t flags);
++
++	/* early initialization code, can sleep. This is for minidrivers
++	 * having 'subminidrivers' that need to do extra initialization
++	 * right after minidriver have initialized hardware. */
++	int	(*early_init)(struct usbnet *dev);
++
++	/* called by minidriver when link state changes, state: 0=disconnect,
++	 * 1=connect */
++	void	(*link_change)(struct usbnet *dev, int state);
++
++	/* for new devices, use the descriptor-reading code instead */
++	int		in;		/* rx endpoint */
++	int		out;		/* tx endpoint */
++
++	unsigned long	data;		/* Misc driver specific data */
++};
++
++/* Minidrivers are just drivers using the "usbnet" core as a powerful
++ * network-specific subroutine library ... that happens to do pretty
++ * much everything except custom framing and chip-specific stuff.
++ */
++extern int usbnet_probe(struct usb_interface *, const struct usb_device_id *);
++extern int usbnet_suspend (struct usb_interface *, pm_message_t );
++extern int usbnet_resume (struct usb_interface *);
++extern void usbnet_disconnect(struct usb_interface *);
++
++
++/* Drivers that reuse some of the standard USB CDC infrastructure
++ * (notably, using multiple interfaces according to the CDC
++ * union descriptor) get some helper code.
++ */
++struct cdc_state {
++	struct usb_cdc_header_desc	*header;
++	struct usb_cdc_union_desc	*u;
++	struct usb_cdc_ether_desc	*ether;
++	struct usb_interface		*control;
++	struct usb_interface		*data;
++};
++
++extern int usbnet_generic_cdc_bind (struct usbnet *, struct usb_interface *);
++extern void usbnet_cdc_unbind (struct usbnet *, struct usb_interface *);
++
++/* CDC and RNDIS support the same host-chosen packet filters for IN transfers */
++#define	DEFAULT_FILTER	(USB_CDC_PACKET_TYPE_BROADCAST \
++			|USB_CDC_PACKET_TYPE_ALL_MULTICAST \
++			|USB_CDC_PACKET_TYPE_PROMISCUOUS \
++			|USB_CDC_PACKET_TYPE_DIRECTED)
++
++
++/* we record the state for each of our queued skbs */
++enum skb_state {
++	illegal = 0,
++	tx_start, tx_done,
++	rx_start, rx_done, rx_cleanup
++};
++
++struct skb_data {	/* skb->cb is one of these */
++	struct urb		*urb;
++	struct usbnet		*dev;
++	enum skb_state		state;
++	size_t			length;
++};
++
++
++extern int usbnet_get_endpoints(struct usbnet *, struct usb_interface *);
++extern void usbnet_defer_kevent (struct usbnet *, int);
++extern void usbnet_skb_return (struct usbnet *, struct sk_buff *);
++extern void usbnet_unlink_rx_urbs(struct usbnet *);
++
++extern int usbnet_get_settings (struct net_device *net, struct ethtool_cmd *cmd);
++extern int usbnet_set_settings (struct net_device *net, struct ethtool_cmd *cmd);
++extern u32 usbnet_get_link (struct net_device *net);
++extern u32 usbnet_get_msglevel (struct net_device *);
++extern void usbnet_set_msglevel (struct net_device *, u32);
++extern void usbnet_get_drvinfo (struct net_device *, struct ethtool_drvinfo *);
++extern int usbnet_nway_reset(struct net_device *net);
++
++/* messaging support includes the interface name, so it must not be
++ * used before it has one ... notably, in minidriver bind() calls.
++ */
++#ifdef DEBUG
++#define devdbg(usbnet, fmt, arg...) \
++	printk(KERN_DEBUG "%s: " fmt "\n" , (usbnet)->net->name , ## arg)
++#else
++#define devdbg(usbnet, fmt, arg...) do {} while(0)
++#endif
++
++#define deverr(usbnet, fmt, arg...) \
++	printk(KERN_ERR "%s: " fmt "\n" , (usbnet)->net->name , ## arg)
++#define devwarn(usbnet, fmt, arg...) \
++	printk(KERN_WARNING "%s: " fmt "\n" , (usbnet)->net->name , ## arg)
++
++#define devinfo(usbnet, fmt, arg...) \
++	printk(KERN_INFO "%s: " fmt "\n" , (usbnet)->net->name , ## arg); \
++
++
++#endif	/* __USBNET_H */
+--- linux-2.6.24.1/include/linux/usbdevice_fs.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usbdevice_fs.h	2008-06-09 11:27:19.000000000 -0700
+@@ -104,7 +104,7 @@
+ 	int error_count;
+ 	unsigned int signr;	/* signal to be sent on completion,
+ 				  or 0 if none should be sent. */
+-	void *usercontext;
++	void __user *usercontext;
+ 	struct usbdevfs_iso_packet_desc iso_frame_desc[0];
+ };
+ 
+--- linux-2.6.24.1/include/linux/usb.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb.h	2008-06-09 11:27:19.000000000 -0700
+@@ -94,10 +94,9 @@
+  * @altsetting: array of interface structures, one for each alternate
+  * 	setting that may be selected.  Each one includes a set of
+  * 	endpoint configurations.  They will be in no particular order.
+- * @num_altsetting: number of altsettings defined.
+  * @cur_altsetting: the current altsetting.
++ * @num_altsetting: number of altsettings defined.
+  * @intf_assoc: interface association descriptor
+- * @driver: the USB driver that is bound to this interface.
+  * @minor: the minor number assigned to this interface, if this
+  *	interface is bound to a driver that uses the USB major number.
+  *	If this interface does not use the USB major, this field should
+@@ -162,19 +161,19 @@
+ 	unsigned needs_remote_wakeup:1;	/* driver requires remote wakeup */
+ 
+ 	struct device dev;		/* interface specific device info */
+-	struct device *usb_dev;		/* pointer to the usb class's device, if any */
++	struct device *usb_dev;
+ 	int pm_usage_cnt;		/* usage counter for autosuspend */
+ };
+ #define	to_usb_interface(d) container_of(d, struct usb_interface, dev)
+ #define	interface_to_usbdev(intf) \
+ 	container_of(intf->dev.parent, struct usb_device, dev)
+ 
+-static inline void *usb_get_intfdata (struct usb_interface *intf)
++static inline void *usb_get_intfdata(struct usb_interface *intf)
+ {
+-	return dev_get_drvdata (&intf->dev);
++	return dev_get_drvdata(&intf->dev);
+ }
+ 
+-static inline void usb_set_intfdata (struct usb_interface *intf, void *data)
++static inline void usb_set_intfdata(struct usb_interface *intf, void *data)
+ {
+ 	dev_set_drvdata(&intf->dev, data);
+ }
+@@ -275,9 +274,10 @@
+ 
+ int __usb_get_extra_descriptor(char *buffer, unsigned size,
+ 	unsigned char type, void **ptr);
+-#define usb_get_extra_descriptor(ifpoint,type,ptr)\
+-	__usb_get_extra_descriptor((ifpoint)->extra,(ifpoint)->extralen,\
+-		type,(void**)ptr)
++#define usb_get_extra_descriptor(ifpoint, type, ptr) \
++				__usb_get_extra_descriptor((ifpoint)->extra, \
++				(ifpoint)->extralen, \
++				type, (void **)ptr)
+ 
+ /* ----------------------------------------------------------------------- */
+ 
+@@ -318,7 +318,7 @@
+ #ifdef CONFIG_USB_DEVICEFS
+ 	struct dentry *usbfs_dentry;	/* usbfs dentry entry for the bus */
+ #endif
+-	struct class_device *class_dev;	/* class device for this bus */
++	struct device *dev;		/* device for this bus */
+ 
+ #if defined(CONFIG_USB_MON)
+ 	struct mon_bus *mon_bus;	/* non-null when associated */
+@@ -388,7 +388,7 @@
+ 	unsigned can_submit:1;		/* URBs may be submitted */
+ 	unsigned discon_suspended:1;	/* Disconnected while suspended */
+ 	unsigned have_langid:1;		/* whether string_langid is valid */
+-	unsigned authorized:1;		/* Policy has determined we can use it */
++	unsigned authorized:1;		/* Policy has said we can use it */
+ 	unsigned wusb:1;		/* Device is Wireless USB */
+ 	int string_langid;		/* language ID for strings */
+ 
+@@ -417,7 +417,10 @@
+ 
+ 	int pm_usage_cnt;		/* usage counter for autosuspend */
+ 	u32 quirks;			/* quirks of the whole device */
+-	atomic_t urbnum;		/* number of URBs submitted for the whole device */
++	atomic_t urbnum;		/* number of URBs submitted for
++					   the whole device */
++
++	unsigned long active_duration;	/* total time device is not suspended */
+ 
+ #ifdef CONFIG_PM
+ 	struct delayed_work autosuspend; /* for delayed autosuspends */
+@@ -425,6 +428,7 @@
+ 
+ 	unsigned long last_busy;	/* time of last use */
+ 	int autosuspend_delay;		/* in jiffies */
++	unsigned long connect_time;	/* time device was first connected */
+ 
+ 	unsigned auto_pm:1;		/* autosuspend/resume in progress */
+ 	unsigned do_remote_wakeup:1;	/* remote wakeup should be enabled */
+@@ -498,11 +502,11 @@
+ /*-------------------------------------------------------------------------*/
+ 
+ /* for drivers using iso endpoints */
+-extern int usb_get_current_frame_number (struct usb_device *usb_dev);
++extern int usb_get_current_frame_number(struct usb_device *usb_dev);
+ 
+ /* used these for multi-interface device registration */
+ extern int usb_driver_claim_interface(struct usb_driver *driver,
+-			struct usb_interface *iface, void* priv);
++			struct usb_interface *iface, void *priv);
+ 
+ /**
+  * usb_interface_claimed - returns true iff an interface is claimed
+@@ -514,7 +518,8 @@
+  * may need to explicitly claim that lock.
+  *
+  */
+-static inline int usb_interface_claimed(struct usb_interface *iface) {
++static inline int usb_interface_claimed(struct usb_interface *iface)
++{
+ 	return (iface->dev.driver != NULL);
+ }
+ 
+@@ -557,12 +562,11 @@
+  * USB 2.0 root hubs (EHCI host controllers) will get one path ID if they are
+  * high speed, and a different one if they are full or low speed.
+  */
+-static inline int usb_make_path (struct usb_device *dev, char *buf,
+-		size_t size)
++static inline int usb_make_path(struct usb_device *dev, char *buf, size_t size)
+ {
+ 	int actual;
+-	actual = snprintf (buf, size, "usb-%s-%s", dev->bus->bus_name,
+-			dev->devpath);
++	actual = snprintf(buf, size, "usb-%s-%s", dev->bus->bus_name,
++			  dev->devpath);
+ 	return (actual >= (int)size) ? -1 : actual;
+ }
+ 
+@@ -608,7 +612,8 @@
+  *
+  * Returns true if the endpoint is of type OUT, otherwise it returns false.
+  */
+-static inline int usb_endpoint_dir_out(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_dir_out(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return ((epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_OUT);
+ }
+@@ -619,7 +624,8 @@
+  *
+  * Returns true if the endpoint is of type bulk, otherwise it returns false.
+  */
+-static inline int usb_endpoint_xfer_bulk(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_xfer_bulk(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+ 		USB_ENDPOINT_XFER_BULK);
+@@ -631,7 +637,8 @@
+  *
+  * Returns true if the endpoint is of type control, otherwise it returns false.
+  */
+-static inline int usb_endpoint_xfer_control(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_xfer_control(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+ 		USB_ENDPOINT_XFER_CONTROL);
+@@ -644,7 +651,8 @@
+  * Returns true if the endpoint is of type interrupt, otherwise it returns
+  * false.
+  */
+-static inline int usb_endpoint_xfer_int(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_xfer_int(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+ 		USB_ENDPOINT_XFER_INT);
+@@ -657,7 +665,8 @@
+  * Returns true if the endpoint is of type isochronous, otherwise it returns
+  * false.
+  */
+-static inline int usb_endpoint_xfer_isoc(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_xfer_isoc(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+ 		USB_ENDPOINT_XFER_ISOC);
+@@ -670,7 +679,8 @@
+  * Returns true if the endpoint has bulk transfer type and IN direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_bulk_in(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_bulk_in(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_bulk(epd) && usb_endpoint_dir_in(epd));
+ }
+@@ -682,7 +692,8 @@
+  * Returns true if the endpoint has bulk transfer type and OUT direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_bulk_out(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_bulk_out(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_bulk(epd) && usb_endpoint_dir_out(epd));
+ }
+@@ -694,7 +705,8 @@
+  * Returns true if the endpoint has interrupt transfer type and IN direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_int_in(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_int_in(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_int(epd) && usb_endpoint_dir_in(epd));
+ }
+@@ -706,7 +718,8 @@
+  * Returns true if the endpoint has interrupt transfer type and OUT direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_int_out(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_int_out(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_int(epd) && usb_endpoint_dir_out(epd));
+ }
+@@ -718,7 +731,8 @@
+  * Returns true if the endpoint has isochronous transfer type and IN direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_isoc_in(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_isoc_in(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_isoc(epd) && usb_endpoint_dir_in(epd));
+ }
+@@ -730,7 +744,8 @@
+  * Returns true if the endpoint has isochronous transfer type and OUT direction,
+  * otherwise it returns false.
+  */
+-static inline int usb_endpoint_is_isoc_out(const struct usb_endpoint_descriptor *epd)
++static inline int usb_endpoint_is_isoc_out(
++				const struct usb_endpoint_descriptor *epd)
+ {
+ 	return (usb_endpoint_xfer_isoc(epd) && usb_endpoint_dir_out(epd));
+ }
+@@ -761,11 +776,11 @@
+  * specific device.
+  */
+ #define USB_DEVICE(vend,prod) \
+-	.match_flags = USB_DEVICE_ID_MATCH_DEVICE, .idVendor = (vend), \
+-			.idProduct = (prod)
++	.match_flags = USB_DEVICE_ID_MATCH_DEVICE, \
++	.idVendor = (vend), \
++	.idProduct = (prod)
+ /**
+- * USB_DEVICE_VER - macro used to describe a specific usb device with a
+- *		version range
++ * USB_DEVICE_VER - describe a specific usb device with a version range
+  * @vend: the 16 bit USB Vendor ID
+  * @prod: the 16 bit USB Product ID
+  * @lo: the bcdDevice_lo value
+@@ -774,14 +789,15 @@
+  * This macro is used to create a struct usb_device_id that matches a
+  * specific device, with a version range.
+  */
+-#define USB_DEVICE_VER(vend,prod,lo,hi) \
++#define USB_DEVICE_VER(vend, prod, lo, hi) \
+ 	.match_flags = USB_DEVICE_ID_MATCH_DEVICE_AND_VERSION, \
+-	.idVendor = (vend), .idProduct = (prod), \
+-	.bcdDevice_lo = (lo), .bcdDevice_hi = (hi)
++	.idVendor = (vend), \
++	.idProduct = (prod), \
++	.bcdDevice_lo = (lo), \
++	.bcdDevice_hi = (hi)
+ 
+ /**
+- * USB_DEVICE_INTERFACE_PROTOCOL - macro used to describe a usb
+- *		device with a specific interface protocol
++ * USB_DEVICE_INTERFACE_PROTOCOL - describe a usb device with a specific interface protocol
+  * @vend: the 16 bit USB Vendor ID
+  * @prod: the 16 bit USB Product ID
+  * @pr: bInterfaceProtocol value
+@@ -789,8 +805,9 @@
+  * This macro is used to create a struct usb_device_id that matches a
+  * specific interface protocol of devices.
+  */
+-#define USB_DEVICE_INTERFACE_PROTOCOL(vend,prod,pr) \
+-	.match_flags = USB_DEVICE_ID_MATCH_DEVICE | USB_DEVICE_ID_MATCH_INT_PROTOCOL, \
++#define USB_DEVICE_INTERFACE_PROTOCOL(vend, prod, pr) \
++	.match_flags = USB_DEVICE_ID_MATCH_DEVICE | \
++		       USB_DEVICE_ID_MATCH_INT_PROTOCOL, \
+ 	.idVendor = (vend), \
+ 	.idProduct = (prod), \
+ 	.bInterfaceProtocol = (pr)
+@@ -804,12 +821,14 @@
+  * This macro is used to create a struct usb_device_id that matches a
+  * specific class of devices.
+  */
+-#define USB_DEVICE_INFO(cl,sc,pr) \
+-	.match_flags = USB_DEVICE_ID_MATCH_DEV_INFO, .bDeviceClass = (cl), \
+-	.bDeviceSubClass = (sc), .bDeviceProtocol = (pr)
++#define USB_DEVICE_INFO(cl, sc, pr) \
++	.match_flags = USB_DEVICE_ID_MATCH_DEV_INFO, \
++	.bDeviceClass = (cl), \
++	.bDeviceSubClass = (sc), \
++	.bDeviceProtocol = (pr)
+ 
+ /**
+- * USB_INTERFACE_INFO - macro used to describe a class of usb interfaces 
++ * USB_INTERFACE_INFO - macro used to describe a class of usb interfaces
+  * @cl: bInterfaceClass value
+  * @sc: bInterfaceSubClass value
+  * @pr: bInterfaceProtocol value
+@@ -817,13 +836,14 @@
+  * This macro is used to create a struct usb_device_id that matches a
+  * specific class of interfaces.
+  */
+-#define USB_INTERFACE_INFO(cl,sc,pr) \
+-	.match_flags = USB_DEVICE_ID_MATCH_INT_INFO, .bInterfaceClass = (cl), \
+-	.bInterfaceSubClass = (sc), .bInterfaceProtocol = (pr)
++#define USB_INTERFACE_INFO(cl, sc, pr) \
++	.match_flags = USB_DEVICE_ID_MATCH_INT_INFO, \
++	.bInterfaceClass = (cl), \
++	.bInterfaceSubClass = (sc), \
++	.bInterfaceProtocol = (pr)
+ 
+ /**
+- * USB_DEVICE_AND_INTERFACE_INFO - macro used to describe a specific usb device
+- * 		with a class of usb interfaces
++ * USB_DEVICE_AND_INTERFACE_INFO - describe a specific usb device with a class of usb interfaces
+  * @vend: the 16 bit USB Vendor ID
+  * @prod: the 16 bit USB Product ID
+  * @cl: bInterfaceClass value
+@@ -836,12 +856,14 @@
+  * This is especially useful when explicitly matching devices that have
+  * vendor specific bDeviceClass values, but standards-compliant interfaces.
+  */
+-#define USB_DEVICE_AND_INTERFACE_INFO(vend,prod,cl,sc,pr) \
++#define USB_DEVICE_AND_INTERFACE_INFO(vend, prod, cl, sc, pr) \
+ 	.match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
+ 		| USB_DEVICE_ID_MATCH_DEVICE, \
+-	.idVendor = (vend), .idProduct = (prod), \
++	.idVendor = (vend), \
++	.idProduct = (prod), \
+ 	.bInterfaceClass = (cl), \
+-	.bInterfaceSubClass = (sc), .bInterfaceProtocol = (pr)
++	.bInterfaceSubClass = (sc), \
++	.bInterfaceProtocol = (pr)
+ 
+ /* ----------------------------------------------------------------------- */
+ 
+@@ -1119,7 +1141,7 @@
+  *	transferred.  It will normally be the same as requested, unless
+  *	either an error was reported or a short read was performed.
+  *	The URB_SHORT_NOT_OK transfer flag may be used to make such
+- *	short reads be reported as errors. 
++ *	short reads be reported as errors.
+  * @setup_packet: Only used for control transfers, this points to eight bytes
+  *	of setup data.  Control transfers always start by sending this data
+  *	to the device.  Then transfer_buffer is read or written, if needed.
+@@ -1138,7 +1160,7 @@
+  * @complete: Completion handler. This URB is passed as the parameter to the
+  *	completion function.  The completion function may then do what
+  *	it likes with the URB, including resubmitting or freeing it.
+- * @iso_frame_desc: Used to provide arrays of ISO transfer buffers and to 
++ * @iso_frame_desc: Used to provide arrays of ISO transfer buffers and to
+  *	collect the transfer status for each buffer.
+  *
+  * This structure identifies USB transfer requests.  URBs must be allocated by
+@@ -1242,8 +1264,7 @@
+  * when the urb is owned by the hcd, that is, since the call to
+  * usb_submit_urb() till the entry into the completion routine.
+  */
+-struct urb
+-{
++struct urb {
+ 	/* private: usb core and host controller only fields in the urb */
+ 	struct kref kref;		/* reference count of the URB */
+ 	void *hcpriv;			/* private data for host controller */
+@@ -1254,10 +1275,10 @@
+ 	/* public: documented fields in the urb that can be used by drivers */
+ 	struct list_head urb_list;	/* list head for use by the urb's
+ 					 * current owner */
+-	struct list_head anchor_list;	/* the URB may be anchored by the driver */
++	struct list_head anchor_list;	/* the URB may be anchored */
+ 	struct usb_anchor *anchor;
+ 	struct usb_device *dev; 	/* (in) pointer to associated device */
+-	struct usb_host_endpoint *ep;	/* (internal) pointer to endpoint struct */
++	struct usb_host_endpoint *ep;	/* (internal) pointer to endpoint */
+ 	unsigned int pipe;		/* (in) pipe information */
+ 	int status;			/* (return) non-ISO status */
+ 	unsigned int transfer_flags;	/* (in) URB_SHORT_NOT_OK | ...*/
+@@ -1294,14 +1315,14 @@
+  * Initializes a control urb with the proper information needed to submit
+  * it to a device.
+  */
+-static inline void usb_fill_control_urb (struct urb *urb,
+-					 struct usb_device *dev,
+-					 unsigned int pipe,
+-					 unsigned char *setup_packet,
+-					 void *transfer_buffer,
+-					 int buffer_length,
+-					 usb_complete_t complete_fn,
+-					 void *context)
++static inline void usb_fill_control_urb(struct urb *urb,
++					struct usb_device *dev,
++					unsigned int pipe,
++					unsigned char *setup_packet,
++					void *transfer_buffer,
++					int buffer_length,
++					usb_complete_t complete_fn,
++					void *context)
+ {
+ 	urb->dev = dev;
+ 	urb->pipe = pipe;
+@@ -1325,13 +1346,13 @@
+  * Initializes a bulk urb with the proper information needed to submit it
+  * to a device.
+  */
+-static inline void usb_fill_bulk_urb (struct urb *urb,
+-				      struct usb_device *dev,
+-				      unsigned int pipe,
+-				      void *transfer_buffer,
+-				      int buffer_length,
+-				      usb_complete_t complete_fn,
+-				      void *context)
++static inline void usb_fill_bulk_urb(struct urb *urb,
++				     struct usb_device *dev,
++				     unsigned int pipe,
++				     void *transfer_buffer,
++				     int buffer_length,
++				     usb_complete_t complete_fn,
++				     void *context)
+ {
+ 	urb->dev = dev;
+ 	urb->pipe = pipe;
+@@ -1359,14 +1380,14 @@
+  * the endpoint interval, and express polling intervals in microframes
+  * (eight per millisecond) rather than in frames (one per millisecond).
+  */
+-static inline void usb_fill_int_urb (struct urb *urb,
+-				     struct usb_device *dev,
+-				     unsigned int pipe,
+-				     void *transfer_buffer,
+-				     int buffer_length,
+-				     usb_complete_t complete_fn,
+-				     void *context,
+-				     int interval)
++static inline void usb_fill_int_urb(struct urb *urb,
++				    struct usb_device *dev,
++				    unsigned int pipe,
++				    void *transfer_buffer,
++				    int buffer_length,
++				    usb_complete_t complete_fn,
++				    void *context,
++				    int interval)
+ {
+ 	urb->dev = dev;
+ 	urb->pipe = pipe;
+@@ -1419,15 +1440,15 @@
+ 	return (urb->transfer_flags & URB_DIR_MASK) == URB_DIR_OUT;
+ }
+ 
+-void *usb_buffer_alloc (struct usb_device *dev, size_t size,
++void *usb_buffer_alloc(struct usb_device *dev, size_t size,
+ 	gfp_t mem_flags, dma_addr_t *dma);
+-void usb_buffer_free (struct usb_device *dev, size_t size,
++void usb_buffer_free(struct usb_device *dev, size_t size,
+ 	void *addr, dma_addr_t dma);
+ 
+ #if 0
+-struct urb *usb_buffer_map (struct urb *urb);
+-void usb_buffer_dmasync (struct urb *urb);
+-void usb_buffer_unmap (struct urb *urb);
++struct urb *usb_buffer_map(struct urb *urb);
++void usb_buffer_dmasync(struct urb *urb);
++void usb_buffer_unmap(struct urb *urb);
+ #endif
+ 
+ struct scatterlist;
+@@ -1499,7 +1520,7 @@
+ 	int			status;
+ 	size_t			bytes;
+ 
+-	/* 
++	/*
+ 	 * members below are private: to usbcore,
+ 	 * and are not provided for driver access!
+ 	 */
+@@ -1517,18 +1538,18 @@
+ 	struct completion	complete;
+ };
+ 
+-int usb_sg_init (
++int usb_sg_init(
+ 	struct usb_sg_request	*io,
+ 	struct usb_device	*dev,
+-	unsigned		pipe, 
++	unsigned		pipe,
+ 	unsigned		period,
+ 	struct scatterlist	*sg,
+ 	int			nents,
+ 	size_t			length,
+ 	gfp_t			mem_flags
+ );
+-void usb_sg_cancel (struct usb_sg_request *io);
+-void usb_sg_wait (struct usb_sg_request *io);
++void usb_sg_cancel(struct usb_sg_request *io);
++void usb_sg_wait(struct usb_sg_request *io);
+ 
+ 
+ /* ----------------------------------------------------------------------- */
+@@ -1585,21 +1606,21 @@
+ 
+ /* Create various pipes... */
+ #define usb_sndctrlpipe(dev,endpoint)	\
+-	((PIPE_CONTROL << 30) | __create_pipe(dev,endpoint))
++	((PIPE_CONTROL << 30) | __create_pipe(dev, endpoint))
+ #define usb_rcvctrlpipe(dev,endpoint)	\
+-	((PIPE_CONTROL << 30) | __create_pipe(dev,endpoint) | USB_DIR_IN)
++	((PIPE_CONTROL << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+ #define usb_sndisocpipe(dev,endpoint)	\
+-	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev,endpoint))
++	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev, endpoint))
+ #define usb_rcvisocpipe(dev,endpoint)	\
+-	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev,endpoint) | USB_DIR_IN)
++	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+ #define usb_sndbulkpipe(dev,endpoint)	\
+-	((PIPE_BULK << 30) | __create_pipe(dev,endpoint))
++	((PIPE_BULK << 30) | __create_pipe(dev, endpoint))
+ #define usb_rcvbulkpipe(dev,endpoint)	\
+-	((PIPE_BULK << 30) | __create_pipe(dev,endpoint) | USB_DIR_IN)
++	((PIPE_BULK << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+ #define usb_sndintpipe(dev,endpoint)	\
+-	((PIPE_INTERRUPT << 30) | __create_pipe(dev,endpoint))
++	((PIPE_INTERRUPT << 30) | __create_pipe(dev, endpoint))
+ #define usb_rcvintpipe(dev,endpoint)	\
+-	((PIPE_INTERRUPT << 30) | __create_pipe(dev,endpoint) | USB_DIR_IN)
++	((PIPE_INTERRUPT << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+ 
+ /*-------------------------------------------------------------------------*/
+ 
+--- linux-2.6.24.1/include/linux/usb_usual.h	2008-02-08 11:55:30.000000000 -0800
++++ linux-2.6.25.6/include/linux/usb_usual.h	2008-06-09 11:27:19.000000000 -0700
+@@ -50,7 +50,9 @@
+ 	US_FLAG(CAPACITY_HEURISTICS,	0x00001000)		\
+ 		/* sometimes sizes is too big */		\
+ 	US_FLAG(MAX_SECTORS_MIN,0x00002000)			\
+-		/* Sets max_sectors to arch min */
++		/* Sets max_sectors to arch min */		\
++	US_FLAG(BULK_IGNORE_TAG,0x00004000)			\
++		/* Ignore tag mismatch in bulk operations */
+ 
+ 
+ #define US_FLAG(name, value)	US_FL_##name = value ,
+@@ -80,10 +82,9 @@
+ #define US_SC_UFI	0x04		/* Floppy */
+ #define US_SC_8070	0x05		/* Removable media */
+ #define US_SC_SCSI	0x06		/* Transparent */
+-#define US_SC_ISD200    0x07		/* ISD200 ATA */
+-#define US_SC_MIN	US_SC_RBC
+-#define US_SC_MAX	US_SC_ISD200
++#define US_SC_LOCKABLE	0x07		/* Password-protected */
+ 
++#define US_SC_ISD200    0xf0		/* ISD200 ATA */
+ #define US_SC_DEVICE	0xff		/* Use device's value */
+ 
+ /* Protocols */

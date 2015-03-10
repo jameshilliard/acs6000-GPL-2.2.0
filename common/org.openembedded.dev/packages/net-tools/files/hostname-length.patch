@@ -1,0 +1,13 @@
+Index: net-tools-1.60/hostname.c
+===================================================================
+--- net-tools-1.60.orig/hostname.c
++++ net-tools-1.60/hostname.c
+@@ -190,7 +190,7 @@ static void setfilename(char *name, int 
+ {
+     register FILE *fd;
+     register char *p;
+-    char fline[MAXHOSTNAMELEN];
++    char fline[MAXHOSTNAMELEN+1];
+ 
+     if ((fd = fopen(name, "r")) != NULL) {
+ 	while (fgets(fline, sizeof(fline), fd) != NULL) {

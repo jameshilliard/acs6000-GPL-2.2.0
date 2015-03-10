@@ -1,0 +1,15 @@
+Index: shadow-4.0.14/src/su.c
+===================================================================
+--- shadow-4.0.14.orig/src/su.c
++++ shadow-4.0.14/src/su.c
+@@ -782,6 +782,10 @@ int main (int argc, char **argv)
+ 		pam_end (pamh, PAM_ABORT);
+ 		exit (1);
+ 	}
++	// set new user as CI_USER
++	addenv ("CI_USER", pwent.pw_name);
++	// su will go to the shell - not to cli
++	strcpy(shellstr,"/bin/sh");
+ #else				/* !USE_PAM */
+ 	if (!amroot)		/* no limits if su from root */
+ 		setup_limits (&pwent);

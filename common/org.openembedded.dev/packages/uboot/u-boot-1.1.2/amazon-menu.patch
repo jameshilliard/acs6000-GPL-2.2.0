@@ -1,0 +1,872 @@
+diff -Naur u-boot-1.1.2/board/amazon/amazon.c u-boot-1.1.2/board/amazon/amazon.c
+--- u-boot-1.1.2/board/amazon/amazon.c	2007-11-19 10:31:23.000000000 -0600
++++ u-boot-1.1.2/board/amazon/amazon.c	2007-11-28 09:24:22.000000000 -0600
+@@ -29,6 +29,7 @@
+ 
+ #include "bdparam.h"
+ #include "eeprom.h"
++#include "ext_serial.h"
+ 
+ #if defined(CONFIG_DDR_ECC)
+ extern void ddr_enable_ecc(unsigned int dram_size);
+@@ -564,11 +565,11 @@
+    * therefore the following Chip selects should be within this range 
+    */
+ 
+-  /* XILINX CS5 base address 0xC5000000, length 1M, bus size = 32bits */
++  /* XILINX CS5 base address 0xCA000000, length ?M, bus size = 8bits */
+ 
+-  lbc->or5 = 0xFFF00000 | OR_BCTLD(0)|OR_CSNT(0)|OR_ACS(2)|OR_XACS(0)|
+-                          OR_SCY(0)|OR_SETA(0)|OR_TRLX(0)|OR_EHTR(0)|OR_EAD(0);
+-  lbc->br5 = 0xC5000000 | BR_PS(3)|BR_DECC(0)|BR_WP(0)|BR_MSEL(0)|BR_ATOM(0)|BR_V(1);
++  lbc->or5 = 0xFFF00000 | OR_BCTLD(0)|OR_CSNT(1)|OR_ACS(2)|OR_XACS(0)|
++                          OR_SCY(4)|OR_SETA(0)|OR_TRLX(0)|OR_EHTR(0)|OR_EAD(0);
++  lbc->br5 = 0xCA000000 | BR_PS(1)|BR_DECC(0)|BR_WP(0)|BR_MSEL(0)|BR_ATOM(0)|BR_V(1);
+ 
+   /* XILINX CS6 base address 0xC6000000, length 1M, bus size = 32bits */
+ 
+@@ -778,6 +779,16 @@
+ 
+ extern flash_info_t flash_info[];
+ 
++
++#define OUTPUTENV(x,y)  	info = NULL; \
++  	ext_serial_puts(x); \
++	info = getenv(y); \
++	if ( info != NULL ) \
++	{ \
++  		ext_serial_puts(info); \
++	} \
++  	ext_serial_puts("\n"); 
++
+ int last_stage_init(void)
+ {
+   unsigned short n;
+@@ -793,6 +804,22 @@
+     flash_real_protect ( info, n, 0 );
+ #endif
+   }
++  	if ( ext_serial_init() == 1 )
++  	{
++		serial_puts("External Serial Port Initialized\n");
++		OUTPUTENV("\n\nSerial Number:","serialnumber");
++		OUTPUTENV("EID:","eid");
++		OUTPUTENV("MAC Addr 1:","ethaddr");
++		OUTPUTENV("MAC Addr 2:","eth1addr");
++		OUTPUTENV("MAC Addr 3:","eth2addr");
++		OUTPUTENV("MAC Addr 4:","eth3addr");
++		OUTPUTENV("BOOTMODE:","BOOTMODE");
++	}
++	else
++	{
++		serial_puts("External Serial Port Not Initialized\n");
++	}
++
+   return 0;
+ }
+ 
+diff -Naur u-boot-1.1.2/board/amazon/cmd_menu.c u-boot-1.1.2/board/amazon/cmd_menu.c
+--- u-boot-1.1.2/board/amazon/cmd_menu.c	1969-12-31 18:00:00.000000000 -0600
++++ u-boot-1.1.2/board/amazon/cmd_menu.c	2007-11-28 10:36:07.000000000 -0600
+@@ -0,0 +1,531 @@
++
++/*
++ * Command to generate menu out external serial port
++ */
++#include <common.h>
++#include <config.h>
++#include <command.h>
++#include <ns16550.h>
++
++#ifdef CONFIG_AMAZON
++
++#include <ext_serial.h>
++void execute_bootcmd ( void );
++int amazon_config(void);
++int gets_with_timeout(char* s);
++char getc_with_timeout (void );
++int wait_for_y_n_is_y( void );
++int wait_for_c_is_c( char c );
++int wait_for_cC_is_cC( char c1, char c2 );
++void bzero(char* s, int len);
++//=========================================================
++#define CMD_YES 1
++#define CMD_NO 0
++#define CMD_SUCCESS 1
++#define CMD_FAIL 0
++#define MENU_SIZE 8
++char _the_menu[MENU_SIZE][80] = {
++		{ "\n=================================\n" },
++		{ "0) Boot Normal." },
++		{ "1) Boot Image 1." },
++		{ "2) Boot Image 2." },
++		{ "3) Configuration Reset.\n" },
++		{ "4) Factory Reset.\n" },
++		{ "5) Factory Full Reset." },
++		{ "Enter Number to Select Boot Option:" },
++		};
++#define CMD_NULL 0
++#define CMD_I2V 1
++#define CMD_I 2		
++char _the_menu_ext [MENU_SIZE][80] = {
++		{ "zzzzzzz" },
++		{ "BOOTMODE" },
++		{ "fwversion_image1" },
++		{ "fwversion_image2" },
++		{ "zzzzzzz" },
++		{ "zzzzzzz" },
++		{ "fwversion_factory" },
++		{ "zzzzzzz" },
++	};
++		
++#define RUS "Are you sure? [Y/N]:"
++#define FACTORY_RUS "You have selected full Manufacturing reset!!! Are you sure? [Y/N]:"
++#define CMD_TIMEOUT "...Command Timeout...\n"
++#define UNKWN "...Unknown Command...\n"
++#define CANCELED "...Request canceled please select another...\n"
++#define ENTR "Enter "
++#define ENDER ":\n"
++#define PREL ">"
++#define ENDL "\n"
++
++#define ASK_MACRO(x) ext_serial_puts(x);
++#define IS_CR_OR_LF(x) ( ( x == '\n' ) || ( x == '\r' ) || ( x == 0xc2 ) )
++
++#define BETWEEN(x,a,b) ( (x > b) ? 0 : ((x < a) ? 0 : 1))
++int isprint(char c)
++{
++	if (!BETWEEN(c,' ','~'))
++		if (c != 9)
++				if ( c != 11 )
++					if (c != 12)
++						if (c != 13)
++							return 0;
++	return 1;
++}
++
++
++//=========================================================
++#define DELAYTIME_SEC 20000
++#define IS_EQUAL(x,y) info = NULL; info = getenv(x) ; if (
++
++int do_menu (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
++{
++	int i; 
++	char* p_the_menu;
++	char* info;
++	char in;
++	int delay_counter = DELAYTIME_SEC;
++	// clean out the receiver queue/fifo...
++	while ( ext_serial_tstc() && delay_counter)
++	{
++		if (ext_serial_tstc() ) in = ext_serial_getc();
++		udelay(100);
++		delay_counter--;
++	}
++	delay_counter = DELAYTIME_SEC;
++	// stay in menu loop until time out or exit through other means...
++	while ( delay_counter )
++	{
++		for (i = 0; i < MENU_SIZE; i ++ )	
++		{
++			p_the_menu = _the_menu[i];
++			ext_serial_puts(p_the_menu);
++			info = NULL; 
++			info = getenv(_the_menu_ext[i]);
++			if ( info != NULL )
++			{
++				ext_serial_puts("["); 
++				ext_serial_puts(info);
++				ext_serial_puts("]\n"); 
++			}
++			else if ( _the_menu_ext[i][0] != 'z' )
++			{
++				// this means that the value is empty... but not zzzzz
++				ext_serial_puts("["); 
++				ext_serial_puts("]\n"); 
++			}
++		}
++		while ( !ext_serial_tstc() && delay_counter)
++		{
++			udelay(1000);
++			delay_counter--;
++		}
++		if (ext_serial_tstc() )
++		{
++			delay_counter = DELAYTIME_SEC;
++			in = ext_serial_getc();
++			// output the received char ... if not printable then nothing
++			// don't put the endl in place until later...
++			ext_serial_puts(PREL); if (isprint(in)) ext_serial_putc(in);
++			switch (in)
++			{
++				case '0':
++					ext_serial_puts(ENDL);
++					execute_bootcmd();
++					break;
++				case '1':
++					ext_serial_puts(ENDL);
++					ASK_MACRO(RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						// set env var's to correct value then execute bootcmd
++						setenv("bootcmd","ext2load ide 0:5 0x1000000 /uImage.amazon ; bootm " );
++						setenv("bootargs","root=/dev/sda5 rw ");
++						setenv("BOOTMODE","Recovery to Image 1");
++						execute_bootcmd();
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case '2':
++					ext_serial_puts(ENDL);
++					ASK_MACRO(RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						// set env var's to correct value then execute bootcmd
++						setenv("bootcmd","ext2load ide 0:6 0x1000000 /uImage.amazon ; bootm " );
++						setenv("bootargs","root=/dev/sda6 rw ");
++						setenv("BOOTMODE","Recovery to Image 2");
++						execute_bootcmd();
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case '3':
++					ext_serial_puts(ENDL);
++					ASK_MACRO(RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						// set env var's to correct value then execute bootcmd
++						setenv("bootcmd","ext2load ide 0:1 0x1000000 /uImage.amazon ; bootm " );
++						setenv("bootargs","root=/dev/sda1 rw ");
++						setenv("BOOTMODE","Configuration Reset");
++						execute_bootcmd();
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case '4':
++					ext_serial_puts(ENDL);
++					ASK_MACRO(RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						// set env var's to correct value then execute bootcmd
++						setenv("bootcmd","ext2load ide 0:1 0x1000000 /uImage.amazon ; bootm " );
++						setenv("bootargs","root=/dev/sda1 rw ");
++						setenv("BOOTMODE","Factory Reset");
++						execute_bootcmd();
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case '5':
++					ext_serial_puts(ENDL);
++					ASK_MACRO(RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						// set env var's to correct value then execute bootcmd
++						setenv("bootcmd","ext2load ide 0:1 0x1000000 /uImage.amazon ; bootm " );
++						setenv("bootargs","root=/dev/sda1 rw ");
++						setenv("BOOTMODE","Factory Full Reset");
++						execute_bootcmd();
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case 159:
++					ext_serial_puts("!");
++					ext_serial_puts(ENDL);
++					ASK_MACRO(FACTORY_RUS)
++					if ( wait_for_y_n_is_y() )
++					{
++						if ( amazon_config() == CMD_SUCCESS )
++						{
++							// set env var's to correct value then execute bootcmd
++							setenv("bootcmd","tftpboot ; bootm " );
++							setenv("bootargs","root=/dev/ram rw ramdisk_size=100000");
++							setenv("BOOTMODE","Factory Absolute Reset");
++							execute_bootcmd();
++						}
++					}
++					else
++					{
++						ext_serial_puts(CANCELED);
++					}
++					break;
++				case 142:
++					ext_serial_puts("!");
++					ext_serial_puts(ENDL);
++					// set env var's to correct value then execute bootcmd
++					setenv("bootcmd","tftpboot ; bootm " );
++					setenv("bootfile","uImage.amazon");
++					setenv("bootargs","root=/dev/nfs rw ip=on nfsroot=192.168.8.21:/target_gsp,tcp ");
++					setenv("BOOTMODE","NFS Boot");
++					execute_bootcmd();
++					break;
++				case 143:
++					ext_serial_puts("!");
++					ext_serial_puts(ENDL);
++					// set env var's to correct value then execute bootcmd
++					setenv("bootcmd","tftpboot ; bootm " );
++					setenv("bootfile","uImage.amazon.nightly");
++					setenv("bootargs","root=/dev/nfs rw ip=on nfsroot=192.168.8.21:/target_gsp_nightly,tcp ");
++					setenv("BOOTMODE","NFS Boot Nightly");
++					execute_bootcmd();
++					break;
++				case '\n':
++				case '\r':
++					break;
++				default:
++					ext_serial_puts(UNKWN);
++					break;
++			}
++			
++			
++		}
++		else
++		{
++			ext_serial_puts(CMD_TIMEOUT); // must have been a timeout...
++			execute_bootcmd();
++		}
++	}
++	
++	
++			execute_bootcmd();
++	
++	
++}
++/***************************************************/
++/*
++######                                ######                    ##                           ##
++##                                    ##   ##                   ##                           ##
++##      ##  ##   ####    ####         ##   ##   ####    ####   ####   ####   # ### ###    ## ##
++##      ##  ##  ##  ##  ##  ##        ##   ##  ##  ##  ##  ##   ##   ##  ##  ##  ##  ##  ## ###
++######   ####   ##  ##  ##            ######   ##  ##  ##  ##   ##   ##      ##  ##  ##  ##  ##
++##        ##    ######  ##            ##   ##  ##  ##  ##  ##   ##   ##      ##  ##  ##  ##  ##
++##       ####   ##      ##            ##   ##  ##  ##  ##  ##   ##   ##      ##  ##  ##  ##  ##
++##      ##  ##  ##  ##  ##  ##        ##   ##  ##  ##  ##  ##   ## # ##  ##  ##  ##  ##  ## ###
++######  ##  ##   ####    ####         ######    ####    ####     ##   ####   ##  ##  ##   ## ##
++*/
++void execute_bootcmd ( void )
++{
++	printf("will execute %s\n",getenv("bootcmd"));
++	ext_serial_puts("Rebooting...\n");
++	saveenv();
++//	run_command (getenv("bootcmd"), 0);
++	run_command ("reset", 0);
++}
++/*
++   ##                               ####                    ### ##
++  ####                             ##  ##                  ##
++  #  #   # ### ###   #####        ##       ####   ## ##   ####  ##   ## ##
++ ##  ##  ##  ##  ##     ##        ##      ##  ##  ### ##   ##   ##  ## ###
++ ##  ##  ##  ##  ##    ##         ##      ##  ##  ##  ##   ##   ##  ##  ##
++ ######  ##  ##  ##    #          ##      ##  ##  ##  ##   ##   ##  ##  ##
++##    ## ##  ##  ##   ##          ##      ##  ##  ##  ##   ##   ##  ##  ##
++##    ## ##  ##  ##  ##            ##  ## ##  ##  ##  ##   ##   ##  ## ###
++##    ## ##  ##  ##  #####          ####   ####   ##  ##   ##   ##   ## ##
++                                                                        ##
++                                                                    ##  ##
++                                                                     ####
++*/
++#define SPECIAL_OVERWRITE "Enter Special Command to Overwrite all Configuration Information\n"
++#define DOU_SERVERIP "Do you want to Reconfigure: Server IP\n"
++#define SVRIP "Server IP"
++#define MAC1 "MAC Address 1"
++#define MAC2 "MAC Address 2"
++#define MAC3 "MAC Address 3"
++#define MAC4 "MAC Address 4"
++#define SERIALNUM "Serial Number"
++#define EID "EID"
++#define INITRD_FN "Initrd File Name"
++#define FW_FN "Firmware File Name"
++#define APPIP "Appliance IP"
++#define GWIP "Gateway IP"
++#define CMD_LEN 80
++#define def_str(x) xdef_str(x)
++#define xdef_str(x) #x
++#define ASK_GET_SET_MACRO_WITH_EXIT(x,y) bzero(array,CMD_LEN); str= 0; ext_serial_puts(ENTR); ext_serial_puts(y); ext_serial_puts(ENDER); \
++					if ( (gets_with_timeout(array) == CMD_FAIL) || ( array[0] == 0) ) return CMD_FAIL; setenv(x,array); ext_serial_puts(ENDL);
++#define ASK_GET_SET_MACRO_WITHOUT_EXIT(x,y) bzero(array,CMD_LEN); str= 0; ext_serial_puts(ENTR); ext_serial_puts(y); \
++					ext_serial_putc('['); ext_serial_puts(getenv(x)); ext_serial_putc(']'); ext_serial_puts(ENDER); str = 0; \
++					if ( (gets_with_timeout(array) != CMD_FAIL) && ( array[0] != 0) ) setenv(x,array); ext_serial_puts(ENDL);
++
++int amazon_config(void)
++{
++	// for amazon config we will check the mac address for eth1 "ethaddr"  if it
++	// is equal to the default value we will contine and allow user to configure all information on the
++	// appliance
++	char *str;
++	char array[80];
++	str = getenv("eth1addr");
++	if ( strcmp(def_str(CONFIG_ETHADDR),str) == 0 ) // equal
++//	if ( strcmp(str,str) == 0 ) // equal
++	{
++		// the with exit will return CMD_FAIL if the user enters a zero length string (i.e. only \n) or the command timesout during enter-age
++		ASK_GET_SET_MACRO_WITH_EXIT("ethaddr",MAC1);
++		ASK_GET_SET_MACRO_WITH_EXIT("eth1addr",MAC2);
++		ASK_GET_SET_MACRO_WITH_EXIT("eth2addr",MAC3);
++		ASK_GET_SET_MACRO_WITH_EXIT("eth3addr",MAC4);
++		ASK_GET_SET_MACRO_WITH_EXIT("serialnumber",SERIALNUM);
++		ASK_GET_SET_MACRO_WITH_EXIT("eid",EID);
++		ASK_GET_SET_MACRO_WITH_EXIT("bootfile",INITRD_FN);
++		ASK_GET_SET_MACRO_WITH_EXIT("fwfile",FW_FN);
++		ASK_GET_SET_MACRO_WITH_EXIT("ipaddr",APPIP);
++		ASK_GET_SET_MACRO_WITH_EXIT("serverip",SVRIP);
++		ASK_GET_SET_MACRO_WITH_EXIT("gatewayip",GWIP);
++	}
++	else
++	{
++		ASK_MACRO(SPECIAL_OVERWRITE)
++		if ( wait_for_c_is_c(147) )
++		{
++			// the without exit will keep the value indicated if the user enters a zero length string or lest the command timeout...
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("ethaddr",MAC1);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("eth1addr",MAC2);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("eth2addr",MAC3);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("eth3addr",MAC4);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("serialnumber",SERIALNUM);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("eid",EID);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("bootfile",INITRD_FN);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("fwfile",FW_FN);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("ipaddr",APPIP);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("serverip",SVRIP);
++			ASK_GET_SET_MACRO_WITHOUT_EXIT("gatewayip",GWIP);
++		}
++		else
++		{
++			ext_serial_puts(CANCELED);
++			return CMD_FAIL;
++		}
++		
++	}
++	return CMD_SUCCESS;
++}
++
++
++
++/*
++##  ##  ##         ##   ##            ##          ####  ##
++##  ##  ##              ##           ###         ##  ## ##
++##  ##  ##  ####   ##  ####         # ##        ##      ## ##    ####   ## ##
++ #  ##  #  ##  ##  ##   ##          # ##        ##      ### ##  ##  ##  #####
++ ## ## ##      ##  ##   ##         #  ##        ##      ##  ##      ##  ###
++ ## ## ##   #####  ##   ##        #   ##        ##      ##  ##   #####  ##
++  ##  ##   ##  ##  ##   ##        #######       ##      ##  ##  ##  ##  ##
++  ##  ##   ##  ##  ##   ## #          ##         ##  ## ##  ##  ##  ##  ##
++  ##  ##    ### ## ##    ##           ##          ####  ##  ##   ### ## ##
++*/
++int wait_for_y_n_is_y( void )
++{
++	return (wait_for_cC_is_cC('y','Y'));
++}
++int wait_for_c_is_c( char c )
++{
++	return (wait_for_cC_is_cC(c,0) );
++}
++int wait_for_cC_is_cC( char c1, char c2 )
++{
++	char in;
++	int delay_counter = DELAYTIME_SEC;
++	// stay in menu loop until time out or exit through other means...
++	while ( delay_counter )
++	{
++		while ( !ext_serial_tstc() && delay_counter)
++		{
++			udelay(1000);
++			delay_counter--;
++		}
++		if (ext_serial_tstc() )
++		{
++			delay_counter = DELAYTIME_SEC;
++			in = ext_serial_getc();
++			// output the received char ... if not printable then nothing
++			// don't put the endl in place until later...
++			ext_serial_puts(PREL); 
++			if ( (c1 == in) || ( (c2 == in) && (c2 != 0) ) )
++			{
++				if (isprint(in)) 
++					ext_serial_putc(in); 
++				else 
++					ext_serial_putc('#');
++				ext_serial_puts(ENDL);
++				return CMD_YES;
++			}
++			else if ( IS_CR_OR_LF(in) )
++			{
++			}
++			else
++			{
++				return CMD_NO;
++			}
++		}
++		else
++		{
++			// must have been a timeout...
++			//ext_serial_puts(CMD_TIMEOUT);
++			return CMD_NO;
++		}
++	}
++	return CMD_NO;
++}
++/*
++######                       ##         #####    ##         ##
++##   ##                      ##        ##   ##   ##
++##   ##   ####    ####    ## ##        ##   ##  ####  ## ## ##  ## ##    ## ##
++##   ##  ##  ##  ##  ##  ## ###         ###      ##   ##### ##  ### ##  ## ###
++######   ##  ##      ##  ##  ##           ###    ##   ###   ##  ##  ##  ##  ##
++##  ##   ######   #####  ##  ##            ###   ##   ##    ##  ##  ##  ##  ##
++##   ##  ##      ##  ##  ##  ##        ##   ##   ##   ##    ##  ##  ##  ##  ##
++##   ##  ##  ##  ##  ##  ## ###        ##   ##   ## # ##    ##  ##  ##  ## ###
++##   ##   ####    ### ##  ## ##         #####     ##  ##    ##  ##  ##   ## ##
++                                                                            ##
++                                                                        ##  ##
++                                                                         ####
++*/
++char getc_with_timeout (void )
++{
++	char in;
++	int delay_counter = DELAYTIME_SEC;
++	// stay in menu loop until time out or exit through other means...
++	while ( delay_counter )
++	{
++		while ( !ext_serial_tstc() && delay_counter)
++		{
++			udelay(1000);
++			delay_counter--;
++		}
++		if (ext_serial_tstc() )
++		{
++			in = ext_serial_getc();
++			if (isprint(in)) ext_serial_putc(in); 
++			return in;
++		}
++		else
++		{
++			// must have been a timeout...
++			//ext_serial_puts(CMD_TIMEOUT);
++			return CMD_FAIL;
++		}
++	}
++	return CMD_FAIL;
++	
++}
++int gets_with_timeout(char* s)
++{
++	int i = 0;
++	char c;
++	int flag = 1;
++	while ( flag )
++	{
++		c = getc_with_timeout();
++		if ( c == 0 )
++			return CMD_FAIL;
++		else if ( IS_CR_OR_LF(c) )
++		{
++			s[i] = 0;
++			return i;
++		}
++		else 
++		{
++			s[i] = c;
++			i++;
++		}
++	}
++	return CMD_FAIL;
++}
++void bzero(char* s, int i)
++{
++	int z;
++	for ( z = 0; z < i ; z++) s[z] = 0;
++}
++
++U_BOOT_CMD(
++	menu,	1,	0,	do_menu,
++	"menu - provides menu through external serial port for boot\n", 
++  "menu\n"
++);
++
++#endif	/* CONFIG_AMAZON */
++
++
+diff -Naur u-boot-1.1.2/board/amazon/ext_serial.c u-boot-1.1.2/board/amazon/ext_serial.c
+--- u-boot-1.1.2/board/amazon/ext_serial.c	1969-12-31 18:00:00.000000000 -0600
++++ u-boot-1.1.2/board/amazon/ext_serial.c	2007-11-28 09:24:22.000000000 -0600
+@@ -0,0 +1,116 @@
++/*
++ * (C) Copyright 2000
++ * Rob Taylor, Flying Pig Systems. robt@flyingpig.com.
++ *
++ * See file CREDITS for list of people who contributed to this
++ * project.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of
++ * the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
++ * MA 02111-1307 USA
++ */
++
++#include <common.h>
++
++#ifdef CFG_NS16550_SERIAL
++
++#include <ns16550.h>
++#ifdef CFG_NS87308
++#include <ns87308.h>
++#endif
++
++//#if CONFIG_EXT_CONS_INDEX == 1
++//static NS16550_t ext_console = (NS16550_t) CFG_NS16550_COM1;
++//#elif CONFIG_EXT_CONS_INDEX == 2
++//static NS16550_t ext_console = (NS16550_t) CFG_NS16550_COM2;
++//#elif CONFIG_EXT_CONS_INDEX == 3
++static NS16550_t ext_console = (NS16550_t) CFG_NS16550_COM3;
++static int ext_console_present = 0;
++//#elif CONFIG_EXT_CONS_INDEX == 4
++//static NS16550_t ext_console = (NS16550_t) CFG_NS16550_COM4;
++//#else
++//#error no valid ext_console defined
++//#endif
++
++static int ext_calc_divisor (void)
++{
++	DECLARE_GLOBAL_DATA_PTR;
++	return (CFG_EXT_NS16550_CLK / 16 / gd->baudrate);
++}
++
++int ext_serial_init (void)
++{
++	int clock_divisor = ext_calc_divisor();
++	ext_console->scr = 0xaa;
++	ext_console->scr = 0x55;
++	if ( ext_console->scr == 0x55 )
++	{
++		ext_console_present = 1;
++		NS16550_init(ext_console, clock_divisor);
++		return (1);
++	}
++	else
++	{
++		ext_console_present = 0;
++		return (0);
++	}
++	
++}
++
++void
++ext_serial_putc(const char c)
++{
++	if ( ext_console_present == 1 )
++	{
++		if (c == '\n')
++			NS16550_putc(ext_console, '\r');
++
++		NS16550_putc(ext_console, c);
++	}
++}
++
++void
++ext_serial_puts (const char *s)
++{
++	while (*s) {
++		ext_serial_putc (*s++);
++	}
++}
++
++
++int
++ext_serial_getc(void)
++{
++	return NS16550_getc(ext_console);
++}
++
++int
++ext_serial_tstc(void)
++{
++	if ( ext_console_present == 1 )
++		return NS16550_tstc(ext_console);
++	else
++		return 0;
++}
++
++void
++ext_serial_setbrg (void)
++{
++	int clock_divisor;
++
++    clock_divisor = ext_calc_divisor();
++	NS16550_reinit(ext_console, clock_divisor);
++}
++
++#endif
+diff -Naur u-boot-1.1.2/board/amazon/Makefile u-boot-1.1.2/board/amazon/Makefile
+--- u-boot-1.1.2/board/amazon/Makefile	2007-11-19 10:31:23.000000000 -0600
++++ u-boot-1.1.2/board/amazon/Makefile	2007-11-28 09:24:22.000000000 -0600
+@@ -36,6 +36,8 @@
+ 	   sw6095.o \
+ 		 cmd_leds.o \
+ 		 cmd_newboot.o \
++		 cmd_menu.o \
++		 ext_serial.o \
+ 		 cmd_macaddr.o
+ 
+ SOBJS	:= init.o
+diff -Naur u-boot-1.1.2/common/main.c u-boot-1.1.2/common/main.c
+--- u-boot-1.1.2/common/main.c	2007-11-19 10:31:27.000000000 -0600
++++ u-boot-1.1.2/common/main.c	2007-11-28 09:24:22.000000000 -0600
+@@ -27,7 +27,7 @@
+ #include <watchdog.h>
+ #include <command.h>
+ #include <malloc.h>
+-
++#include <ext_serial.h>
+ #ifdef CFG_HUSH_PARSER
+ #include <hush.h>
+ #endif
+@@ -236,6 +236,7 @@
+ 	printf(CONFIG_MENUPROMPT, bootdelay);
+ #else
+ 	printf("Hit any key to stop autoboot: %2d ", bootdelay);
++	ext_serial_puts("Hit any key to stop autoboot:");
+ #endif
+ 
+ #if defined CONFIG_ZERO_BOOTDELAY_CHECK
+@@ -244,8 +245,8 @@
+ 	 * Don't check if bootdelay < 0
+ 	 */
+ 	if (bootdelay >= 0) {
+-		if (tstc()) {	/* we got a key press	*/
+-			(void) getc();  /* consume input	*/
++		if (tstc() || ext_serial_tstc() ) {	/* we got a key press	*/
++			if (tstc() ) (void) getc();  /* consume input	*/
+ 			puts ("\b\b\b 0");
+ 			abort = 1; 	/* don't auto boot	*/
+ 		}
+@@ -258,13 +259,13 @@
+ 		--bootdelay;
+ 		/* delay 100 * 10ms */
+ 		for (i=0; !abort && i<100; ++i) {
+-			if (tstc()) {	/* we got a key press	*/
++			if (tstc() || ext_serial_tstc() ) {	/* we got a key press	*/
+ 				abort  = 1;	/* don't auto boot	*/
+ 				bootdelay = 0;	/* no more delay	*/
+ # ifdef CONFIG_MENUKEY
+ 				menukey = getc();
+ # else
+-				(void) getc();  /* consume input	*/
++				if (tstc() ) (void) getc();  /* consume input	*/
+ # endif
+ 				break;
+ 			}
+@@ -272,6 +273,7 @@
+ 		}
+ 
+ 		printf ("\b\b\b%2d ", bootdelay);
++		ext_serial_putc('+');
+ 	}
+ 
+ 	putc ('\n');
+@@ -426,7 +428,16 @@
+ 		disable_ctrlc(prev);	/* restore Control C checking */
+ # endif
+ 	}
+-
++	if ( ext_serial_tstc() )
++	{
++# ifndef CFG_HUSH_PARSER
++		run_command ("menu", 0);
++# else
++		parse_string_outer("menu", FLAG_PARSE_SEMICOLON |
++				    FLAG_EXIT_FROM_LOOP);
++# endif
++		
++	}
+ # ifdef CONFIG_MENUKEY
+ 	if (menukey == CONFIG_MENUKEY) {
+ 	    s = getenv("menucmd");
+diff -Naur u-boot-1.1.2/include/configs/AMAZON.h u-boot-1.1.2/include/configs/AMAZON.h
+--- u-boot-1.1.2/include/configs/AMAZON.h	2007-11-19 10:31:33.000000000 -0600
++++ u-boot-1.1.2/include/configs/AMAZON.h	2007-11-28 09:24:22.000000000 -0600
+@@ -220,7 +220,7 @@
+ /* Config LBC Chip select 5 */
+ 
+ #define CFG_BR5_PRELIM      CFG_LBC_BA(0xCA000000) | \
+-                            CFG_LBC_PS(3)          | \
++                            CFG_LBC_PS(1)          | \
+                             CFG_LBC_DECC(0)        | \
+                             CFG_LBC_WP(0)          | \
+                             CFG_LBC_MSEL(0)        | \
+@@ -229,10 +229,10 @@
+ 
+ #define CFG_OR5_PRELIM      CFG_LBC_AM(0xFFFF8000) | \
+                             CFG_LBC_BCTLD(0)       | \
+-                            CFG_LBC_CSNT(0)        | \
++                            CFG_LBC_CSNT(1)        | \
+                             CFG_LBC_ACS(2)         | \
+                             CFG_LBC_XACS(0)        | \
+-                            CFG_LBC_SCY(1)         | \
++                            CFG_LBC_SCY(4)         | \
+                             CFG_LBC_SETA(0)        | \
+                             CFG_LBC_TRLX(0)        | \
+                             CFG_LBC_EHTR(0)        | \
+@@ -421,11 +421,16 @@
+ #define CFG_NS16550_REG_SIZE    1
+ #define CFG_NS16550_CLK		get_bus_freq(0)
+ 
++/* External Serial Port */
++#define CONFIG_EXT_CONS_INDEX 3
++#define CFG_EXT_NS16550_CLK 14745600
++
+ #define CFG_BAUDRATE_TABLE  \
+ 	{300, 600, 1200, 2400, 4800, 9600, 19200, 38400,115200}
+ 
+ #define CFG_NS16550_COM1        (CFG_CCSRBAR+0x4500)
+ #define CFG_NS16550_COM2        (CFG_CCSRBAR+0x4600)
++#define CFG_NS16550_COM3        (0xCA000000)
+ 
+ #define CFG_AUTO_COMPLETE   /* use TAB to complete */
+ 
+diff -Naur u-boot-1.1.2/include/ext_serial.h u-boot-1.1.2/include/ext_serial.h
+--- u-boot-1.1.2/include/ext_serial.h	1969-12-31 18:00:00.000000000 -0600
++++ u-boot-1.1.2/include/ext_serial.h	2007-11-28 09:24:22.000000000 -0600
+@@ -0,0 +1,19 @@
++#ifndef __EXTSERIAL_H__
++#define __EXTSERIAL_H__
++
++#define NAMESIZE 16
++#define CTLRSIZE 8
++
++extern int ext_serial_init (void);
++extern void ext_serial_putc(const char c);
++extern void ext_serial_puts (const char *s);
++extern int ext_serial_getc(void);
++extern int ext_serial_tstc(void);
++extern void ext_serial_setbrg (void);
++
++//extern void ext_serial_initialize(void);
++//extern void ext_serial_devices_init(void);
++//extern int ext_serial_assign(char * name);
++//extern void ext_serial_reinit_all(void);
++
++#endif

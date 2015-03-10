@@ -1,0 +1,101 @@
+diff -ruN busybox-1.5.0.orig/include/usage.h busybox-1.5.0/include/usage.h
+--- busybox-1.5.0.orig/include/usage.h	2007-03-22 13:21:35.000000000 -0700
++++ busybox-1.5.0/include/usage.h	2007-06-30 16:39:09.000000000 -0700
+@@ -13,6 +13,7 @@
+ 
+ #define addgroup_trivial_usage \
+        "[-g GID] group_name [user_name]"
++
+ #define addgroup_full_usage \
+        "Add a group to the system" \
+        "\n\nOptions:\n" \
+@@ -20,6 +21,19 @@
+ 
+ #define adduser_trivial_usage \
+        "[OPTIONS] user_name"
++#ifdef ALTERPATH
++#define adduser_full_usage \
++       "Adds a user to the system" \
++       "\n\nOptions:\n" \
++       "	-h DIR		Assign home directory DIR\n" \
++       "	-c GECOS	Assign gecos field GECOS\n" \
++       "	-s SHELL	Assign login shell SHELL\n" \
++       "	-g		Add the user to existing group GROUP\n" \
++       "	-G		A list of supplementary groups which the user is also a member of.\n" \
++       "	-S		create a system user (ignored)\n" \
++       "	-D		Do not assign a password (logins still possible via ssh)\n" \
++       "	-H		Do not create the home directory"
++#else
+ #define adduser_full_usage \
+        "Add a user to the system" \
+        "\n\nOptions:\n" \
+@@ -30,6 +44,7 @@
+        "	-S		Create a system user (ignored)\n" \
+        "	-D		Do not assign a password (logins still possible via ssh)\n" \
+        "	-H		Do not create the home directory"
++#endif
+ 
+ #define adjtimex_trivial_usage \
+        "[-q] [-o offset] [-f frequency] [-p timeconstant] [-t tick]"
+@@ -430,7 +445,7 @@
+ 	USE_SELINUX( \
+        "\n	-c	Preserves security context" \
+ 	) \
+-       "\n	-d,-P	Preserve links" \
++       "\n	-d	Preserve links" \
+        "\n	-H,-L	Dereference all symlinks (default)" \
+        "\n	-p	Preserve file attributes if possible" \
+        "\n	-f	Force overwrite" \
+@@ -795,13 +810,13 @@
+        "	-E	Disable interpretation of backslash-escaped characters" \
+ 	)
+ #define echo_example_usage \
+-       "$ echo \"Erik is cool\"\n" \
++       "$ echo "Erik is cool"\n" \
+        "Erik is cool\n" \
+-	USE_FEATURE_FANCY_ECHO("$  echo -e \"Erik\\nis\\ncool\"\n" \
++	USE_FEATURE_FANCY_ECHO("$  echo -e "Erik\\nis\\ncool"\n" \
+        "Erik\n" \
+        "is\n" \
+        "cool\n" \
+-       "$ echo \"Erik\\nis\\ncool\"\n" \
++       "$ echo "Erik\\nis\\ncool"\n" \
+        "Erik\\nis\\ncool\n")
+ 
+ #define eject_trivial_usage \
+@@ -1075,7 +1090,7 @@
+        "$ cat getopt.test\n" \
+        "#!/bin/sh\n" \
+        "GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \\\n" \
+-       "       -n 'example.busybox' -- \"$@\"`\n" \
++       "       -n 'example.busybox' -- "$@"`\n" \
+        "if [ $? != 0 ] ; then  exit 1 ; fi\n" \
+        "eval set -- \"$GETOPT\"\n" \
+        "while true ; do\n" \
+@@ -2553,7 +2568,7 @@
+        "Format and print ARGUMENT(s) according to FORMAT,\n" \
+        "where FORMAT controls the output exactly as in C printf"
+ #define printf_example_usage \
+-       "$ printf \"Val=%d\\n\" 5\n" \
++       "$ printf "Val=%d\\n" 5\n" \
+        "Val=5\n"
+ 
+ 
+@@ -3410,13 +3425,12 @@
+        "Adjust filesystem options on ext[23] filesystems"
+ 
+ #define udhcpc_trivial_usage \
+-       "[-Cfbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
++       "[-fbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
+ #define udhcpc_full_usage \
+        "	-V,--vendorclass=CLASSID	Set vendor class identifier\n" \
+        "	-i,--interface=INTERFACE	Interface to use (default: eth0)\n" \
+        "	-H,-h,--hostname=HOSTNAME	Client hostname\n" \
+-       "	-c,--clientid=CLIENTID	Set client identifier\n" \
+-       "	-C,--clientid-none	Suppress default client identifier\n" \
++       "	-c,--clientid=CLIENTID	Client identifier\n" \
+        "	-p,--pidfile=file	Store process ID of daemon in file\n" \
+        "	-r,--request=IP		IP address to request (default: none)\n" \
+        "	-s,--script=file	Run file at dhcp events (default: /usr/share/udhcpc/default.script)\n" \
+Binary files busybox-1.5.0.orig/include/.usage.h.swo and busybox-1.5.0/include/.usage.h.swo differ
+Binary files busybox-1.5.0.orig/include/.usage.h.swp and busybox-1.5.0/include/.usage.h.swp differ

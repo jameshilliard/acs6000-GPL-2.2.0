@@ -1,0 +1,88 @@
+Index: pam_opie/pam_opie.c
+===================================================================
+--- pam_opie.orig/pam_opie.c	1998-05-26 20:10:31.000000000 -0700
++++ pam_opie/pam_opie.c	2007-11-21 14:40:52.000000000 -0800
+@@ -26,6 +26,7 @@
+ 
+ #define PAM_SM_AUTH
+ #include <security/pam_modules.h>
++
+ #include <stdlib.h>
+ #include "libopie/opie.h"
+ 
+@@ -84,6 +85,7 @@
+ 	char *tok;
+ 	int knownuser;
+ 	int retval;
++	char * first_passwd = NULL;
+ 
+ 	retval = pam_get_user(pamh, &username, "login: ");
+ 	if (retval != PAM_SUCCESS)
+@@ -97,35 +99,45 @@
+ 	}
+ 	knownuser = (retval == 0) ? 1 : 0;
+ 
+-	/* Print out challenge */
+-	pmsg[0] = &msg[0];
+-	msg[0].msg_style = PAM_TEXT_INFO;
+-	msg[0].msg = challenge;
+-	resp = NULL;
+-	converse(pamh, 1, pmsg, &resp);
+-	if (resp != NULL) free(resp);
+-
+-	/* Get the response */
+-	pmsg[0] = &msg[0];
+-	msg[0].msg_style = PAM_PROMPT_ECHO_OFF;
+-	msg[0].msg = "Response: ";
+-	resp = NULL;
+-	retval = converse(pamh, 1, pmsg, &resp);
++	retval = pam_get_item(pamh, PAM_AUTHTOK, &first_passwd);
+ 	if (retval != PAM_SUCCESS)
+ 		return retval;
+-	tok = xstrdup(resp[0].resp);
+-	if (resp != NULL) free(resp);
++
++	if ((first_passwd == NULL)||(*first_passwd == NULL)) {
++		/* Print out challenge */
++		pmsg[0] = &msg[0];
++		msg[0].msg_style = PAM_TEXT_INFO;
++		msg[0].msg = challenge;
++		resp = NULL;
++		converse(pamh, 1, pmsg, &resp);
++		if (resp != NULL) free(resp);
++
++		/* Get the response */
++		pmsg[0] = &msg[0];
++		msg[0].msg_style = PAM_PROMPT_ECHO_OFF;
++		msg[0].msg = "Response: ";
++		resp = NULL;
++		retval = converse(pamh, 1, pmsg, &resp);
++		if (retval != PAM_SUCCESS)
++			return retval;
++		tok = xstrdup(resp[0].resp);
++		if (resp != NULL) free(resp);
++	} else {
++		tok = xstrdup(first_passwd);
++	}
++
+ 	pam_set_item(pamh, PAM_AUTHTOK, tok);
+ 
++	/* [RK]Jan/24/06 - OTP/LOCAL */
++	if (knownuser == 0) {
++		return PAM_USER_UNKNOWN;
++	}
++
+ 	/* test the response and return accordingly */
+ 	retval = opieverify(&opie, tok);
+ 	if (tok != NULL) free(tok);
+-	if (knownuser) {
+-		if (retval == 0) {
+-			return PAM_SUCCESS;
+-		}
+-	} else {
+-		return PAM_USER_UNKNOWN;
++	if (retval == 0) {
++		return PAM_SUCCESS;
+ 	}
+ 	return PAM_AUTH_ERR;
+ }

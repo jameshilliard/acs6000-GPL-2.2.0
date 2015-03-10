@@ -1,0 +1,536 @@
+Index: pam_tacplus/libtac/include/libtac.h
+===================================================================
+--- pam_tacplus.orig/libtac/include/libtac.h	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/include/libtac.h	2008-05-23 21:24:53.000000000 -0700
+@@ -22,14 +22,17 @@
+ 
+ /* header.c */
+ extern int session_id;
++extern int seq_no;
+ extern int tac_encryption;
+ extern char *tac_secret;
+ 
++extern int tac_authen_pap_send(int fd, char *user, char *pass, char *tty, int ver);
++extern int tac_authen_pap_cont_send(int fd, char *pass);
++extern int tac_authen_pap_read(int fd, char **msg);
++extern HDR *_tac_req_header(u_char type, int start);
++
+ extern int tac_connect(struct sockaddr_storage *server, int servers);
+ extern int tac_connect_single(struct sockaddr_storage server);
+-extern int tac_authen_pap_send(int fd, char *user, char *pass, char *tty);
+-extern char *tac_authen_pap_read(int fd);
+-extern HDR *_tac_req_header(u_char type);
+ extern void _tac_crypt(u_char *buf, HDR *th, int length);
+ extern u_char *_tac_md5_pad(int len, HDR *hdr);
+ extern void tac_add_attrib(struct tac_attrib **attr, char *name, char *value);
+Index: pam_tacplus/libtac/lib/acct_s.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/acct_s.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/lib/acct_s.c	2008-05-23 21:24:53.000000000 -0700
+@@ -31,7 +31,7 @@
+ 	u_char *pktp;
+ 	int ret = 0;
+ 
+-	th=_tac_req_header(TAC_PLUS_ACCT);
++	th=_tac_req_header(TAC_PLUS_ACCT, 1);
+ 
+ 	/* set header options */
+  	th->version=TAC_PLUS_VER_0;
+Index: pam_tacplus/libtac/lib/authen_r.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/authen_r.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/lib/authen_r.c	2008-05-23 21:24:53.000000000 -0700
+@@ -20,11 +20,12 @@
+  *            NULL    if the authentication succeded
+  *  string pointer    if it failed
+  */
+-char *tac_authen_pap_read(int fd) {
++int tac_authen_pap_read(int fd, char **msg) {
+  	HDR th;
+  	struct authen_reply *tb;
+  	int len_from_header, r, len_from_body;
+-	char *msg = NULL;
++
++	*msg = NULL;
+ 
+  	/* read the reply header */
+  	r=read(fd, &th, TAC_PLUS_HDR_SIZE);
+@@ -33,13 +34,14 @@
+  			"%s: error reading PAP authen header, read %d of %d: %m",
+ 			__FUNCTION__,
+ 		 	r, TAC_PLUS_HDR_SIZE);
+-  		return(system_err_msg);
++  		msg = strdup(system_err_msg);
++  		return(-1);
+  	}
+ 
+  	/* check the reply fields in header */
+ 	msg = _tac_check_header(&th, TAC_PLUS_AUTHEN);
+ 	if(msg != NULL)
+-			return(msg);
++			return(-1);
+  
+  	len_from_header=ntohl(th.datalength);
+  	tb=(struct authen_reply *) xcalloc(1, len_from_header);
+@@ -51,7 +53,8 @@
+ 			 "%s: incomplete message body, %d bytes, expected %d: %m",
+ 			 __FUNCTION__,
+ 			 r, len_from_header);
+-  		return(system_err_msg);
++  		msg = strdup(system_err_msg);
++			return(-1);
+  	}
+ 
+  	/* decrypt the body */
+@@ -66,7 +69,8 @@
+   		syslog(LOG_ERR,
+ 			"%s: invalid reply content, incorrect key?",
+ 			__FUNCTION__);
+-  		return(system_err_msg);
++  		msg = strdup(system_err_msg);
++			return(-1);
+  	}
+ 
+  	/* save status and clean up */
+@@ -75,19 +79,23 @@
+ 		msg=(char *) xcalloc(1, tb->msg_len);
+ 		bcopy(tb+TAC_AUTHEN_REPLY_FIXED_FIELDS_SIZE, msg, tb->msg_len); 
+ 	} else
+-		msg="Login incorrect";
++		msg=strdup("Login incorrect");
+ 
+  	free(tb);
+ 
+  	/* server authenticated username and password successfully */
+  	if(r == TAC_PLUS_AUTHEN_STATUS_PASS) {
+ 		TACDEBUG((LOG_DEBUG, "%s: authentication ok", __FUNCTION__))
+-		return(NULL);
++		return(r);
+ 	}
+ 		
++ 	if(r == TAC_PLUS_AUTHEN_STATUS_GETPASS) {
++		return(r);
++	}
++
+ 	/* return pointer to server message */
+ 	syslog(LOG_DEBUG, "%s: authentication failed, server reply was %d (%s)", 
+ 					__FUNCTION__, r, msg);
+- 	return(msg);
++ 	return(r);
+ 
+ } /* tac_authen_pap_read */
+Index: pam_tacplus/libtac/lib/authen_s.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/authen_s.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/lib/authen_s.c	2008-05-23 21:24:53.000000000 -0700
+@@ -18,7 +18,67 @@
+ /* this function sends a packet do TACACS+ server, asking
+  * for validation of given username and password
+  */
+-int tac_authen_pap_send(int fd, char *user, char *pass, char *tty)
++int tac_authen_pap_cont_send(int fd, char *data)
++{
++ 	HDR *th; 		 /* TACACS+ packet header */
++ 	struct authen_cont tb; /* message body */
++ 	int pkt_len = 0, bodylength, data_len, w;
++ 	u_char *pkt;
++	int ret=0;
++
++ 	th=_tac_req_header(TAC_PLUS_AUTHEN, 0);
++
++ 	/* set some header options */
++ 	th->version=TAC_PLUS_VER_0;
++
++ 	/* fill the body of message */
++ 	data_len = tb.user_msg_len = strlen(data);
++ 	tb.user_data_len = 0;
++ 	tb.flags = 0;
++
++ 	/* fill body length in header */
++ 	bodylength=sizeof(tb) - 1 + tb.user_msg_len;
++
++ 	th->datalength= htonl(bodylength);
++
++ 	/* we can now write the header */
++ 	w=write(fd, th, TAC_PLUS_HDR_SIZE);
++	if(w < 0 || w < TAC_PLUS_HDR_SIZE) {
++		syslog(LOG_ERR, "%s: short write on PAP header: wrote %d of %d: %m", 
++						__FUNCTION__, w, TAC_PLUS_HDR_SIZE);
++		ret=-1;
++	}
++
++ 	/* build the packet */
++ 	pkt=(u_char *) xcalloc(1, bodylength+10);
++
++ 	bcopy(&tb, pkt+pkt_len, sizeof(tb)); /* packet body beginning */
++ 	pkt_len+=sizeof(tb) - 1; // ???? don't know pragma pack in gnu
++ 	bcopy(data, pkt+pkt_len, data_len);  /* password */
++ 	pkt_len+=data_len;
++
++ 	/* pkt_len == bodylength ? */
++	if(pkt_len != bodylength) {
++		TACDEBUG((LOG_DEBUG, "tac_authen_send: bodylength %d != pkt_len %d", bodylength, pkt_len));
++	} 
++ 	
++	/* encrypt the body */
++ 	_tac_crypt(pkt, th, bodylength);
++
++ 	w=write(fd, pkt, pkt_len);
++	if(w < 0 || w < pkt_len) {
++		syslog(LOG_ERR, "%s: short write on PAP body: wrote %d of %d: %m",
++					   __FUNCTION__, w, pkt_len);
++		ret=-1;
++	}
++
++ 	free(pkt);
++ 	free(th);
++
++ 	return(ret);
++}
++
++int tac_authen_pap_send(int fd, char *user, char *pass, char *tty, int ver)
+ {
+  	HDR *th; 		 /* TACACS+ packet header */
+  	struct authen_start tb; /* message body */
+@@ -27,26 +87,36 @@
+  	u_char *pkt;
+ 	int ret=0;
+ 
+- 	th=_tac_req_header(TAC_PLUS_AUTHEN);
++ 	th=_tac_req_header(TAC_PLUS_AUTHEN, 1);
+ 
+  	/* set some header options */
+- 	th->version=TAC_PLUS_VER_1;
+- 	th->encryption=tac_encryption ? TAC_PLUS_ENCRYPTED : TAC_PLUS_CLEAR;
++	if (!ver) {
++ 		th->version=TAC_PLUS_VER_0;
++ 		tb.authen_type= TAC_PLUS_AUTHEN_TYPE_ASCII;
++ 		tb.service=TAC_PLUS_AUTHEN_SVC_LOGIN;
++	} else {
++ 		th->version=TAC_PLUS_VER_1;
++ 		tb.authen_type= TAC_PLUS_AUTHEN_TYPE_PAP;
++ 		tb.service=TAC_PLUS_AUTHEN_SVC_PPP;
++	}
+ 
+ 	TACDEBUG((LOG_DEBUG, "%s: user '%s', pass '%s', tty '%s', encrypt: %s", \
+ 		 __FUNCTION__, user, pass, tty, \
+ 	 	(tac_encryption) ? "yes" : "no"))	 
+ 	
+  	/* get size of submitted data */
+- 	user_len=strlen(user);
+  	port_len=strlen(tty);
+- 	pass_len=strlen(pass);
++	if (!ver) {
++ 		user_len=0;
++ 		pass_len=0;
++	} else {
++ 		user_len=strlen(user);
++ 		pass_len=strlen(pass);
++	}
+ 
+  	/* fill the body of message */
+  	tb.action=TAC_PLUS_AUTHEN_LOGIN;
+  	tb.priv_lvl=TAC_PLUS_PRIV_LVL_MIN;
+- 	tb.authen_type=TAC_PLUS_AUTHEN_TYPE_PAP;
+- 	tb.service=TAC_PLUS_AUTHEN_SVC_PPP;
+  	tb.user_len=user_len;
+  	tb.port_len=port_len;
+  	tb.rem_addr_len=0;          /* may be e.g Caller-ID in future */
+@@ -71,11 +141,11 @@
+ 
+  	bcopy(&tb, pkt+pkt_len, sizeof(tb)); /* packet body beginning */
+  	pkt_len+=sizeof(tb);
+- 	bcopy(user, pkt+pkt_len, user_len);  /* user */
++ 	if (user_len) bcopy(user, pkt+pkt_len, user_len);  /* user */
+  	pkt_len+=user_len;
+  	bcopy(tty, pkt+pkt_len, port_len);   /* tty */
+  	pkt_len+=port_len;
+- 	bcopy(pass, pkt+pkt_len, pass_len);  /* password */
++ 	if (pass_len) bcopy(pass, pkt+pkt_len, pass_len);  /* password */
+  	pkt_len+=pass_len;
+ 
+  	/* pkt_len == bodylength ? */
+Index: pam_tacplus/libtac/lib/author_s.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/author_s.c	2000-02-02 11:30:29.000000000 -0800
++++ pam_tacplus/libtac/lib/author_s.c	2008-05-23 21:24:53.000000000 -0700
+@@ -32,7 +32,7 @@
+ 	u_char *pktp;		/* obsolete */
+ 	int ret = 0;
+ 
+-	th=_tac_req_header(TAC_PLUS_AUTHOR);
++	th=_tac_req_header(TAC_PLUS_AUTHOR, 1);
+ 
+ 	/* set header options */
+  	th->version=TAC_PLUS_VER_0;
+Index: pam_tacplus/libtac/lib/hdr_check.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/hdr_check.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/lib/hdr_check.c	2008-05-23 21:24:53.000000000 -0700
+@@ -17,11 +17,12 @@
+ 
+ /* Checks given reply header for possible inconsistencies:
+  *  1. reply type other than expected
+- *  2. sequence number other than 2
++ *  2. sequence number other than the one sent plus 1
+  *  3. session_id different from one sent in request
+  * Returns pointer to error message
+  * or NULL when the header seems to be correct
+  */
++
+ char *_tac_check_header(HDR *th, int type) {
+ 
+  	if(th->type != type) {
+@@ -29,9 +30,9 @@
+ 			 "%s: unrelated reply, type %d, expected %d", 
+ 			 __FUNCTION__, th->type, type);
+   		return(protocol_err_msg);
+- 	} else if(th->seq_no != 2) {
+-  		syslog(LOG_ERR, "%s: not a reply - seq_no %d != 2", 
+-						__FUNCTION__, th->seq_no);
++ 	} else if(th->seq_no != seq_no + 1) {
++  		syslog(LOG_ERR, "%s: not a reply - seq_no %d != %d", 
++						__FUNCTION__, th->seq_no, seq_no + 1);
+   		return(protocol_err_msg);
+  	} else if(ntohl(th->session_id) != session_id) {
+   		syslog(LOG_ERR, 
+Index: pam_tacplus/libtac/lib/header.c
+===================================================================
+--- pam_tacplus.orig/libtac/lib/header.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/libtac/lib/header.c	2008-05-23 21:24:53.000000000 -0700
+@@ -19,6 +19,7 @@
+  */
+ /* Session identifier. */
+ int session_id;
++int seq_no;
+ 
+ /* Encryption flag. */
+ int tac_encryption;
+@@ -34,18 +35,24 @@
+  * field depends on the TACACS+ request type and thus it
+  * cannot be predefined.
+  */
+-HDR *_tac_req_header(u_char type) {
++HDR *_tac_req_header(u_char type, int start) {
+  	HDR *th;
+ 
+  	th=(HDR *) xcalloc(1, TAC_PLUS_HDR_SIZE);
+ 
+  	/* preset some packet options in header */
+  	th->type=type;
+- 	th->seq_no=1; /* always 1 for request */
+- 	th->encryption=TAC_PLUS_ENCRYPTED;
++ 	th->encryption=tac_encryption ? TAC_PLUS_ENCRYPTED : TAC_PLUS_CLEAR;
+  
+- 	/* make session_id from pseudo-random number */
+- 	session_id = magic();
++	if (start) {
++	  seq_no = 1; /* always 1 for request */
++ 	  /* make session_id from pseudo-random number */
++ 	  session_id = magic();
++	} else {
++	  seq_no += 2;
++	}
++
++ 	th->seq_no=seq_no;
+  	th->session_id = htonl(session_id);
+ 
+  	return(th);
+Index: pam_tacplus/pam_tacplus.c
+===================================================================
+--- pam_tacplus.orig/pam_tacplus.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/pam_tacplus.c	2008-05-23 21:24:53.000000000 -0700
+@@ -56,6 +56,9 @@
+ int _pam_send_account(int tac_fd, int type, char *user, char *tty);
+ 
+ /* support.c */
++extern char tac_vers[MAX_TAC_VERS];
++extern int max_tac_vers;
++extern int authUsrLevel;
+ extern struct sockaddr_storage tac_srv[TAC_MAX_SERVERS];
+ extern int tac_srv_no;
+ extern char *tac_service;
+@@ -181,11 +184,13 @@
+ 
+   for (srv_i = 0; srv_i < tac_srv_no; srv_i++)
+     {
+-      char *msg = NULL;
++      char *msg = NULL; int st, tac_ver, ixvers = 0;
++req_again:
++	  tac_ver = tac_vers[ixvers];
+       if (ctrl & PAM_TAC_DEBUG) {
+-	char str[INET6_ADDRSTRLEN] = "";
+-	syslog (LOG_DEBUG, "%s: trying srv %d ip %s",
+-		  __FUNCTION__, srv_i, xinet_ntoa((struct sockaddr *)&tac_srv[srv_i],str,sizeof(str)));
++	    char str[INET6_ADDRSTRLEN] = "";
++        syslog (LOG_DEBUG, "%s: trying srv %d tac_ver %d ip %s",
++           __FUNCTION__, srv_i, tac_ver, xinet_ntoa((struct sockaddr *)&tac_srv[srv_i],str,sizeof(str)));
+       }
+       tac_fd = tac_connect_single(tac_srv[srv_i]);
+       if (tac_fd < 0)
+@@ -198,26 +203,49 @@
+ 	    }
+ 		continue;
+ 	}
+-      if (tac_authen_pap_send (tac_fd, (char *)user, pass, tty) < 0) //[GY] 2005/Sep/19  clean warning
++      if (tac_authen_pap_send (tac_fd, (char *)user, pass, tty, tac_ver) < 0) //[GY] 2005/Sep/19  clean warning
+ 	{
+ 	  _pam_log (LOG_ERR, "error sending auth req to TACACS+ server");
+ 	}
+       else
+ 	{
+-	  msg = tac_authen_pap_read (tac_fd);
+-	  if (msg != NULL)
+-	    {
+-	      _pam_log (LOG_ERR, "auth failed: %s", msg);
+-	      status = PAM_AUTH_ERR;
++read_again:
++	  st = tac_authen_pap_read (tac_fd, &msg);
++_pam_log (LOG_ERR, "tac_authen_pap_read st %d", st);
++	  if (st == TAC_PLUS_AUTHEN_STATUS_GETUSER) {
++        if (!tac_authen_pap_cont_send (tac_fd, (char *)user)) {
++	      if (msg) free (msg);
++		  goto read_again;
++	    } else {
++		  goto send_error;
++	    }
++	  }
++	  if (st == TAC_PLUS_AUTHEN_STATUS_GETPASS) {
++        if (!tac_authen_pap_cont_send (tac_fd, pass)) {
++	      if (msg) free (msg);
++		  goto read_again;
++	    } else {
++		  goto send_error;
+ 	    }
+-	  else {
++	  }
++	  if (st == TAC_PLUS_AUTHEN_STATUS_PASS) {
+ 	    /* OK, we got authenticated; save the server that
+ 	       accepted us for pam_sm_acct_mgmt and exit the loop */
+ 	    status = PAM_SUCCESS;
+ 	    active_server = tac_srv[srv_i];
+ 	    close(tac_fd);
++		if (msg) free(msg);
+ 	    break;
+ 	  }
++send_error:
++		if (++ixvers < max_tac_vers) {
++	  		if (msg) free (msg);
++	        close(tac_fd);
++			goto req_again;
++		}
++	      _pam_log (LOG_ERR, "auth failed: %s", msg ? msg : "unknown error");
++	      status = PAM_AUTH_ERR;
++	  if (msg) free (msg);
+ 	}
+       close(tac_fd);
+       /* if we are here, this means that authentication failed
+@@ -548,7 +576,7 @@
+ 	  }
+ 	  
+ 	  /* TACACS+ Level */
+-	  if (strncmp(attr->attr, "level", 5) == 0) {
++	  if (authUsrLevel && (!strncmp(attr->attr, "level", 5) || !strncmp(attr->attr,"priv_lvl",8) || !strncmp(attr->attr,"priv-lvl",8))) {
+ 		  int level = -1;
+ 
+ 		  if ((ptr = strchr(attr->attr, '=')) != NULL) {
+@@ -556,7 +584,7 @@
+ 			  level = atoi(ptr);
+ 
+ 			  if ((level > 0) && (sstat == GSP_AUTH_SID_VALID)) {
+-				  gsp_auth_session_add_group_name(&sdata, gsp_acl_tacplus_get_gn_for_level(level));
++				  gsp_auth_session_set_tacacs_level(&sdata, level);
+ 			  }
+ 		  }
+ 	  }
+Index: pam_tacplus/pam_tacplus.h
+===================================================================
+--- pam_tacplus.orig/pam_tacplus.h	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/pam_tacplus.h	2008-05-23 21:24:53.000000000 -0700
+@@ -7,6 +7,7 @@
+ 
+ /* how many TACPLUS+ servers can be defined */
+ #define TAC_MAX_SERVERS		4
++#define MAX_TAC_VERS		2
+ 
+ /* pam_tacplus major, minor and patchlevel version numbers */
+ #define PAM_TAC_VMAJ		1
+Index: pam_tacplus/support.c
+===================================================================
+--- pam_tacplus.orig/support.c	2008-05-23 21:24:53.000000000 -0700
++++ pam_tacplus/support.c	2008-05-23 21:31:08.000000000 -0700
+@@ -25,6 +25,9 @@
+ #include "tacplus.h"
+ #include "libtac.h"
+ 
++int authUsrLevel=0;
++char tac_vers[MAX_TAC_VERS];
++int max_tac_vers=0;
+ struct sockaddr_storage tac_srv[TAC_MAX_SERVERS];
+ int tac_srv_no = 0;
+ char *tac_service = NULL;
+@@ -234,6 +237,28 @@
+ 	  ctrl |= PAM_TAC_DEBUG;
+     else if (!strcmp(argv, "use_first_pass"))
+       ctrl |= PAM_USE_FIRST_PASS;
++	else if (!strncmp (argv, "userlevel-enable=", 17)) {
++		authUsrLevel = !strcmp(argv+17, "yes");
++	}
++    else if (!strncmp (argv, "tacacs_vers=", 12))
++	{
++	  char *p = argv+12;
++	  if (!strcmp(p, "V0_V1")) {
++		max_tac_vers = 2;
++		tac_vers[0] = 0;
++		tac_vers[1] = 1;
++	  } else if (!strcmp(p, "V1_V0")) {
++		max_tac_vers = 2;
++		tac_vers[0] = 1;
++		tac_vers[1] = 0;
++	  } else if (!strcmp(p, "V1")) {
++		max_tac_vers = 1;
++		tac_vers[0] = 1;
++	  } else if (!strcmp(p, "V0")) {
++		max_tac_vers = 1;
++		tac_vers[0] = 0;
++	  }
++	}
+     else if (!strcmp (argv, "encrypt"))
+ 	{
+ 	  ctrl |= PAM_TAC_ENCRYPT;
+@@ -306,6 +331,7 @@
+ 
+   /* otherwise the list will grow with each call */
+   tac_srv_no = 0;
++  max_tac_vers=0;
+ 
+ 	// read from default configuration file
+ 	if ((fp = fopen(DEF_CONF_FILE, "r")) != NULL) {
+@@ -349,9 +375,13 @@
+ 					ctrl = _pam_parse_argv(ctrl, line);
+ 			} else if (!strncmp(line,  "retries=", 8)) {
+ 					ctrl = _pam_parse_argv(ctrl, line);
++    		} else if (!strncmp (line, "tacacs_vers=", 12)) {
++					ctrl = _pam_parse_argv(ctrl, line);
++    		} else if (!strncmp (line, "userlevel-enable=", 17)) {
++					ctrl = _pam_parse_argv(ctrl, line);
+ 			} else {
+-				_pam_log(LOG_ERR, "invalid line%d in reading %s",
+-					linenum, DEF_CONF_FILE);
++				_pam_log(LOG_ERR, "invalid parameter in line %d of file %s content [%s]",
++					linenum, DEF_CONF_FILE, line);
+ 			}
+ 		}
+ 	}
+@@ -364,6 +394,11 @@
+     ctrl = _pam_parse_argv(ctrl, (char *)*argv);  //[GY] 2005/Sep/19  clean warning
+   }
+ 
++  if (max_tac_vers == 0) {
++	max_tac_vers = 1;
++	tac_vers[0] = 1;
++  }
++
+   return ctrl;
+ 
+ }				/* _pam_parse */

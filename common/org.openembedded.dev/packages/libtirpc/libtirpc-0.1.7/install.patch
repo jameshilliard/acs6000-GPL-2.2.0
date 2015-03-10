@@ -1,0 +1,12 @@
+Index: 0.1.7/Makefile.am
+===================================================================
+--- 0.1.7.orig/Makefile.am
++++ 0.1.7/Makefile.am
+@@ -44,5 +44,5 @@ nobase_include_HEADERS = tirpc/un-namesp
+ 			 tirpc/rpc/auth_des.h
+     
+ install-exec-local:
+-	cp -p ./doc/etc_netconfig /etc/netconfig
+-	chmod 0644 /etc/netconfig
++	install -d ${DESTDIR}/etc
++	install -m 0644 -p ./doc/etc_netconfig ${DESTDIR}/etc/netconfig

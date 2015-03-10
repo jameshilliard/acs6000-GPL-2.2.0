@@ -1,0 +1,12 @@
+Index: project_caesar/builds/thirdparty/osasshd/source/osasshd/Makefile
+===================================================================
+--- project_caesar.orig/builds/thirdparty/osasshd/source/osasshd/Makefile	2006-01-09 02:47:01.000000000 -0500
++++ project_caesar/builds/thirdparty/osasshd/source/osasshd/Makefile	2006-11-13 03:30:03.000000000 -0500
+@@ -4,6 +4,7 @@
+ #SHELL = /bin/sh
+ 
+ AUTORECONF=autoreconf
++MAKE=make
+ 
+ prefix=/usr
+ exec_prefix=${prefix}

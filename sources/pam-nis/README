@@ -1,0 +1,255 @@
+
+                                pam_dotfile 0.7
+
+   Copyright 2002,2003 Lennart Poettering <mzcnzqbgsvyr (at) 0pointer
+   (dot) de>
+     * [1]License
+     * [2]News
+     * [3]Overview
+     * [4]Status
+     * [5]Documentation
+     * [6]Requirements
+     * [7]Installation
+     * [8]Acknowledgements
+     * [9]Download
+
+License
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or (at
+   your option) any later version.
+
+   This program is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+   General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+News
+
+   Wed Aug 27 2003:
+
+   [10]Version 0.7 released, changes include: Fixed in conjunction with
+   exim4, contact info updated, build system update, man page for pamtest
+   added
+
+   Mon July 21 2003:
+
+   [11]Version 0.6 released, changes include: Fix MD5 digest generation.
+   This breaks compatibility with pam_dotfile <= 0.5 unless
+   --enable-compat05 is specified at compile time. Minor other fixes
+   (mostly related to the build system). All users should update.
+
+   Tue July 8 2003:
+
+   [12]Version 0.5 released, changes include: Autoconf support, fixed an
+   important bug regarding a race on child process creation. All users
+   should update.
+
+Overview
+
+   pam_dotfileis a PAM module which allows users to have more than one
+   password for a single account, each for a different service. This is
+   desirable because many users have objections to using the same
+   password for (as an example) an IMAP4 mailbox and SSH access. The
+   IMAP4 password should be distinct from the SSH password because the
+   user wants to save the former in the configuration of his mail agent,
+   but not the latter. The same applies to POP3 mailboxes, FTP and
+   comparable services.
+
+Status
+
+   Version 0.7 is stable and feature complete.
+
+Documentation
+
+  How does it work?
+
+   The module needs be activated for the specific service in the
+   configuration file /etc/pam.d/<service>. The user is than able to
+   create a second valid password for that service by issuing the
+   following commands:
+pam-dotfile-gen -a <service>
+
+   Replace <service> by the PAM service name, e.g. imapd. The user has to
+   enter the new password twice. This will save the password to
+   ~/.pam-<service> in a hashed way.
+
+   A complete example for the service imap (for the IMAP server dovecot
+   in this case):
+
+   /etc/pam.d/imap:
+#%PAM-1.0
+auth sufficient pam_unix_auth.so
+auth sufficient pam_dotfile.so use_first_pass no_warn
+auth required pam_deny.so
+
+   As user waldo:
+[waldo@wonder] ~$ pam-dotfile-gen -a imap
+Password:quux
+Please repeat; password:quux
+Password added.
+
+   That's it. User waldo may now access his IMAP mail store either by
+   using his unix password or by using quux.
+
+   If you want to deny access with the unix password when a .pam file
+   exists, you should install the following /etc/pam.d/imap:
+#%PAM-1.0
+auth [success=done new_authtok_reqd=done authinfo_unavail=ignore default=die] p
+am_dotfile.so no_warn
+auth [success=done new_authtok_reqd=done default=die] pam_unix.so use_first_pas
+s
+
+   Please note: the pam.d fragments shown above are based on Debian
+   GNU/Linux' default PAM installation. I know that some distributions
+   (i.e. Red Hat) use pam_pwdb.so instead of pam_unix.so as default
+   authentication mechanism. Please adapt the pam.d configuration to your
+   specific distribution.
+
+  Notes
+
+   For getting access to the user's files a SUID root helper utility
+   /sbin/pam-dotfile-helper is used.
+
+   The .pam files are ignored when their access mode AND 077 is non-zero,
+   when they are symlinks or when any parent directory is group or world
+   writable.
+
+   pam_dotfile will try to open the the following files for
+   authentication (in that order):
+    1. ~/.pam-<service>
+    2. ~/.pam/<service>
+    3. ~/.pam-other
+    4. ~/.pam/other
+
+   The first file in this list that exists is used for authentication.
+   Regardless of any of the passwords contained therein are correct the
+   other files are NOT evaluated.
+
+   The hashing is implemented in the following way:
+    1. A 16 byte random string is read from /dev/urandom (salt)
+    2. It is formatted in a 32 character hexadecimal string
+    3. The password is appended
+    4. The MD5 hash of this string is calculated
+    5. The hash is formatted in another 32 character hexadecimal string
+    6. The result is the concatenation of the two hexadecimal strings
+
+   I believe that this is somewhat secure. However, I am not a
+   cryptoanalyst, I cannot guarantee for this. (Probably a cryptoanalyst
+   cannot either.)
+
+   The hashing function changed a little from 0.5 to 0.6. There was an
+   ugly error in formatting the digest into a hexadecimal string. By
+   fixing this the old hashed passwords became incompatible with newer
+   releases of pam_dotfile. For sake of compatibility I added the option
+   --enable-compat05 to the configure script. Passwords for 0.6 are
+   prefixed with a + in the dot files, older passwords are not. You are
+   encouraged to fix your passwords to comply with the new version.
+
+   pam-dotfile-gen may be used as a filter that reads a text stream with
+   unencrypted passwords and crypts them. Empty lines and those starting
+   with # are passed in an unmodified way to STDOUT. Thus the user may
+   comment the passwords in his .pam files.
+
+  PAM parameters
+
+     * debug - Be very verbose to syslog(3)
+     * use_first_pass - Don't issue a password prompt, use one supplied
+       by a previous modules
+     * try_first_pass - Nearly the same as use_first_pass, but don't fail
+       if no password was supplied, instead query the user
+     * use_authtok - Synonym for use_first_pass
+     * rootok - Don't deny access for users with uid == 0
+     * nullok - Don't deny access for null passwords
+     * fork - Always fork before trying to open the password files via
+       the helper tool
+     * nofork - Never fork
+     * no_warn - Suppress warnings to syslog(3)
+     * stat_only_home - verifies group/world readability only inside the
+       home directory. e.g. if the configuration file is
+       /home/waldo/.pam/service only /home/waldo/.pam and /home/waldo are
+       tested. This is sometimes necessary if the home directories are
+       symbolic links.
+     * nocompat05 - Disable compatibility with pam_dotfile <= 0.5. This
+       is only available if pam_dotfile was compiled with
+       --enable-compat05
+
+Requirements
+
+   pam_dotfile was developed and tested on Debian GNU/Linux "testing"
+   from July 2003, it should work on most other Linux distributions (and
+   maybe Unix versions) since it uses GNU autoconf and GNU libtool for
+   source code configuration and shared library management.
+
+   You need the PAM development headers installed (naturally...)
+
+Installation
+
+   As this package is made with the GNU autotools you should run
+   ./configure inside the distribution directory for configuring the
+   source tree. After that you should run make for compilation and make
+   install (as root) for installation of pam_dotfile.
+
+   If you upgrade from versions prior to 0.6 you should pass
+   --enable-compat05 to configure to enable compatibility with old user
+   dot files. If you do not specify this, old passwords are ignored, the
+   users have to recreate their passwords with pam-dotfile-gen.
+
+   If you do a fresh install you should not pass --enable-compat05 to
+   configure. (An alternative is to specify --enable-compat05 but to
+   disable it afterwards by using nocompat05 on the pam configuration
+   line.)
+
+Acknowledgements
+
+   This software includes an implementation of the MD5 algorithm by L.
+   Peter Deutsch. Thanks to him for this.
+
+   Oliver Kurth for packaging pam_dotfile for Debian
+
+   Christian Loitsch provided a patch with some bugfixes and support for
+   stat_only_home
+
+Download
+
+   The newest release is available from
+   [13]http://0pointer.de/lennart/projects/pam_dotfile/.
+
+   The current release is [14]0.7
+
+   You may find a mostly up to date Debian package of pam_dotfile in the
+   [15]Debian package repository.
+
+   Get pam_dotfile's development sources from the [16]Subversion
+   [17]repository.
+     _________________________________________________________________
+
+
+    Lennart Poettering <mzcnzqbgsvyr (at) 0pointer (dot) de>
+
+   $Id: README,v 1.1 2005/12/14 01:48:47 oliver Exp $
+
+References
+
+   1. README#license
+   2. README#news
+   3. README#overview
+   4. README#status
+   5. README#documentation
+   6. README#requirements
+   7. README#installation
+   8. README#acks
+   9. README#download
+  10. http://0pointer.de/lennart/projects/pam_dotfile/pam_dotfile-0.7.tar.gz
+  11. http://0pointer.de/lennart/projects/pam_dotfile/pam_dotfile-0.6.tar.gz
+  12. http://0pointer.de/lennart/projects/pam_dotfile/pam_dotfile-0.5.tar.gz
+  13. http://0pointer.de/lennart/projects/pam_dotfile/
+  14. http://0pointer.de/lennart/projects/pam_dotfile/pam_dotfile-0.7.tar.gz
+  15. http://packages.debian.org/libpam-dotfile
+  16. http://subversion.tigris.org/
+  17. https://seth.intheinter.net:8081/svn/pam_dotfile/

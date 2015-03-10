@@ -1,0 +1,251 @@
+#!/bin/bash
+
+EXE=$(basename ${0})
+function usage () {
+    echo "gspco: GSP source code checkout script"
+    echo ""
+    echo "Usage:"
+    echo "  ${EXE} -h"
+    echo "  ${EXE} [-c category] -l"
+    echo "  ${EXE} [-c category] [-u] [-t TAG|-b BRANCH] module|category/module ..."
+    echo "  ${EXE} [-c category] [-u] [-t TAG|-b BRANCH] -a"
+    echo ""
+    echo "      -h            - print this information"
+    echo "      -c category    - source code category, default to project name"
+    echo "      -l            - get module list"
+    echo "      -a            - check out all modules in category specified by -c parameter"
+    echo "                      use modules defined in ${PROJDIR}/module.lst instead if exists"
+    echo "      -u            - update local copy"
+    echo "      -r REV        - update module with given REV, default is trunk"
+    echo "      -t TAG        - checkout module with given TAG, default is trunk"
+    echo "      -b BRANCH     - checkout module with given BRANCH, default is trunk"
+    echo "      module        - module to checkout"
+    echo ""
+    echo "Examples:"
+    echo "  ${EXE} -t TAG generic/cacpd acs/terminal-menu"
+    echo "  ${EXE} -c generic -u cacpd provider"
+    echo "  ${EXE} -c generic -c acs -l"
+    echo "  ${EXE} -c generic -c acs -a"
+    echo ""
+}
+
+# check for segfault on svn command, retry for 5 times until we get a good reading
+function svnCmd () {
+    svncmd="$1"
+    #svn list ${SVNROOT}/sources/${PKG}/${TAGOPT} &> /dev/null
+    ${svncmd} &>/dev/null
+    ret=$?
+    # check for segfault on svn list, retry for 5 times until we get a good reading
+    if [[ $ret -ne 0 && $ret -ne 1 ]]; then
+        for ((i=0; i<5; i++)); do
+            #svn list ${SVNROOT}/sources/${PKG}/${TAGOPT} &> /dev/null
+            ${svncmd} &>/dev/null
+            ret=$?
+            if [[ $ret -eq 0 || $ret -eq 1 ]]; then
+                return $ret
+            fi
+        done
+    else
+        # ret must be 0 or 1
+        return $ret
+    fi
+    printf "svn command \"%s\" failed 5 times... Aborting" "$svncmd" >&2
+    exit 1
+}
+
+function checkDir () {
+    serverdir="$1"
+    workdir="$2"
+
+    if [ -d "$workdir" ]
+    then
+        if [ "${UPDATE}" == "1" ]
+        then
+            echo "Update $workdir $REVISION"
+            svnCmd "svn up $REVISION $workdir"
+            return $?
+        else
+            echo -e "\nDirectory $workdir already exists."
+            echo -n "Do you want to remove it?[yes/no]: "
+            read r
+            if [ "$r" = "yes" ]
+            then
+                echo "Remove $workdir"
+                rm -rf $workdir
+            else
+                echo "Skipped"
+                return 0
+            fi
+        fi
+    fi
+    svnCmd "svn co $REVISION $serverdir $workdir"
+}
+
+function formatPkgList () {
+   local CATEGORY PACKAGE PACKAGES
+
+   CATEGORY=${1}
+
+   PACKAGES=""
+   while [ $# -gt 1 ]
+   do
+       shift
+       if [ ! $(echo ${1} | grep -e '.\+/$') ]
+       then
+           PACKAGE="${1}/"
+       fi
+       PACKAGE=$(echo ${PACKAGE} | sed -r "s,^([^/]+/)$,${CATEGORY}/\1,")
+       PACKAGES="${PACKAGES} ${PACKAGE}"
+   done
+   echo ${PACKAGES}
+}
+
+if [ "X${GSPENV}" == "X" ]
+then
+    echo "ERROR: gspco only avliable inside GSP Shell, run gspsh first"
+    exit 1
+fi
+
+PROJECT=""
+SRCREPS="" 
+REVISION=""
+PROTOCOL="https"
+if [ "X${PROJDIR}" == "X" ]
+then
+    echo "PROJDIR not set"
+    exit 1
+elif [ ! -d ${PROJDIR} ]
+then
+    echo "Not a directory ${PROJDIR}"
+    exit 1
+else
+    PROJECT=$(svn info ${PROJDIR} 2>&1|sed -rn 's,^URL:\s*\w+:.*/projects/([^/]+)/.*$,\1,p')
+    if [ "X${PROJECT}" == "X" ]
+    then
+        echo "${PROJDIR} is not a subversion working copy"
+        exit 1
+    fi
+    if [ "${SITE}" == "shanghai" ]; then
+	PROTOCOL="svn"
+    fi
+    SVNROOT="${PROTOCOL}://${GSP_REPOS}"
+fi
+
+SRCDIR=${DL_DIR:-${HOME}/sources}
+
+trap "echo -e '\nInterrupted'; exit 0" 2
+
+TAGOPT=trunk
+CHECKALL=0
+ACTION=""
+
+while getopts "hlt:b:c:r:ua" opt; do
+    case $opt in
+    c)
+        CATEGORY="${OPTARG}"
+        SRCREPS="${SRCREPS} ${CATEGORY}"
+        ;;
+    l)
+        ACTION="list"
+        ;;
+    t)
+        TAGOPT=tags/${OPTARG}
+        ;;
+    b)
+        TAGOPT=branches/${OPTARG}
+        ;;
+    a)
+        CHECKALL=1
+        ;;
+    u)
+        UPDATE=1
+        ;;
+    r)
+        TEMPREVISION="${OPTARG}"
+        REVISION="-r ${TEMPREVISION}"
+        ;;
+    h)
+        usage
+        exit 0
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+    esac
+done
+
+if [ "X${SRCREPS}" == "X" ]
+then
+    SRCREPS="${PROJECT}"
+    CATEGORY=${PROJECT}
+fi
+
+case "${ACTION}" in
+    list)
+        echo "List modules in \"${SRCREPS}\" ..."
+        for REP in ${SRCREPS}
+        do
+            echo "${REP} -"
+            svn list ${SVNROOT}/sources/${REP} | sed -rn '{/trunk/d};{s,^(.*)/$,\t|- \1,p}'
+            echo
+        done
+        exit
+        ;;
+    *)
+        ;;
+esac
+
+shift $(($OPTIND - 1))
+
+MODULES=""
+PKG_LIST=""
+if [ "${CHECKALL}" == "1" ]
+then
+    
+    module_list=${PROJDIR}/module.lst 
+    if [ "${SRCREPS}" == "${PROJECT}" -a -f ${module_list} ]
+    then
+        echo "Checkout modules defined in ${PROJDIR}/module.lst"
+        PKG_LIST=$(sed -r '/^\s*#/d' ${module_list})
+        PKG_LIST=$(formatPkgList ${PROJECT} ${PKG_LIST})
+    else
+        echo "Checkout all modules in ${SRCREPS}"
+        for SRCREP in ${SRCREPS}
+        do
+            PKGS=$(svn list ${SVNROOT}/sources/${SRCREP}|sed -nr '/.*\/$/p')
+            for PKG in ${PKGS}
+            do
+                PKG_LIST="${PKG_LIST} ${SRCREP}/${PKG}"
+            done
+        done
+    fi
+    MODULES=${PKG_LIST}
+else
+    MODULES=$*
+    if [ "${MODULES}" == "" ]
+    then
+        usage
+        exit 1
+    fi
+    PKG_LIST=$(formatPkgList ${CATEGORY} ${MODULES})
+fi
+
+
+for PKG in ${PKG_LIST}
+do
+    DIR=$(basename ${PKG})
+    echo Checkout ${PKG} to ${SRCDIR}/${DIR}
+    svnCmd "svn list ${SVNROOT}/sources/${PKG}/${TAGOPT}"
+    ret=$?
+    # only perform checkout if we were able to get a successful svn list above
+    if [ $ret -eq 0 ]; then
+        checkDir ${SVNROOT}/sources/${PKG}/${TAGOPT} ${SRCDIR}/${DIR}
+    elif [ $ret -eq 1 ]; then
+        # THIS OVERRIDES TAGOPT IF IT DOES NOT EXIST
+        # IF TAGOPT IS NOT FOUND, WE WILL CHECK OUT TRUNK HERE
+        checkDir ${SVNROOT}/sources/${PKG}/trunk ${SRCDIR}/${DIR}
+    fi
+done
+
+exit 0

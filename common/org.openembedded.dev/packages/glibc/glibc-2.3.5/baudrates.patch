@@ -1,0 +1,18 @@
+--- glibc-2.3.5/sysdeps/unix/sysv/linux/powerpc/bits/termios.h	2001-07-26 00:00:00.000000000 -0500
++++ /home/efernandez/termios.h	2007-10-05 00:00:00.000000000 -0500
+@@ -154,7 +154,14 @@
+ #define  B3000000 00034
+ #define  B3500000 00035
+ #define  B4000000 00036
++#define  B100     00037
++#define  B7200    00040
++#define  B14400   00041
++#define  B28800   00042
++#define  B76800   00043
++#define  B128000  00044
++#define  B921600  00045
+-#define __MAX_BAUD B4000000
++#define __MAX_BAUD B921600
+ 
+ #define CSIZE  00001400
+ #define   CS5  00000000

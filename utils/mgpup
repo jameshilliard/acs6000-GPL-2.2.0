@@ -1,0 +1,9 @@
+pushd common/com.avocent.dev
+svn up
+popd
+pushd common/org.openembedded.dev
+svn up
+popd
+pushd mergepoint
+svn up
+popd

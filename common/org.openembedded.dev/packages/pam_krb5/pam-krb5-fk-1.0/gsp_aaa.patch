@@ -1,0 +1,98 @@
+Index: pam_krb5_fk-1.0/pam_krb5_auth.c
+===================================================================
+--- pam_krb5_fk-1.0.orig/pam_krb5_auth.c	2007-10-04 21:24:02.000000000 -0700
++++ pam_krb5_fk-1.0/pam_krb5_auth.c	2007-10-05 15:17:28.000000000 -0700
+@@ -124,9 +124,9 @@
+ 	pamret = PAM_BUF_ERR;
+ 	goto cleanup2;
+     }
+-    (void) sprintf(prompt, "Password for %s: ", princ_name);
++	 (void) sprintf(prompt, "%s's Password: ", princ_name);
+ 
+-    if (try_first_pass || use_first_pass)
++    //if (try_first_pass || use_first_pass)
+ 	(void) pam_get_item(pamh, PAM_AUTHTOK, (void **) &pass);
+ 
+ get_pass:
+@@ -170,12 +170,12 @@
+ 	    goto cleanup2;
+ 	}
+     }
+-    pw = getpwnam(name);
+-    if (!pw) {
+-	DLOG("getpwnam()", lname);
+-	pamret = PAM_USER_UNKNOWN;
+-	goto cleanup2;
+-    }
++//    pw = getpwnam(name);
++//    if (!pw) {
++//	DLOG("getpwnam()", lname);
++//	pamret = PAM_USER_UNKNOWN;
++//	goto cleanup2;
++//  }
+ 
+     /* Get a TGT */
+     if (krbret = krb5_get_init_creds_password(pam_context, &creds, princ,
+@@ -186,7 +186,13 @@
+ 	    pass = NULL;
+ 	    goto get_pass;
+ 	}
+-	pamret = PAM_AUTH_ERR;
++	//[RK] Fix bug#1362 - Kerberos Down Local 
++	if ((krbret == KRB5_KDC_UNREACH) ||
++	    (krbret == KRB5_REALM_CANT_RESOLVE) ||
++            (krbret == KRB5_REALM_UNKNOWN)) 	    
++		pamret = PAM_AUTHINFO_UNAVAIL;
++	else
++		pamret = PAM_AUTH_ERR;
+ 	goto cleanup2;
+     }
+ 
+@@ -277,7 +283,8 @@
+     int		debug = 0;
+     uid_t	euid;
+ 
+-    if (flags == PAM_REINITIALIZE_CRED)
++    if ((flags == PAM_REINITIALIZE_CRED) ||
++	(flags == PAM_DELETE_CRED)) 
+ 	return PAM_SUCCESS; /* XXX Incorrect behavior */
+ 
+     if (flags != PAM_ESTABLISH_CRED)
+@@ -415,12 +422,15 @@
+     (void) krb5_cc_end_seq_get(pam_context, ccache_temp, &cursor);
+ 
+     if (strstr(cache_name, "FILE:") == cache_name) {
++    	seteuid(0);
+ 	if (chown(&cache_name[5], pw->pw_uid, pw->pw_gid) == -1) {
+ 	    DLOG("chown()", strerror(errno));
+ 	    (void) krb5_cc_destroy(pam_context, ccache_perm);
+ 	    pamret = PAM_SERVICE_ERR;	
++    	    seteuid(pw->pw_uid);
+ 	    goto cleanup2;
+ 	}
++    	seteuid(pw->pw_uid);
+     }
+     (void) krb5_cc_close(pam_context, ccache_perm);
+ 
+Index: pam_krb5_fk-1.0/pam_krb5_pass.c
+===================================================================
+--- pam_krb5_fk-1.0.orig/pam_krb5_pass.c	2000-01-04 17:08:51.000000000 -0800
++++ pam_krb5_fk-1.0/pam_krb5_pass.c	2007-10-04 21:24:02.000000000 -0700
+@@ -5,7 +5,7 @@
+  *
+  */
+ 
+-static const char rcsid[] = "$Id: pam_krb5_pass.c,v 1.3 1999/01/19 23:43:11 fcusack Exp $";
++static const char rcsid[] = "$Id: pam_krb5_pass.c,v 1.1 2006/09/14 05:03:49 scott Exp $";
+ 
+ #include <syslog.h>	/* syslog */
+ #include <security/pam_appl.h>
+@@ -98,7 +98,7 @@
+ 	pamret = PAM_BUF_ERR;
+ 	goto cleanup2;
+     }
+-    (void) sprintf(prompt, "Password for %s: ", princ_name);
++	 (void) sprintf(prompt, "%s's Password: ", princ_name);
+ 
+     if (try_first_pass || use_first_pass)
+ 	(void) pam_get_item(pamh, PAM_AUTHTOK, (void **) &pass);

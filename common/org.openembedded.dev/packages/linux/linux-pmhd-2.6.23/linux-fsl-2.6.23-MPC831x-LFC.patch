@@ -1,0 +1,65 @@
+From d609f17b41acaed7f912fec8273a294585ba12b3 Mon Sep 17 00:00:00 2001
+From: Jerry Huang <Chang-Ming.Huang@freescale.com>
+Date: Wed, 4 Jun 2008 16:43:59 +0800
+Subject: [PATCH] LFC support for mpc8315e Rev1.2 and mpc8313e Rev2.1
+
+Signed-off-by: Jerry Huang <Chang-Ming.Huang@freescale.com>
+---
+ drivers/net/gianfar.c |   14 ++++++++++++++
+ drivers/net/gianfar.h |    1 +
+ 2 files changed, 15 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/net/gianfar.c b/drivers/net/gianfar.c
+index 8435258..62fcb10 100644
+--- a/drivers/net/gianfar.c
++++ b/drivers/net/gianfar.c
+@@ -88,6 +88,7 @@
+ #include <asm/io.h>
+ #include <asm/irq.h>
+ #include <asm/uaccess.h>
++#include <asm/reg.h>
+ #include <linux/module.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/crc32.h>
+@@ -924,6 +925,7 @@ int startup_gfar(struct net_device *dev)
+ 	struct rxbd8 *rxbdp;
+ 	dma_addr_t addr;
+ 	unsigned long vaddr;
++	unsigned int svr;
+ 	int i;
+ 	struct gfar_private *priv = netdev_priv(dev);
+ 	struct gfar __iomem *regs = priv->regs;
+@@ -1086,6 +1088,18 @@ int startup_gfar(struct net_device *dev)
+ 	else
+ 		gfar_write(&regs->rxic, 0);
+ 
++	svr = mfspr(SPRN_SVR);
++	/* MPC8315E Rev1.2 or MPC8313E Rev2.1 */
++	if (svr == 0x80B40012 || svr == 0x80B00021) {
++		void *rqprm0 = ((void *)regs + 0xC00);
++
++		/* Clear the LFC bit */
++		gfar_write(&priv->regs->rctrl, rctrl);
++		/* Set the Receiv Queue Parameter Register0, FBTHR = 0 */
++		gfar_write(rqprm0, priv->rx_ring_size);
++		rctrl = RCTRL_LFC;
++	}
++
+ 	if (priv->rx_csum_enable)
+ 		rctrl |= RCTRL_CHECKSUMMING;
+ 
+diff --git a/drivers/net/gianfar.h b/drivers/net/gianfar.h
+index d40a060..dea5671 100644
+--- a/drivers/net/gianfar.h
++++ b/drivers/net/gianfar.h
+@@ -233,6 +233,7 @@ extern const char gfar_driver_version[];
+ #define RCTRL_TS_ENABLE         0x01000000
+ #define RCTRL_PADB_SIZE         (0x8 << 16)
+ #define RCTRL_PAL_MASK		0x001f0000
++#define RCTRL_LFC		0x00004000
+ #define RCTRL_VLEX		0x00002000
+ #define RCTRL_FILREN		0x00001000
+ #define RCTRL_FSQEN             0x00000800
+-- 
+1.5.5.1.248.g4b17
+

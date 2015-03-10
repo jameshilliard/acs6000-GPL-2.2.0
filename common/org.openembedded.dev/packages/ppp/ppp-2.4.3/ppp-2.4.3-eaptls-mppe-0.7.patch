@@ -1,0 +1,217 @@
+--- ppp-2.4.3/pppd/ccp.c	2004-11-13 03:28:15.000000000 +0100
++++ ppp-2.4.3-eap-tls-mppe/pppd/ccp.c	2005-10-17 14:45:28.000000000 +0200
+@@ -540,6 +540,7 @@
+     if (go->mppe) {
+ 	ccp_options *ao = &ccp_allowoptions[f->unit];
+ 	int auth_mschap_bits = auth_done[f->unit];
++	int auth_eap_bits = auth_done[f->unit];
+ 	int numbits;
+ 
+ 	/*
+@@ -567,8 +568,18 @@
+ 	    lcp_close(f->unit, "MPPE required but not available");
+ 	    return;
+ 	}
+-	if (!numbits) {
+-	    error("MPPE required, but MS-CHAP[v2] auth not performed.");
++
++    /*
++     * MPPE is also possible in combination with EAP-TLS.
++     * It is not possible to detect if we're doing EAP or EAP-TLS
++     * at this stage, hence we accept all forms of EAP. If TLS is
++     * not used then the MPPE keys will not be derived anyway.
++     */
++	/* Leave only the eap auth bits set */
++	auth_eap_bits &= (EAP_WITHPEER | EAP_PEER );
++
++	if ((numbits == 0) && (auth_eap_bits == 0)) {
++	    error("MPPE required, but MS-CHAP[v2] nor EAP-TLS auth are performed.");
+ 	    lcp_close(f->unit, "MPPE required but not available");
+ 	    return;
+ 	}
+--- ppp-2.4.3/pppd/eap-tls.c	2005-10-17 14:57:22.000000000 +0200
++++ ppp-2.4.3-eap-tls-mppe/pppd/eap-tls.c	2005-10-17 14:41:40.000000000 +0200
+@@ -35,7 +35,7 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ 
+-#include <openssl/ssl.h>
++#include <openssl/hmac.h>
+ #include <openssl/err.h>
+ #include <openssl/x509v3.h>
+ #include <curl/curl.h>
+@@ -53,6 +53,120 @@
+ static void add_wordlist(struct wordlist *wl, char *word);
+ static void destroy_wordlist(struct wordlist *wl);
+ 
++#ifdef MPPE
++
++/*
++ * TLS PRF from RFC 2246
++ */
++static void P_hash(const EVP_MD *evp_md,
++		   const unsigned char *secret, unsigned int secret_len,
++		   const unsigned char *seed,   unsigned int seed_len,
++		   unsigned char *out, unsigned int out_len)
++{
++	HMAC_CTX ctx_a, ctx_out;
++	unsigned char a[HMAC_MAX_MD_CBLOCK];
++	unsigned int size;
++
++	HMAC_CTX_init(&ctx_a);
++	HMAC_CTX_init(&ctx_out);
++	HMAC_Init_ex(&ctx_a, secret, secret_len, evp_md, NULL);
++	HMAC_Init_ex(&ctx_out, secret, secret_len, evp_md, NULL);
++
++	size = HMAC_size(&ctx_out);
++
++	/* Calculate A(1) */
++	HMAC_Update(&ctx_a, seed, seed_len);
++	HMAC_Final(&ctx_a, a, NULL);
++
++	while (1) {
++		/* Calculate next part of output */
++		HMAC_Update(&ctx_out, a, size);
++		HMAC_Update(&ctx_out, seed, seed_len);
++
++		/* Check if last part */
++		if (out_len < size) {
++			HMAC_Final(&ctx_out, a, NULL);
++			memcpy(out, a, out_len);
++			break;
++		}
++
++		/* Place digest in output buffer */
++		HMAC_Final(&ctx_out, out, NULL);
++		HMAC_Init_ex(&ctx_out, NULL, 0, NULL, NULL);
++		out += size;
++		out_len -= size;
++
++		/* Calculate next A(i) */
++		HMAC_Init_ex(&ctx_a, NULL, 0, NULL, NULL);
++		HMAC_Update(&ctx_a, a, size);
++		HMAC_Final(&ctx_a, a, NULL);
++	}
++
++	HMAC_CTX_cleanup(&ctx_a);
++	HMAC_CTX_cleanup(&ctx_out);
++	memset(a, 0, sizeof(a));
++}
++
++static void PRF(const unsigned char *secret, unsigned int secret_len,
++		const unsigned char *seed,   unsigned int seed_len,
++		unsigned char *out, unsigned char *buf, unsigned int out_len)
++{
++        unsigned int i;
++        unsigned int len = (secret_len + 1) / 2;
++	const unsigned char *s1 = secret;
++	const unsigned char *s2 = secret + (secret_len - len);
++
++	P_hash(EVP_md5(),  s1, len, seed, seed_len, out, out_len);
++	P_hash(EVP_sha1(), s2, len, seed, seed_len, buf, out_len);
++
++	for (i=0; i < out_len; i++) {
++	        out[i] ^= buf[i];
++	}
++}
++
++#define EAPTLS_MPPE_KEY_LEN     32
++
++/*
++ *  Generate keys according to RFC 2716 and add to reply
++ */
++void eaptls_gen_mppe_keys(struct eaptls_session *ets, const char *prf_label)
++{
++    unsigned char out[4*EAPTLS_MPPE_KEY_LEN], buf[4*EAPTLS_MPPE_KEY_LEN];
++    unsigned char seed[64 + 2*SSL3_RANDOM_SIZE];
++    unsigned char *p = seed;
++	SSL			  *s = ets->ssl;
++    size_t prf_size;
++
++    prf_size = strlen(prf_label);
++
++    memcpy(p, prf_label, prf_size);
++    p += prf_size;
++
++    memcpy(p, s->s3->client_random, SSL3_RANDOM_SIZE);
++    p += SSL3_RANDOM_SIZE;
++    prf_size += SSL3_RANDOM_SIZE;
++
++    memcpy(p, s->s3->server_random, SSL3_RANDOM_SIZE);
++    prf_size += SSL3_RANDOM_SIZE;
++
++    PRF(s->session->master_key, s->session->master_key_length,
++        seed, prf_size, out, buf, sizeof(out));
++
++    /* 
++     * We now have the master send and receive keys.
++     * From these, generate the session send and receive keys.
++     * (see RFC3079 / draft-ietf-pppext-mppe-keys-03.txt for details)
++     */
++    p = out;
++    BCOPY( p, mppe_recv_key, sizeof(mppe_recv_key) );
++    p += EAPTLS_MPPE_KEY_LEN;
++    BCOPY( p, mppe_send_key, sizeof(mppe_send_key) );
++
++    mppe_keys_set = 1;
++}
++
++#endif
++
+ /*
+  * Tests if certificates, key and crl for server use can be loaded.
+  */
+@@ -190,8 +304,8 @@
+ 	 */
+ 	if (servcertfile[0]) {
+ 		if (!(tmp = get_X509_from_file(servcertfile))) {
+-			warn("Error loading client certificate from file %s",
+-			     clicertfile);
++			warn("Error loading server certificate from file %s",
++			     servcertfile);
+ 			goto fail;
+ 		}
+ 		X509_free(tmp);
+--- ppp-2.4.3/pppd/eap-tls.h	2005-10-17 14:57:22.000000000 +0200
++++ ppp-2.4.3-eap-tls-mppe/pppd/eap-tls.h	2005-10-18 09:24:28.342960526 +0200
+@@ -96,4 +96,14 @@
+ void eaptls_get_crl(X509 * cert, char *filename);
+ int eaptls_download_crl(char *uri, char *filename);
+ 
++#ifdef MPPE
++#include <net/ppp-comp.h>   /* MPPE_MAX_KEY_LEN */
++extern u_char mppe_send_key[MPPE_MAX_KEY_LEN];
++extern u_char mppe_recv_key[MPPE_MAX_KEY_LEN];
++extern int mppe_keys_set;
++
++void eaptls_gen_mppe_keys(struct eaptls_session *ets, const char *prf_label);
++
++#endif
++
+ #endif
+--- ppp-2.4.3/pppd/eap.c	2005-10-17 14:57:22.000000000 +0200
++++ ppp-2.4.3-eap-tls-mppe/pppd/eap.c	2005-10-18 09:25:17.175205819 +0200
+@@ -2116,15 +2116,22 @@
+ 	
+ 			GETCHAR(flags, inp);
+ 
+-			if(len == 1 && !flags) 	/* Ack = ok */
++			if(len == 1 && !flags) {	/* Ack = ok */
++#ifdef MPPE
++ 				eaptls_gen_mppe_keys( esp->es_server.ea_session, "client EAP encryption" );
++#endif
+ 				eap_send_success(esp);
++			}
+ 			else {			/* failure */
+ 				eaptls_receive(esp->es_server.ea_session, inp, len);
+ 				warn("Server authentication failed");
+ 				eap_send_failure(esp);
+ 			}
+ 
++#ifndef MPPE
++			/* how can we determine if MPPE is required? */
+ 			eaptls_free_session(esp->es_server.ea_session);
++#endif
+ 
+ 			break;
+ 

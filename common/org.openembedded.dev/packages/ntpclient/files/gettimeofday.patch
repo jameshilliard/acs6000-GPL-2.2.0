@@ -1,0 +1,12 @@
+--- ntpclient-2006/ntpclient.c.orig	2007-10-12 15:20:47.000000000 -0700
++++ ntpclient-2006/ntpclient.c	2007-10-12 15:22:08.000000000 -0700
+@@ -32,6 +32,9 @@
+  *  labelled "XXX fixme - non-automatic build configuration".
+  */
+ 
++/* CFLAGS ignored, patching Makefile has no effect: */
++#define USE_OBSOLETE_GETTIMEOFDAY 1
++
+ #define _POSIX_C_SOURCE 199309
+ 
+ #ifdef USE_OBSOLETE_GETTIMEOFDAY

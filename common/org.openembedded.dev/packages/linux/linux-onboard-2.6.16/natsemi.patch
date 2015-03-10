@@ -1,0 +1,20 @@
+Index: linux-2.6.16/drivers/net/natsemi.c
+===================================================================
+--- linux-2.6.16.orig/drivers/net/natsemi.c	2007-05-24 16:07:51.000000000 -0400
++++ linux-2.6.16/drivers/net/natsemi.c	2007-05-24 16:15:31.000000000 -0400
+@@ -980,9 +980,14 @@
+ 			writel((readl(ioaddr+ChipConfig) &~CfgAnegSelMsk | CfgPhyRst | CfgForce10H), ioaddr+ChipConfig);
+ 			break;
+ 		}
+-
++		// Delay for firmware ready
++		udelay(5);
++		readl(ioaddr+ChipConfig);
+ 		/* un-reset PHY */
+ 		writel((readl(ioaddr+ChipConfig) &~CfgPhyRst), ioaddr+ChipConfig);
++		// Delay for firmware ready
++		udelay(5);
++		readl(ioaddr+ChipConfig);
+ 	}
+ #endif
+ 	/* get the initial settings from hardware */

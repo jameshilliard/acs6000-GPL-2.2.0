@@ -1,0 +1,31 @@
+From 70931ee0c949fad464458f0d5c0bf0d5cc126c8c Mon Sep 17 00:00:00 2001
+From: Li Yang <leoli@freescale.com>
+Date: Mon, 15 Dec 2008 16:41:07 +0800
+Subject: [PATCH] fsl_usb2_udc: fix potential QH corruption
+
+Clear next TD field and status field in Queue Head initialization to
+prevent potential QH corruption after USB reset.
+
+Signed-off-by: Li Yang <leoli@freescale.com>
+---
+ drivers/usb/gadget/fsl_usb2_udc.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/usb/gadget/fsl_usb2_udc.c b/drivers/usb/gadget/fsl_usb2_udc.c
+index 5ae5cb7..ec2640f 100644
+--- a/drivers/usb/gadget/fsl_usb2_udc.c
++++ b/drivers/usb/gadget/fsl_usb2_udc.c
+@@ -419,7 +419,10 @@ static void struct_ep_qh_setup(struct fsl_udc *udc, unsigned char ep_num,
+ 	}
+ 	if (zlt)
+ 		tmp |= EP_QUEUE_HEAD_ZLT_SEL;
++
+ 	p_QH->max_pkt_length = cpu_to_le32(tmp);
++	p_QH->next_dtd_ptr = 1;
++	p_QH->size_ioc_int_sts = 0;
+ 
+ 	return;
+ }
+-- 
+1.5.5.1.248.g4b17
+

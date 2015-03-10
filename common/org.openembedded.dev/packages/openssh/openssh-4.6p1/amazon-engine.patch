@@ -1,0 +1,72 @@
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-add.c openssh-4.6p1-new-patched/ssh-add.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-add.c	2007-10-25 13:34:35.000000000 -0500
++++ openssh-4.6p1-new-patched/ssh-add.c	2007-10-25 12:57:28.000000000 -0500
+@@ -356,7 +356,7 @@
+ 	init_rng();
+ 	seed_rng();
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 	fill_default_xkalg();
+ 
+ 	/* At first, get a connection to the authentication agent. */
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-agent.c openssh-4.6p1-new-patched/ssh-agent.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-agent.c	2007-10-25 13:34:35.000000000 -0500
++++ openssh-4.6p1-new-patched/ssh-agent.c	2007-10-25 12:57:28.000000000 -0500
+@@ -1089,7 +1089,7 @@
+ 	prctl(PR_SET_DUMPABLE, 0);
+ #endif
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 	fill_default_xkalg();
+ 
+ 	__progname = ssh_get_progname(av[0]);
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh.c openssh-4.6p1-new-patched/ssh.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh.c	2007-10-25 13:34:35.000000000 -0500
++++ openssh-4.6p1-new-patched/ssh.c	2007-10-25 12:57:28.000000000 -0500
+@@ -564,7 +564,7 @@
+ 	if (!host)
+ 		usage();
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 	ERR_load_crypto_strings();
+ #ifdef LDAP_ENABLED
+ 	ERR_load_X509byLDAP_strings();
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/sshd.c openssh-4.6p1-new-patched/sshd.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/sshd.c	2007-10-25 13:34:36.000000000 -0500
++++ openssh-4.6p1-new-patched/sshd.c	2007-10-25 12:57:28.000000000 -0500
+@@ -1432,7 +1432,7 @@
+ 	else
+ 		closefrom(REEXEC_DEVCRYPTO_RESERVED_FD);
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 
+ 	/*
+ 	 * Force logging to stderr until we have loaded the private host
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-keygen.c openssh-4.6p1-new-patched/ssh-keygen.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-keygen.c	2007-10-25 13:34:35.000000000 -0500
++++ openssh-4.6p1-new-patched/ssh-keygen.c	2007-10-25 12:57:28.000000000 -0500
+@@ -1096,7 +1096,7 @@
+ 
+ 	__progname = ssh_get_progname(argv[0]);
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 	fill_default_xkalg();
+ 	log_init(argv[0], SYSLOG_LEVEL_INFO, SYSLOG_FACILITY_USER, 1);
+ 
+diff -Naur /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-keysign.c openssh-4.6p1-new-patched/ssh-keysign.c
+--- /home/tcotton/amazon-builds/amazon-gsp-dep/amazon/build-dev/tmp/work/powerpc-linux/openssh-4.6p1-r0/openssh-4.6p1/ssh-keysign.c	2006-09-01 00:38:37.000000000 -0500
++++ openssh-4.6p1-new-patched/ssh-keysign.c	2007-10-25 12:57:28.000000000 -0500
+@@ -194,7 +194,7 @@
+ 	if (key_fd[0] == -1 && key_fd[1] == -1)
+ 		fatal("could not open any host key");
+ 
+-	SSLeay_add_all_algorithms();
++	OPENSSL_add_all_algorithms_conf();
+ 	for (i = 0; i < 256; i++)
+ 		rnd[i] = arc4random();
+ 	RAND_seed(rnd, sizeof(rnd));

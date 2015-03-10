@@ -1,0 +1,34 @@
+Index: srp-2.1.2/base/src/Makefile.in
+===================================================================
+--- srp-2.1.2.orig/base/src/Makefile.in
++++ srp-2.1.2/base/src/Makefile.in
+@@ -29,7 +29,7 @@ mandir = @mandir@
+ includedir = @includedir@
+ oldincludedir = /usr/include
+ 
+-DESTDIR =
++DESTDIR = @DESTDIR@
+ 
+ pkgdatadir = $(datadir)/@PACKAGE@
+ pkglibdir = $(libdir)/@PACKAGE@
+Index: srp-2.1.2/base/pam_eps/Makefile.in
+===================================================================
+--- srp-2.1.2.orig/base/pam_eps/Makefile.in
++++ srp-2.1.2/base/pam_eps/Makefile.in
+@@ -81,13 +81,13 @@ dynamic/support.o: support.c
+ $(LIBOBJD): $(LIBSRC)
+ 
+ $(LIBAUTHSH):	$(LIBAUTHSRC) $(LIBOBJD)
+-		$(CC) $(CCSHARED) -o $@ $(LIBAUTHOBJD) $(LIBS)
++		$(CC) $(CCSHARED) -o $@ $(LIBAUTHOBJD) $(LIBS) $(LDLIBS)
+ 
+ $(LIBPASSWDSH):	$(LIBPASSWDSRC) $(LIBOBJD)
+-		$(CC) $(CCSHARED) -o $@ $(LIBPASSWDOBJD) $(LIBS)
++		$(CC) $(CCSHARED) -o $@ $(LIBPASSWDOBJD) $(LIBS) $(LDLIBS)
+ 
+ $(CHKPWD):	eps_chkpwd.c
+-		$(CC) -o $@ eps_chkpwd.c $(STATIC) $(LIBS)
++		$(CC) -o $@ eps_chkpwd.c $(STATIC) $(LIBS) $(LDLIBS)
+ 
+ install: all
+ 	mkdir -p $(FAKEROOT)$(SECUREDIR)

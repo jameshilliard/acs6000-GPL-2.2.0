@@ -1,0 +1,36 @@
+Index: u-boot-1.2.0/board/avocent/golden_gate/sdram.c
+===================================================================
+--- u-boot-1.2.0.orig/board/avocent/golden_gate/sdram.c	2008-10-07 08:57:26.000000000 -0700
++++ u-boot-1.2.0/board/avocent/golden_gate/sdram.c	2008-10-07 09:08:15.000000000 -0700
+@@ -378,6 +378,7 @@
+  ************************************************************************/
+ long int initdram (int board_type)
+ {
++	long int mem_size = (CFG_MBYTES_SDRAM << 21);
+ #if !defined(CONFIG_NAND_U_BOOT) || defined(CONFIG_NAND_SPL)
+ 	mtsdram(DDR0_02, 0x00000000);
+ 
+@@ -420,12 +421,21 @@
+ 	wait_for_dlllock();
+ #endif /* #ifndef CONFIG_NAND_U_BOOT */
+ 
++	{
++		long int *p = (long int *)(mem_size - sizeof(long int));
++		*p = 0xa5a55a5a;
++		p = (long int *)((mem_size<<1) - sizeof(long int));
++		if (*p == 0xa5a55a5a) {
++			mem_size <<= 1;
++		}
++	}
++
+ #ifdef CONFIG_DDR_DATA_EYE
+ 	/* -----------------------------------------------------------+
+ 	 * Perform data eye search if requested.
+ 	 * ----------------------------------------------------------*/
+-	denali_core_search_data_eye(CFG_MBYTES_SDRAM << 20);
++	denali_core_search_data_eye(mem_size);
+ #endif
+ 
+-	return (CFG_MBYTES_SDRAM << 20);
++	return (mem_size);
+ }

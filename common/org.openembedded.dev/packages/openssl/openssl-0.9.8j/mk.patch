@@ -1,0 +1,1162 @@
+Index: openssl-0.9.8j/apps/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/apps/Makefile
++++ openssl-0.9.8j/apps/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=		apps
+ TOP=		..
+-CC=		cc
++#CC=		cc
+ INCLUDES=	-I$(TOP) -I../include $(KRB5_INCLUDES)
+-CFLAG=		-g -static
++CFLAG+=		-g -static
+ MAKEFILE=	Makefile
+ PERL=		perl
+ RM=		rm -f
+@@ -153,12 +153,12 @@ $(EXE): progs.h $(E_OBJ) $(PROGRAM).o $(
+ 	shlib_target=; if [ -n "$(SHARED_LIBS)" ]; then \
+ 		shlib_target="$(SHLIB_TARGET)"; \
+ 	elif [ -n "$(FIPSCANLIB)" ]; then \
+-	  FIPSLD_CC=$(CC); CC=$(TOP)/fips/fipsld; export CC FIPSLD_CC; \
++	  FIPSLD_CC="$(CC)"; CC=$(TOP)/fips/fipsld; export CC FIPSLD_CC; \
+ 	fi; \
+ 	LIBRARIES="$(LIBSSL) $(LIBKRB5) $(LIBCRYPTO)" ; \
+ 	[ "x$(FIPSCANLIB)" = "xlibfips" ] && LIBRARIES="$$LIBRARIES -lfips"; \
+ 	$(MAKE) -f $(TOP)/Makefile.shared -e \
+-		CC=$${CC} APPNAME=$(EXE) OBJECTS="$(PROGRAM).o $(E_OBJ)" \
++		CC="$${CC}" APPNAME=$(EXE) OBJECTS="$(PROGRAM).o $(E_OBJ)" \
+ 		LIBDEPS="$(PEX_LIBS) $$LIBRARIES $(EX_LIBS)" \
+ 		link_app.$${shlib_target}
+ 	-(cd ..; \
+Index: openssl-0.9.8j/config
+===================================================================
+--- openssl-0.9.8j.orig/config
++++ openssl-0.9.8j/config
+@@ -401,9 +401,9 @@ exit 0
+ 
+ # figure out if gcc is available and if so we use it otherwise
+ # we fallback to whatever cc does on the system
+-GCCVER=`(gcc -dumpversion) 2>/dev/null`
++GCCVER=`(${GCC} -dumpversion) 2>/dev/null`
+ if [ "$GCCVER" != "" ]; then
+-  CC=gcc
++#  CC=gcc
+   # then strip off whatever prefix egcs prepends the number with...
+   # Hopefully, this will work for any future prefixes as well.
+   GCCVER=`echo $GCCVER | LC_ALL=C sed 's/^[a-zA-Z]*\-//'`
+@@ -413,7 +413,7 @@ if [ "$GCCVER" != "" ]; then
+   # peak single digit before and after first dot, e.g. 2.95.1 gives 29
+   GCCVER=`echo $GCCVER | sed 's/\([0-9]\)\.\([0-9]\).*/\1\2/'`
+ else
+-  CC=cc
++#  CC=cc
+ fi
+ GCCVER=${GCCVER:-0}
+ if [ "$SYSTEM" = "HP-UX" ];then
+@@ -433,19 +433,19 @@ if [ "$SYSTEM" = "SunOS" ]; then
+   if [ $GCCVER -ge 30 ]; then
+     # 64-bit ABI isn't officially supported in gcc 3.0, but it appears
+     # to be working, at the very least 'make test' passes...
+-    if gcc -v -E -x c /dev/null 2>&1 | grep __arch64__ > /dev/null; then
++    if ${GCC} -v -E -x c /dev/null 2>&1 | grep __arch64__ > /dev/null; then
+       GCC_ARCH="-m64"
+     else
+       GCC_ARCH="-m32"
+     fi
+   fi
+   # check for WorkShop C, expected output is "cc: blah-blah C x.x"
+-  CCVER=`(cc -V 2>&1) 2>/dev/null | \
++  CCVER=`(${CC} -V 2>&1) 2>/dev/null | \
+   	egrep -e '^cc: .* C [0-9]\.[0-9]' | \
+ 	sed 's/.* C \([0-9]\)\.\([0-9]\).*/\1\2/'`
+   CCVER=${CCVER:-0}
+   if [ $MACHINE != i86pc -a $CCVER -gt 40 ]; then
+-    CC=cc	# overrides gcc!!!
++#    CC=cc	# overrides gcc!!!
+     if [ $CCVER -eq 50 ]; then
+       echo "WARNING! Detected WorkShop C 5.0. Do make sure you have"
+       echo "         patch #107357-01 or later applied."
+@@ -461,7 +461,7 @@ if [ "${SYSTEM}-${MACHINE}" = "Linux-alp
+ 	sed 's/.* C V\([0-9]\)\.\([0-9]\).*/\1\2/'`
+   CCCVER=${CCCVER:-0}
+   if [ $CCCVER -gt 60 ]; then
+-    CC=ccc	# overrides gcc!!! well, ccc outperforms inoticeably
++#    CC=ccc	# overrides gcc!!! well, ccc outperforms inoticeably
+ 		# only on hash routines and des, otherwise gcc (2.95)
+ 		# keeps along rather tight...
+   fi
+Index: openssl-0.9.8j/crypto/aes/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/aes/Makefile
++++ openssl-0.9.8j/crypto/aes/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	aes
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/asn1/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/asn1/Makefile
++++ openssl-0.9.8j/crypto/asn1/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	asn1
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/bf/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/bf/Makefile
++++ openssl-0.9.8j/crypto/bf/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	bf
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/bio/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/bio/Makefile
++++ openssl-0.9.8j/crypto/bio/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	bio
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/bn/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/bn/Makefile
++++ openssl-0.9.8j/crypto/bn/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	bn
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=    $(CC) -E
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/buffer/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/buffer/Makefile
++++ openssl-0.9.8j/crypto/buffer/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	buffer
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/camellia/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/camellia/Makefile
++++ openssl-0.9.8j/crypto/camellia/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR= camellia
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/cast/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/cast/Makefile
++++ openssl-0.9.8j/crypto/cast/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	cast
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/comp/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/comp/Makefile
++++ openssl-0.9.8j/crypto/comp/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	comp
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/conf/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/conf/Makefile
++++ openssl-0.9.8j/crypto/conf/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	conf
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/des/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/des/Makefile
++++ openssl-0.9.8j/crypto/des/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	des
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=-I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ RANLIB=		ranlib
+Index: openssl-0.9.8j/crypto/dh/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/dh/Makefile
++++ openssl-0.9.8j/crypto/dh/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	dh
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/dsa/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/dsa/Makefile
++++ openssl-0.9.8j/crypto/dsa/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	dsa
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/dso/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/dso/Makefile
++++ openssl-0.9.8j/crypto/dso/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	dso
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/ec/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ec/Makefile
++++ openssl-0.9.8j/crypto/ec/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ec
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/ecdh/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ecdh/Makefile
++++ openssl-0.9.8j/crypto/ecdh/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ecdh
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g -Wall
++CFLAG+=-g -Wall
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/ecdsa/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ecdsa/Makefile
++++ openssl-0.9.8j/crypto/ecdsa/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ecdsa
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g -Wall
++CFLAG+=-g -Wall
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/engine/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/engine/Makefile
++++ openssl-0.9.8j/crypto/engine/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	engine
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/err/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/err/Makefile
++++ openssl-0.9.8j/crypto/err/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	err
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/evp/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/evp/Makefile
++++ openssl-0.9.8j/crypto/evp/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	evp
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/hmac/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/hmac/Makefile
++++ openssl-0.9.8j/crypto/hmac/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	hmac
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/idea/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/idea/Makefile
++++ openssl-0.9.8j/crypto/idea/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	idea
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/krb5/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/krb5/Makefile
++++ openssl-0.9.8j/crypto/krb5/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	krb5
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/lhash/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/lhash/Makefile
++++ openssl-0.9.8j/crypto/lhash/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	lhash
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/Makefile
++++ openssl-0.9.8j/crypto/Makefile
+@@ -4,11 +4,11 @@
+ 
+ DIR=		crypto
+ TOP=		..
+-CC=		cc
++#CC=		cc
+ INCLUDE=	-I. -I$(TOP) -I../include
+ # INCLUDES targets sudbirs!
+ INCLUDES=	-I.. -I../.. -I../../include
+-CFLAG=		-g
++CFLAG+=		-g
+ MAKEDEPPROG=	makedepend
+ MAKEDEPEND=	$(TOP)/util/domd $(TOP) -MD $(MAKEDEPPROG)
+ MAKEFILE=       Makefile
+Index: openssl-0.9.8j/crypto/md2/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/md2/Makefile
++++ openssl-0.9.8j/crypto/md2/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	md2
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/md2/md2.h
+===================================================================
+--- openssl-0.9.8j.orig/crypto/md2/md2.h
++++ openssl-0.9.8j/crypto/md2/md2.h
+@@ -59,6 +59,8 @@
+ #ifndef HEADER_MD2_H
+ #define HEADER_MD2_H
+ 
++#undef OPENSSL_NO_MD2
++
+ #include <openssl/opensslconf.h> /* OPENSSL_NO_MD2, MD2_INT */
+ #ifdef OPENSSL_NO_MD2
+ #error MD2 is disabled.
+Index: openssl-0.9.8j/crypto/md4/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/md4/Makefile
++++ openssl-0.9.8j/crypto/md4/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=    md4
+ TOP=    ../..
+-CC=     cc
++#CC=     cc
+ CPP=    $(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=       Makefile
+ AR=             ar r
+ 
+Index: openssl-0.9.8j/crypto/md5/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/md5/Makefile
++++ openssl-0.9.8j/crypto/md5/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=    md5
+ TOP=    ../..
+-CC=     cc
++#CC=     cc
+ CPP=    $(CC) -E
+ INCLUDES=-I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=       Makefile
+ AR=             ar r
+ 
+Index: openssl-0.9.8j/crypto/mdc2/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/mdc2/Makefile
++++ openssl-0.9.8j/crypto/mdc2/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	mdc2
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/objects/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/objects/Makefile
++++ openssl-0.9.8j/crypto/objects/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	objects
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ PERL=		perl
+Index: openssl-0.9.8j/crypto/ocsp/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ocsp/Makefile
++++ openssl-0.9.8j/crypto/ocsp/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ocsp
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/pem/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/pem/Makefile
++++ openssl-0.9.8j/crypto/pem/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	pem
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/pkcs12/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/pkcs12/Makefile
++++ openssl-0.9.8j/crypto/pkcs12/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	pkcs12
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/pkcs7/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/pkcs7/Makefile
++++ openssl-0.9.8j/crypto/pkcs7/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	pkcs7
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/pqueue/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/pqueue/Makefile
++++ openssl-0.9.8j/crypto/pqueue/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	pqueue
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/rand/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/rand/Makefile
++++ openssl-0.9.8j/crypto/rand/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	rand
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/rc2/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/rc2/Makefile
++++ openssl-0.9.8j/crypto/rc2/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	rc2
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/rc4/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/rc4/Makefile
++++ openssl-0.9.8j/crypto/rc4/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	rc4
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=    $(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ AR=		ar r
+ 
+ RC4_ENC=rc4_enc.o rc4_skey.o
+Index: openssl-0.9.8j/crypto/rc5/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/rc5/Makefile
++++ openssl-0.9.8j/crypto/rc5/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=	rc5
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/ripemd/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ripemd/Makefile
++++ openssl-0.9.8j/crypto/ripemd/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=    ripemd
+ TOP=    ../..
+-CC=     cc
++#CC=     cc
+ CPP=    $(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=       Makefile
+ AR=             ar r
+ 
+Index: openssl-0.9.8j/crypto/rsa/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/rsa/Makefile
++++ openssl-0.9.8j/crypto/rsa/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	rsa
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/sha/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/sha/Makefile
++++ openssl-0.9.8j/crypto/sha/Makefile
+@@ -4,10 +4,10 @@
+ 
+ DIR=    sha
+ TOP=    ../..
+-CC=     cc
++#CC=     cc
+ CPP=    $(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=       Makefile
+ AR=             ar r
+ 
+Index: openssl-0.9.8j/crypto/stack/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/stack/Makefile
++++ openssl-0.9.8j/crypto/stack/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	stack
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/store/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/store/Makefile
++++ openssl-0.9.8j/crypto/store/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	store
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/txt_db/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/txt_db/Makefile
++++ openssl-0.9.8j/crypto/txt_db/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	txt_db
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/ui/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/ui/Makefile
++++ openssl-0.9.8j/crypto/ui/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ui
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/x509/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/x509/Makefile
++++ openssl-0.9.8j/crypto/x509/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	x509
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/crypto/x509v3/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/x509v3/Makefile
++++ openssl-0.9.8j/crypto/x509v3/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	x509v3
+ TOP=	../..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I.. -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/demos/bio/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/bio/Makefile
++++ openssl-0.9.8j/demos/bio/Makefile
+@@ -1,4 +1,4 @@
+-CC=cc
++#CC=cc
+ CFLAGS= -g -I../../include
+ LIBS= -L../.. ../../libssl.a ../../libcrypto.a
+ EXAMPLES=saccept sconnect
+Index: openssl-0.9.8j/demos/easy_tls/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/easy_tls/Makefile
++++ openssl-0.9.8j/demos/easy_tls/Makefile
+@@ -23,7 +23,7 @@ all: test TAGS
+ # definitions should need customizing:
+ 
+ OPENSSLDIR=../..
+-CC=gcc
++#CC=gcc
+ 
+ SYSCFLAGS=whatever
+ SYSLIBS=whatever
+Index: openssl-0.9.8j/demos/eay/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/eay/Makefile
++++ openssl-0.9.8j/demos/eay/Makefile
+@@ -1,4 +1,4 @@
+-CC=cc
++#CC=cc
+ CFLAGS= -g -I../../include
+ #LIBS=  -L../.. -lcrypto -lssl
+ LIBS= -L../.. ../../libssl.a ../../libcrypto.a
+Index: openssl-0.9.8j/demos/engines/cluster_labs/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/engines/cluster_labs/Makefile
++++ openssl-0.9.8j/demos/engines/cluster_labs/Makefile
+@@ -3,7 +3,7 @@ SRC=		hw_cluster_labs.c
+ OBJ=		hw_cluster_labs.o
+ HEADER=		hw_cluster_labs.h
+ 
+-CC=		gcc
++#CC=		gcc
+ PIC=		-fPIC
+ CFLAGS=		-g -I../../../include $(PIC) -DENGINE_DYNAMIC_SUPPORT -DFLAT_INC
+ AR=		ar r
+Index: openssl-0.9.8j/demos/engines/ibmca/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/engines/ibmca/Makefile
++++ openssl-0.9.8j/demos/engines/ibmca/Makefile
+@@ -3,7 +3,7 @@ SRC=		hw_ibmca.c
+ OBJ=		hw_ibmca.o
+ HEADER=		hw_ibmca.h
+ 
+-CC=		gcc
++#CC=		gcc
+ PIC=		-fPIC
+ CFLAGS=		-g -I../../../include $(PIC) -DENGINE_DYNAMIC_SUPPORT -DFLAT_INC
+ AR=		ar r
+Index: openssl-0.9.8j/demos/engines/rsaref/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/engines/rsaref/Makefile
++++ openssl-0.9.8j/demos/engines/rsaref/Makefile
+@@ -3,7 +3,7 @@ SRC=		rsaref.c
+ OBJ=		rsaref.o
+ HEADER=		rsaref.h
+ 
+-CC=		gcc
++#CC=		gcc
+ PIC=		-fPIC
+ CFLAGS=		-g -I../../../include $(PIC) -DENGINE_DYNAMIC_SUPPORT
+ AR=		ar r
+Index: openssl-0.9.8j/demos/engines/zencod/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/engines/zencod/Makefile
++++ openssl-0.9.8j/demos/engines/zencod/Makefile
+@@ -3,7 +3,7 @@ SRC=		hw_zencod.c
+ OBJ=		hw_zencod.o
+ HEADER=		hw_zencod.h
+ 
+-CC=		gcc
++#CC=		gcc
+ PIC=		-fPIC
+ CFLAGS=		-g -I../../../include $(PIC) -DENGINE_DYNAMIC_SUPPORT -DFLAT_INC
+ AR=		ar r
+Index: openssl-0.9.8j/demos/maurice/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/maurice/Makefile
++++ openssl-0.9.8j/demos/maurice/Makefile
+@@ -1,4 +1,4 @@
+-CC=cc
++#CC=cc
+ CFLAGS= -g -I../../include -Wall
+ LIBS=  -L../.. -lcrypto
+ EXAMPLES=example1 example2 example3 example4
+Index: openssl-0.9.8j/demos/prime/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/prime/Makefile
++++ openssl-0.9.8j/demos/prime/Makefile
+@@ -1,4 +1,4 @@
+-CC=cc
++#CC=cc
+ CFLAGS= -g -I../../include -Wall
+ LIBS=  -L../.. -lcrypto
+ EXAMPLES=prime
+Index: openssl-0.9.8j/demos/sign/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/sign/Makefile
++++ openssl-0.9.8j/demos/sign/Makefile
+@@ -1,4 +1,4 @@
+-CC=cc
++#CC=cc
+ CFLAGS= -g -I../../include -Wall
+ LIBS=  -L../.. -lcrypto
+ EXAMPLES=sign
+Index: openssl-0.9.8j/demos/tunala/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/demos/tunala/Makefile
++++ openssl-0.9.8j/demos/tunala/Makefile
+@@ -8,7 +8,7 @@ SSL_INCLUDEDIR=$(SSL_HOMEDIR)/include
+ SSL_LIBDIR=$(SSL_HOMEDIR)
+ 
+ RM=rm -f
+-CC=gcc
++#CC=gcc
+ DEBUG_FLAGS=-g -ggdb3 -Wall -Wshadow
+ INCLUDE_FLAGS=-I$(SSL_INCLUDEDIR)
+ CFLAGS=$(DEBUG_FLAGS) $(INCLUDE_FLAGS) -DNO_CONFIG_H
+Index: openssl-0.9.8j/engines/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/engines/Makefile
++++ openssl-0.9.8j/engines/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	engines
+ TOP=	..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 
+Index: openssl-0.9.8j/Makefile.org
+===================================================================
+--- openssl-0.9.8j.orig/Makefile.org
++++ openssl-0.9.8j/Makefile.org
+@@ -57,7 +57,7 @@ OPENSSLDIR=/usr/local/ssl
+ # equal 4.
+ # PKCS1_CHECK - pkcs1 tests.
+ 
+-CC= cc
++#CC= cc
+ CFLAG= -O
+ DEPFLAG= 
+ PEX_LIBS= 
+@@ -358,7 +358,7 @@ libcrypto$(SHLIB_EXT): libcrypto.a $(SHA
+ 			$(AR) libcrypto.a fips/fipscanister.o ; \
+ 		else \
+ 			if [ "$(FIPSCANLIB)" = "libcrypto" ]; then \
+-				FIPSLD_CC=$(CC); CC=fips/fipsld; \
++				FIPSLD_CC="$(CC)"; CC=fips/fipsld; \
+ 				export CC FIPSLD_CC; \
+ 			fi; \
+ 			$(MAKE) -e SHLIBDIRS='crypto' build-shared; \
+@@ -381,7 +381,7 @@ libssl$(SHLIB_EXT): libcrypto$(SHLIB_EXT
+ fips/fipscanister.o:	build_fips
+ libfips$(SHLIB_EXT):		fips/fipscanister.o
+ 	@if [ "$(SHLIB_TARGET)" != "" ]; then \
+-		FIPSLD_CC=$(CC); CC=fips/fipsld; export CC FIPSLD_CC; \
++		FIPSLD_CC="$(CC)"; CC=fips/fipsld; export CC FIPSLD_CC; \
+ 		$(MAKE) -f Makefile.shared -e $(BUILDENV) \
+ 			CC=$${CC} LIBNAME=fips THIS=$@ \
+ 			LIBEXTRAS=fips/fipscanister.o \
+Index: openssl-0.9.8j/Makefile.shared
+===================================================================
+--- openssl-0.9.8j.orig/Makefile.shared
++++ openssl-0.9.8j/Makefile.shared
+@@ -6,7 +6,7 @@
+ # properly
+ 
+ # CC contains the current compiler.  This one MUST be defined
+-CC=cc
++#CC=cc
+ CFLAGS=$(CFLAG)
+ # LDFLAGS contains flags to be used when temporary object files (when building
+ # shared libraries) are created, or when an application is linked.
+@@ -93,7 +93,7 @@ LINK_APP=	\
+     LDCMD="$${LDCMD:-$(CC)}"; LDFLAGS="$${LDFLAGS:-$(CFLAGS)}"; \
+     LIBPATH=`for x in $$LIBDEPS; do if echo $$x | grep '^ *-L' > /dev/null 2>&1; then echo $$x | sed -e 's/^ *-L//'; fi; done | uniq`; \
+     LIBPATH=`echo $$LIBPATH | sed -e 's/ /:/g'`; \
+-    LD_LIBRARY_PATH=$$LIBPATH:$$LD_LIBRARY_PATH \
++    echo Ignoring LD_LIBRARY_PATH=$$LIBPATH:$$LD_LIBRARY_PATH; \
+     $${LDCMD} $${LDFLAGS} -o $${APPNAME:=$(APPNAME)} $(OBJECTS) $${LIBDEPS} )
+ 
+ LINK_SO=	\
+@@ -103,7 +103,7 @@ LINK_SO=	\
+     SHAREDFLAGS="$${SHAREDFLAGS:-$(CFLAGS) $(SHARED_LDFLAGS)}"; \
+     LIBPATH=`for x in $$LIBDEPS; do if echo $$x | grep '^ *-L' > /dev/null 2>&1; then echo $$x | sed -e 's/^ *-L//'; fi; done | uniq`; \
+     LIBPATH=`echo $$LIBPATH | sed -e 's/ /:/g'`; \
+-    LD_LIBRARY_PATH=$$LIBPATH:$$LD_LIBRARY_PATH \
++    echo Ignoring LD_LIBRARY_PATH=$$LIBPATH:$$LD_LIBRARY_PATH; \
+     $${SHAREDCMD} $${SHAREDFLAGS} \
+ 	-o $$SHLIB$$SHLIB_SOVER$$SHLIB_SUFFIX \
+ 	$$ALLSYMSFLAGS $$SHOBJECTS $$NOALLSYMSFLAGS $$LIBDEPS \
+Index: openssl-0.9.8j/ssl/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/ssl/Makefile
++++ openssl-0.9.8j/ssl/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	ssl
+ TOP=	..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I../crypto -I$(TOP) -I../include $(KRB5_INCLUDES)
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ # KRB5 stuff
+Index: openssl-0.9.8j/test/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/test/Makefile
++++ openssl-0.9.8j/test/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=		test
+ TOP=		..
+-CC=		cc
++#CC=		cc
+ INCLUDES=	-I$(TOP) -I../include $(KRB5_INCLUDES) -I$(TOP)/fips
+-CFLAG=		-g
++CFLAG+=		-g
+ MAKEDEPEND=	$(TOP)/util/domd $(TOP) -MD $(MAKEDEPPROG)
+ PERL=		perl
+ # KRB5 stuff
+Index: openssl-0.9.8j/tools/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/tools/Makefile
++++ openssl-0.9.8j/tools/Makefile
+@@ -4,9 +4,9 @@
+ 
+ DIR=	tools
+ TOP=	..
+-CC=	cc
++#CC=	cc
+ INCLUDES= -I$(TOP) -I../../include
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ 
+ CFLAGS= $(INCLUDES) $(CFLAG)
+Index: openssl-0.9.8j/Configure
+===================================================================
+--- openssl-0.9.8j.orig/Configure
++++ openssl-0.9.8j/Configure
+@@ -170,6 +170,7 @@ my %table=(
+ "debug-levitte-linux-noasm-extreme","gcc:-DLEVITTE_DEBUG -DREF_CHECK -DCONF_DEBUG -DBN_DEBUG -DBN_DEBUG_RAND -DCRYPTO_MDEBUG -DENGINE_CONF_DEBUG -DOPENSSL_NO_ASM -DL_ENDIAN -DTERMIO -D_POSIX_SOURCE -DPEDANTIC -ggdb -g3 -mcpu=i486 -pedantic -ansi -Wall -W -Wundef -Wshadow -Wcast-align -Wstrict-prototypes -Wmissing-prototypes -Wno-long-long -Wundef -Wconversion -pipe::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${no_asm}:dlfcn:linux-shared:-fPIC::.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)",
+ "debug-geoff","gcc:-DBN_DEBUG -DBN_DEBUG_RAND -DBN_STRICT -DPURIFY -DOPENSSL_NO_DEPRECATED -DOPENSSL_NO_ASM -DOPENSSL_NO_INLINE_ASM -DL_ENDIAN -DTERMIO -DPEDANTIC -O1 -ggdb2 -Wall -Werror -Wundef -pedantic -Wshadow -Wpointer-arith -Wbad-function-cast -Wcast-align -Wsign-compare -Wmissing-prototypes -Wmissing-declarations -Wno-long-long::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${no_asm}:dlfcn:linux-shared:-fPIC::.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)",
+ "debug-linux-pentium","gcc:-DBN_DEBUG -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -DL_ENDIAN -DTERMIO -g -mcpu=pentium -Wall::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${x86_elf_asm}:dlfcn",
++"linux-ppro",	"gcc:-DL_ENDIAN -DTERMIO -O3 -fomit-frame-pointer -mtune=pentiumpro -Wall::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${x86_elf_asm}:dlfcn:linux-shared:-fPIC::.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)",
+ "debug-linux-ppro","gcc:-DBN_DEBUG -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -DL_ENDIAN -DTERMIO -g -mcpu=pentiumpro -Wall::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${x86_elf_asm}:dlfcn",
+ "debug-linux-elf","gcc:-DBN_DEBUG -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -DL_ENDIAN -DTERMIO -g -march=i486 -Wall::-D_REENTRANT::-lefence -ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${x86_elf_asm}:dlfcn:linux-shared:-fPIC::.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)",
+ "debug-linux-elf-noefence","gcc:-DBN_DEBUG -DREF_CHECK -DCONF_DEBUG -DCRYPTO_MDEBUG -DL_ENDIAN -DTERMIO -g -march=i486 -Wall::-D_REENTRANT::-ldl:BN_LLONG ${x86_gcc_des} ${x86_gcc_opts}:${x86_elf_asm}:dlfcn:linux-shared:-fPIC::.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)",
+Index: openssl-0.9.8j/crypto/seed/Makefile
+===================================================================
+--- openssl-0.9.8j.orig/crypto/seed/Makefile
++++ openssl-0.9.8j/crypto/seed/Makefile
+@@ -7,7 +7,7 @@ TOP=	../..
+ CC=	cc
+ CPP=	$(CC) -E
+ INCLUDES=
+-CFLAG=-g
++CFLAG+=-g
+ MAKEFILE=	Makefile
+ AR=		ar r
+ 

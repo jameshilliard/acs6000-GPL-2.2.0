@@ -1,0 +1,98 @@
+Index: Linux-PAM-1.0.2/po/ja.po
+===================================================================
+--- Linux-PAM-1.0.2.orig/po/ja.po
++++ Linux-PAM-1.0.2/po/ja.po
+@@ -166,5 +166,13 @@
+ msgid "Unknown PAM error"
+ msgstr "不明なPAMエラー"
+ 
++#: libpam/pam_strerror.c:105
++msgid "Application is redirected to use new service"
++msgstr "新規サービスを使用するためにアプリケーションをリダイレクト中です"
++
++#: libpam/pam_strerror.c:105
++msgid "Authorization needed to connect on serial port was denied."
++msgstr "シリアル ポート上で接続するための承認を得られませんでした。"
++
+ #: modules/pam_cracklib/pam_cracklib.c:64
+ #, c-format
+@@ -168,19 +168,28 @@ msgstr "不明なPAMエラー"
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:64
+ #, c-format
+-msgid "New %s%spassword: "
+-msgstr "新しい%s%sパスワード:"
++msgid "Old password: "
++msgstr "旧パスワード:"
++
++#: modules/pam_cracklib/pam_cracklib.c:64
++#, c-format
++msgid "New password: "
++msgstr "新しいパスワード:"
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:66
+ #, c-format
+-msgid "Retype new %s%spassword: "
+-msgstr "新しい%s%sパスワードを再入力してください:"
++msgid "Retype new password: "
++msgstr "新規パスワードの確認:"
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:67
+ msgid "Sorry, passwords do not match."
+ msgstr "パスワードが一致しません。"
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:432
++msgid "has non-ascii character"
++msgstr "ASCII 以外の文字が含まれています"
++
++#: modules/pam_cracklib/pam_cracklib.c:432
+ msgid "is the same as the old one"
+ msgstr "パスワードが古いものと同じです。"
+
+Index: Linux-PAM-1.0.2/po/zh_CN.po
+===================================================================
+--- Linux-PAM-1.0.2.orig/po/zh_CN.po
++++ Linux-PAM-1.0.2/po/zh_CN.po
+@@ -168,21 +168,38 @@ msgstr "应用程序需要再次调用 l
+ msgid "Unknown PAM error"
+ msgstr "未知的 PAM 错误"
+ 
++#: libpam/pam_strerror.c:105
++msgid "Application is redirected to use new service"
++msgstr "应用程序已重定向至使用新服务"
++
++#: libpam/pam_strerror.c:105
++msgid "Authorization needed to connect on serial port was denied."
++msgstr "连接到串行端口所需的授权被拒绝。"
++
++#: modules/pam_cracklib/pam_cracklib.c:64
++#, c-format
++msgid "Old password: "
++msgstr "旧密码: "
++
+ #: modules/pam_cracklib/pam_cracklib.c:64
+ #, c-format
+-msgid "New %s%spassword: "
+-msgstr "新的 %s%s密码："
++msgid "New password: "
++msgstr "新密码："
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:66
+ #, c-format
+-msgid "Retype new %s%spassword: "
+-msgstr "重新输入新的 %s%s密码："
++msgid "Retype new password: "
++msgstr "重新输入新密码："
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:67
+ msgid "Sorry, passwords do not match."
+ msgstr "抱歉，密码不匹配。"
+ 
+ #: modules/pam_cracklib/pam_cracklib.c:432
++msgid "has non-ascii character"
++msgstr "存在非 ASCII 字符"
++
++#: modules/pam_cracklib/pam_cracklib.c:432
+ msgid "is the same as the old one"
+ msgstr "与旧密码相同"
+ 

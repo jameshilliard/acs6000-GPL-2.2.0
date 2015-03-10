@@ -1,0 +1,40 @@
+Steve Papacharalambous <stevep@freescale.com> 12May2008:
+
+This patch fixes the following error:
+
+[snip]
+gcc -DHAVE_CONFIG_H -I. -I. -I../..     -I../../src/include -g -O2 -Wall -Wshadow -Wpointer-arith -Wwrite-strings -Wstrict-prototypes -c atmarp.c
+In file included from atmarp.c:22:
+/opt/freescale/usr/local/gcc-4.1.2-glibc-2.5-nptl-3/arm-none-linux-gnueabi/arm-none-linux-gnueabi/sysroot/usr/include/linux/atmarp.h:37: error: expected specifier-qualifier-list before '__be32'
+make[3]: *** [atmarp.o] Error 1
+make[3]: Leaving directory `/home/stevep/work/mx31/ltib/rpm/BUILD/linux-atm-2.4.1/src/arpd'
+[/snip]
+
+Patch derived by Steve Papacharalambous using information from the following
+location:
+http://linux.derkeiler.com/Mailing-Lists/Kernel/2007-02/msg02840.html
+
+==============================================================================
+
+diff --exclude CVS -uNr linux-atm-2.4.1/src/arpd/atmarp.c linux-atm-2.4.1.modified/src/arpd/atmarp.c
+--- linux-atm-2.4.1/src/arpd/atmarp.c	Mon May 12 13:28:41 2008
++++ linux-atm-2.4.1.modified/src/arpd/atmarp.c	Mon May 12 13:27:27 2008
+@@ -19,6 +19,7 @@
+ #include <net/if_arp.h>
+ 
+ #include <stdint.h>
++#include <linux/types.h>
+ #include <linux/atmarp.h>
+ #include <linux/atmclip.h>
+ 
+diff --exclude CVS -uNr linux-atm-2.4.1/src/arpd/io.c linux-atm-2.4.1.modified/src/arpd/io.c
+--- linux-atm-2.4.1/src/arpd/io.c	Mon Sep  3 19:41:05 2001
++++ linux-atm-2.4.1.modified/src/arpd/io.c	Mon May 12 13:28:05 2008
+@@ -20,6 +20,7 @@
+ #include <netinet/in.h>
+ #include <atm.h>
+ #include <linux/atmclip.h> /* for CLIP_DEFAULT_IDLETIMER */
++#include <linux/types.h>
+ #include <linux/atmarp.h>
+ #define _LINUX_NETDEVICE_H /* glibc2 */
+ #include <linux/if_arp.h>

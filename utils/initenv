@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# This program is for setting up sources directory for user,
+# it will try to make directory ${HOME}/sources, if not exists, then
+# make soft links of ${PUBDL_DIR}/sources files.
+
+PUBDL_DIR=/opt/sources
+USRDL_DIR=${HOME}/sources
+
+if [ ! -d ${USRDL_DIR} ]; then
+	mkdir ${USRDL_DIR}
+fi
+
+pushd ${USRDL_DIR} > /dev/null
+for f in `ls ${PUBDL_DIR}`
+do
+	if [ ! -L $f ]; then
+		ln -s ${PUBDL_DIR}/$f $f
+	fi
+done
+popd > /dev/null

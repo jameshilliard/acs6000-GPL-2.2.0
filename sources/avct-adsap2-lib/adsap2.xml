@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<interface name="adsap2">
+    <overview>
+        This interface defines structures and functions for interfacing with the ADSAP2 Daemon.
+        
+        The local GSP ADSAP2 service is located at the endpoint named "adsap2".
+        
+        All three functions return an integer result indicating the succes or failure of actaully
+        talking with the ADSAP2 daemon. They all take in a pointer to a result structure, which
+        in the even of no RPC error, will contain the status of the ADSAP2 request. If the ADSAP2
+        status is success, then the other fields will be appropriately filled in as well.
+        
+        As a consequence of using the GSP-AIR library for the RPC calls, the Result object provided
+        to each function must be allocated using air_alloc() and freed using air_free() from the GSP-AIR
+        library. 
+        
+        NOTE: Any pointer contained within the "result" structure are "chained" to the "result" structure
+              itself, so only a single air_free call on the root object is needed.
+        
+        Example:
+        
+        adsap2_result* result = air_alloc( NULL, sizeof( adsap2_result ) );
+        int airret = adsap2_authenticate_password( "adsap2", "bob", "password", "NORMAL", "3", result );
+        if ( airret == AIR_ERROR_OK )
+        {
+            printf( "Success.. copy needed fields from 'result'\n" );
+        }
+        air_free( result );
+        
+        </overview>
+    <types>
+        <struct type="pem" description="A wrapped PEM object. The data may be Base-64 encoded or binary.">
+            <field name="pem" type="uchar[]" description="The actual PEM data"/>
+        </struct>
+        <struct type="result" description="The result for all ADSAP2 calls">
+            <field name="auth_handle" type="uint32" description="The handle to reuse on future calls for this same session"/>
+            <field name="status" type="uint32" description="The ADSAP2 Status result"/>
+            <field name="user" type="string" description="The User associated with the request/response"/>
+            <field name="connectionid" type="string" description="The connection id for the session"/>
+            <field name="preemption_level" type="uint32" description="The preemption level of the user"/>
+            <field name="session_mode" type="string" description="The ADSAP2 mode of the session"/>
+            <field name="session_type" type="string" description="The type of session associated with the request/response, if any"/>
+            <field name="appliance_rights" type="string" description="A comma delimited set of rights the associate user has on the appliance"/>
+            <field name="target_rights" type="string" description="A comma delimited set of rights the associate user has on the target designated in the resource path"/>
+        </struct>
+    </types>
+    <functions>
+        <func name="authenticate_password" description="Request to authenticate and authorize a user using a password">
+            <in name="username" type="string" description="The username of the user being authenticated"/>
+            <in name="password" type="string" description="The password to use for authentication"/>
+            <in name="session_mode" type="string" description="The ADSAP2 Session Mode being requested"/>
+            <in name="connectionid" type="string" description="The connection id for the session"/>
+            <out name="result" type="result" description="The authentication result struct"/>
+        </func>
+        <func name="authenticate_pem" description="Request to authenticate and authorize a user using an X.509 certificate or public key. In the event of a preauthorized PEM, the optional fields (if provided) must match the fields listed in the preauth certificate">
+            <in name="username" type="string" description="The username of the user being authenticated. May be NULL if the pem is preauthorized."/>
+            <in name="user_pem" type="pem" description="An X.509 certificate or Public Key to authenticate with"/>
+            <in name="session_mode" type="string" description="The ADSAP2 Session Mode being requested. May be NULL if the pem is preauthorized."/>
+            <in name="connectionid" type="string" description="The connection id for the session"/>
+            <out name="result" type="result" description="The authentication result struct"/>
+        </func>
+        <func name="authorize" description="Request to authorize a previously authenticated user on a target">
+            <in name="auth_handle" type="uint32" description="The handle for the ADSAP2 session"/>
+            <in name="session_mode" type="string" description="The ADSAP2 Session Mode being requested"/>
+            <in name="connectionid" type="string" description="The connection id for the session"/>
+            <out name="result" type="result" description="The authentication result struct"/>
+        </func>
+    </functions>
+</interface>
+

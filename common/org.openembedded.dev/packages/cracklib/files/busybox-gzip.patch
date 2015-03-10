@@ -1,0 +1,13 @@
+Index: cracklib-2.8.9/util/cracklib-format
+===================================================================
+--- cracklib-2.8.9.orig/util/cracklib-format	2007-08-17 10:07:33.000000000 -0700
++++ cracklib-2.8.9/util/cracklib-format	2007-08-17 10:08:04.000000000 -0700
+@@ -3,7 +3,7 @@
+ # This preprocesses a set of word lists into a suitable form for input
+ # into cracklib-packer
+ #
+-gzip -cdf $* |
++cat $* |
+     tr '[A-Z]' '[a-z]' |
+     tr -cd '\012[a-z][0-9]' |
+     sort |

@@ -1,0 +1,44 @@
+Index: linux-2.6-denx/drivers/serial/8250.c
+===================================================================
+--- linux-2.6-denx.orig/drivers/serial/8250.c	2008-06-11 01:22:50.000000000 -0700
++++ linux-2.6-denx/drivers/serial/8250.c	2008-06-11 01:22:52.000000000 -0700
+@@ -2188,7 +2188,11 @@
+ 	 * Ask the core to calculate the divisor for us.
+ 	 */
+ 	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/16);
+-	quot = serial8250_get_divisor(port, baud);
++	if ((up->port.type == PORT_16650) && (baud == 230400)) {
++		quot = serial8250_get_divisor(port, 115200); //we'll double speed later...
++	} else {
++		quot = serial8250_get_divisor(port, baud);
++	}
+ 
+ 	/*
+ 	 * Oxford Semi 952 rev B workaround
+@@ -2301,6 +2305,26 @@
+ 	}
+ 
+ 	serial_dl_write(up, quot);
++	if (up->port.type == PORT_16650) {
++		unsigned int port_index = up->port.line - 2;
++		unsigned char __iomem *UART_8XMODE_addr;
++		unsigned char UART_8XMODE_value;
++		unsigned char UART_8XMODE_bit;
++
++		UART_8XMODE_addr = up->port.membase - 0x10*port_index + 0x80*(port_index/8) + 0x88;
++		UART_8XMODE_value = readb(UART_8XMODE_addr);
++		UART_8XMODE_bit = port_index % 8;
++
++		if (baud == 230400) {
++			//this is done because we cannot afford the relative error when speed > 115200
++			UART_8XMODE_value |= (1 << UART_8XMODE_bit);
++		} else {
++			//here we make sure we reset it back in all other cases
++			UART_8XMODE_value &= ~(1 << UART_8XMODE_bit);
++		}
++
++		writeb(UART_8XMODE_value, UART_8XMODE_addr);
++	}
+ 
+ 	/*
+ 	 * LCR DLAB must be set to enable 64-byte FIFO mode. If the FCR

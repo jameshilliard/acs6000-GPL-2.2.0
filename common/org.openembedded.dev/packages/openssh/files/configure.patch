@@ -1,0 +1,14 @@
+--- openssh-4.6p1/configure.ac.orig	2007-07-31 15:50:41.000000000 -0700
++++ openssh-4.6p1/configure.ac	2007-07-31 15:50:55.000000000 -0700
+@@ -3767,10 +3767,10 @@
+ 		ssh_x509dn_email="no"
+ 	]
+ )
++fi
+ 	# Check for the existence of "X509_VERIFY_PARAM *param"
+ 	AC_CHECK_MEMBERS([X509_STORE_CTX.param],,,[#include <openssl/x509_vfy.h>])
+ fi
+-fi
+ if test "x$ssh_x509dn_email" = "xno"; then
+ 	AC_DEFINE_UNQUOTED(
+ 		SSH_OPENSSL_DN_WITHOUT_EMAIL, 1,

@@ -1,0 +1,13 @@
+Index: bash-3.0/builtins/Makefile.in
+===================================================================
+--- bash-3.0.orig/builtins/Makefile.in
++++ bash-3.0/builtins/Makefile.in
+@@ -63,7 +63,7 @@ LOCAL_DEFS = @LOCAL_DEFS@
+ 
+ LIBS = @LIBS@
+ LDFLAGS = @LDFLAGS@ $(LOCAL_LDFLAGS) $(CFLAGS)
+-LDFLAGS_FOR_BUILD = $(LDFLAGS)
++LDFLAGS_FOR_BUILD = $(LOCAL_LDFLAGS)
+ LOCAL_LDFLAGS = @LOCAL_LDFLAGS@
+ #LIBS_FOR_BUILD = @LIBS_FOR_BUILD@
+ LIBS_FOR_BUILD = $(LIBS)

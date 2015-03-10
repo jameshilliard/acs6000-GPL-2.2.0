@@ -1,0 +1,11 @@
+#
+# The PAM configuration file for the 'kerberosdownlocal' service
+# If Kerberos server is down, uses the local service
+#
+auth     requisite   pam_securetty.so
+auth     sufficient  pam_otk.so
+auth     optional    pam_shm.so
+auth     [ success=1 new_authtok_reqd=1 authinfo_unavail=ignore default=die ] pam_krb5.so no_ccache
+auth     required    pam_redirect.so service=s_local
+account  required    pam_krb5.so no_ccache 
+session  required    pam_krb5.so no_ccache

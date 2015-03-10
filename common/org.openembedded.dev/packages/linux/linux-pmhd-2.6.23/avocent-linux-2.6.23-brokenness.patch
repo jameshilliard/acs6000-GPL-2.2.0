@@ -1,0 +1,13 @@
+Index: linux-2.6.23/drivers/mtd/chips/cfi_cmdset_0002.c
+===================================================================
+--- linux-2.6.23.orig/drivers/mtd/chips/cfi_cmdset_0002.c
++++ linux-2.6.23/drivers/mtd/chips/cfi_cmdset_0002.c
+@@ -422,7 +422,7 @@ static struct mtd_info *cfi_amdstd_setup
+ 
+ 	/* FIXME: erase-suspend-program is broken.  See
+ 	   http://lists.infradead.org/pipermail/linux-mtd/2003-December/009001.html */
+-	printk(KERN_NOTICE "cfi_cmdset_0002: Disabling erase-suspend-program due to code brokenness.\n");
++/*	printk(KERN_NOTICE "cfi_cmdset_0002: Disabling erase-suspend-program due to code brokenness.\n"); */
+ 
+ 	__module_get(THIS_MODULE);
+ 	return mtd;

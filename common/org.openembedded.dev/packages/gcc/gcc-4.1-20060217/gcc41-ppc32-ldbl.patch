@@ -1,0 +1,776 @@
+2006-01-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/25864
+	* libgcc-std.ver: Add GCC_4.1.0 symbol version.
+	* config/rs6000/t-linux64 (TARGET_LIBGCC2_CFLAGS): Replace
+	-specs=bispecs with -mlong-double-128.
+	(bispecs): Remove goal.
+	* config/rs6000/ppc64-fp.c: Define TMODES before including fp-bit.h.
+	* config/rs6000/darwin-ldouble.c: Don't provide _xlq*@GCC_3.4
+	compatibility aliases on powerpc-*-*gnu*.
+	* config/rs6000/libgcc-ppc-glibc.ver: New file.
+	* config/rs6000/t-ppccomm (SHLIB_MAPFILES): Append
+	libgcc-ppc-glibc.ver on powerpc*-*-*gnu*.
+	* config/rs6000/t-linux64 (SHLIB_MAPFILES): Removed.
+	* mklibgcc.in: If $TPBIT is empty, don't compile _sf_to_tf and
+	_df_to_tf.
+	* config/fp-bit.h (TMODES): Don't define if none of TFLOAT,
+	L_sf_to_tf or L_df_to_tf is defined.
+
+2006-01-25  David Edelsohn  <edelsohn@gnu.org>
+	    Alan Modra  <amodra@bigpond.net.au>
+
+	PR target/25864
+	* config/rs6000/linux.h (POWERPC_LINUX): Define.
+	* config/rs6000/linux64.h (POWERPC_LINUX): Define.
+	* config/rs6000/darwin-ldouble.c: Build on 32-bit PowerPC.
+	* config/rs6000/darwin.h (TARGET_IEEEQUAD): Define to zero.
+	* config/rs6000/aix.h (TARGET_IEEEQUAD): Define to zero.
+	* config/rs6000/rs6000.c (rs6000_ieeequad): New variable.
+	(rs6000_override_options): Initialize rs6000_ieeequad.
+	Initialize TFmode format to ibm_extended_format if not
+	TARGET_IEEEQUAD.
+	(rs6000_handle_option): Accept -mabi= ibmlongdouble and
+	ieeelongdouble.
+	(rs6000_emit_move): Move !TARGET_IEEEQUAD as two parts.
+	(rs6000_return_in_memory): Only return IEEEQUAD in memory.
+	(function_arg_advance): IBM long double passed in two FPRs, not
+	split.
+	(function_arg): IBM long double passed in FPRs.
+	(rs6000_pass_by_reference): Only IEEEQUAD passed by reference.
+	(rs6000_gimplify_va_arg): IBM long double passed in two FPRs.
+	Only multireg GPR aligned.
+	(rs6000_init_libfuncs): Enable IBM long double functions if not
+	IEEEQUAD.
+	(rs6000_generate_compare): Use IBM long double compare if not
+	TARGET_IEEEQUAD.
+	* config/rs6000/rs6000.h (rs6000_ieeequad): Declare.
+	(TARGET_IEEEQUAD): Define.
+	(CANNOT_CHANGE_MODE_CLASS): Any mode larger than doubleword if
+	not TARGET_IEEEQUAD.
+	* config/rs6000/rs6000.md: Enable TFmode patterns if
+	!TARGET_IEEEQUAD.
+	* config/rs6000/t-ppccomm (LIB2FUNCS_EXTRA): Add darwin-ldouble.c.
+	* doc/invoke.texi (-mabi): Collect options together.  Add
+	ibmlongdouble and ieeelongdouble.
+
+--- gcc/libgcc-std.ver	2005-10-28 17:06:47.000000000 -0400
++++ gcc/libgcc-std.ver	2006-01-25 05:34:06.000000000 -0500
+@@ -252,3 +252,7 @@ GCC_4.0.0 {
+   __mulxc3
+   __multc3
+ }
++
++%inherit GCC_4.1.0 GCC_4.0.0
++GCC_4.1.0 {
++}
+--- gcc/config/rs6000/darwin.h	2005-11-16 04:02:51.000000000 -0500
++++ gcc/config/rs6000/darwin.h	2006-01-25 15:20:35.000000000 -0500
+@@ -1,5 +1,5 @@
+ /* Target definitions for PowerPC running Darwin (Mac OS X).
+-   Copyright (C) 1997, 2000, 2001, 2003, 2004, 2005
++   Copyright (C) 1997, 2000, 2001, 2003, 2004, 2005, 2006
+    Free Software Foundation, Inc.
+    Contributed by Apple Computer Inc.
+ 
+@@ -313,6 +313,8 @@ do {									\
+ /* Darwin only runs on PowerPC, so short-circuit POWER patterns.  */
+ #undef  TARGET_POWER
+ #define TARGET_POWER 0
++#undef  TARGET_IEEEQUAD
++#define TARGET_IEEEQUAD 0
+ 
+ /* Since Darwin doesn't do TOCs, stub this out.  */
+ 
+--- gcc/config/rs6000/libgcc-ppc-glibc.ver	2006-01-25 15:20:35.000000000 -0500
++++ gcc/config/rs6000/libgcc-ppc-glibc.ver	2006-01-25 15:20:35.000000000 -0500
+@@ -0,0 +1,29 @@
++%ifndef __powerpc64__
++%exclude {
++  __multc3
++  __divtc3
++  __powitf2
++  __fixtfdi
++  __fixunstfdi
++  __floatditf
++}
++
++GCC_4.1.0 {
++  # long double support
++  __multc3
++  __divtc3
++  __powitf2
++  __fixtfdi
++  __fixunstfdi
++  __floatditf
++
++%else
++GCC_3.4.4 {
++%endif
++
++  # long double support
++  __gcc_qadd
++  __gcc_qsub
++  __gcc_qmul
++  __gcc_qdiv
++}
+--- gcc/config/rs6000/rs6000.c	2006-01-25 15:14:46.000000000 -0500
++++ gcc/config/rs6000/rs6000.c	2006-01-25 15:22:13.000000000 -0500
+@@ -1,6 +1,6 @@
+ /* Subroutines used for code generation on IBM RS/6000.
+    Copyright (C) 1991, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+-   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
++   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
+ 
+    This file is part of GCC.
+@@ -158,10 +158,13 @@ enum rs6000_nop_insertion rs6000_sched_i
+ /* Support targetm.vectorize.builtin_mask_for_load.  */
+ static GTY(()) tree altivec_builtin_mask_for_load;
+ 
+-/* Size of long double */
++/* Size of long double.  */
+ int rs6000_long_double_type_size;
+ 
+-/* Whether -mabi=altivec has appeared */
++/* IEEE quad extended precision long double. */
++int rs6000_ieeequad;
++
++/* Whether -mabi=altivec has appeared.  */
+ int rs6000_altivec_abi;
+ 
+ /* Nonzero if we want SPE ABI extensions.  */
+@@ -1286,6 +1289,11 @@ rs6000_override_options (const char *def
+   if (!rs6000_explicit_options.long_double)
+     rs6000_long_double_type_size = RS6000_DEFAULT_LONG_DOUBLE_SIZE;
+ 
++#ifndef POWERPC_LINUX
++  if (!rs6000_explicit_options.abi)
++    rs6000_ieeequad = 1;
++#endif
++
+   /* Set Altivec ABI as default for powerpc64 linux.  */
+   if (TARGET_ELF && TARGET_64BIT)
+     {
+@@ -1399,8 +1407,7 @@ rs6000_override_options (const char *def
+   if (!rs6000_explicit_options.aix_struct_ret)
+     aix_struct_return = (DEFAULT_ABI != ABI_V4 || DRAFT_V4_STRUCT_RET);
+ 
+-  if (TARGET_LONG_DOUBLE_128
+-      && (DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN))
++  if (TARGET_LONG_DOUBLE_128 && !TARGET_IEEEQUAD)
+     REAL_MODE_FORMAT (TFmode) = &ibm_extended_format;
+ 
+   /* Allocate an alias set for register saves & restores from stack.  */
+@@ -1772,6 +1779,17 @@ rs6000_handle_option (size_t code, const
+ 	  warning (0, "Using old darwin ABI");
+ 	}
+ 
++      else if (! strcmp (arg, "ibmlongdouble"))
++	{
++	  rs6000_ieeequad = 0;
++	  warning (0, "Using IBM extended precision long double");
++	}
++      else if (! strcmp (arg, "ieeelongdouble"))
++	{
++	  rs6000_ieeequad = 1;
++	  warning (0, "Using IEEE extended precision long double");
++	}
++
+       else
+ 	{
+ 	  error ("unknown ABI specified: '%s'", arg);
+@@ -3885,7 +3903,7 @@ rs6000_emit_move (rtx dest, rtx source, 
+ 
+   /* 128-bit constant floating-point values on Darwin should really be
+      loaded as two parts.  */
+-  if ((DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  if (!TARGET_IEEEQUAD
+       && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128
+       && mode == TFmode && GET_CODE (operands[1]) == CONST_DOUBLE)
+     {
+@@ -4209,7 +4227,7 @@ rs6000_return_in_memory (tree type, tree
+       return true;
+     }
+ 
+-  if (DEFAULT_ABI == ABI_V4 && TYPE_MODE (type) == TFmode)
++  if (DEFAULT_ABI == ABI_V4 && TARGET_IEEEQUAD && TYPE_MODE (type) == TFmode)
+     return true;
+ 
+   return false;
+@@ -4596,13 +4614,15 @@ function_arg_advance (CUMULATIVE_ARGS *c
+   else if (DEFAULT_ABI == ABI_V4)
+     {
+       if (TARGET_HARD_FLOAT && TARGET_FPRS
+-	  && (mode == SFmode || mode == DFmode))
++	  && (mode == SFmode || mode == DFmode
++	      || (mode == TFmode && !TARGET_IEEEQUAD)))
+ 	{
+-	  if (cum->fregno <= FP_ARG_V4_MAX_REG)
+-	    cum->fregno++;
++	  if (cum->fregno + (mode == TFmode ? 1 : 0) <= FP_ARG_V4_MAX_REG)
++	    cum->fregno += (GET_MODE_SIZE (mode) + 7) >> 3;
+ 	  else
+ 	    {
+-	      if (mode == DFmode)
++	      cum->fregno = FP_ARG_V4_MAX_REG + 1;
++	      if (mode == DFmode || mode == TFmode)
+ 		cum->words += cum->words & 1;
+ 	      cum->words += rs6000_arg_size (mode, type);
+ 	    }
+@@ -5127,9 +5147,10 @@ function_arg (CUMULATIVE_ARGS *cum, enum
+   else if (abi == ABI_V4)
+     {
+       if (TARGET_HARD_FLOAT && TARGET_FPRS
+-	  && (mode == SFmode || mode == DFmode))
++	  && (mode == SFmode || mode == DFmode
++	      || (mode == TFmode && !TARGET_IEEEQUAD)))
+ 	{
+-	  if (cum->fregno <= FP_ARG_V4_MAX_REG)
++	  if (cum->fregno + (mode == TFmode ? 1 : 0) <= FP_ARG_V4_MAX_REG)
+ 	    return gen_rtx_REG (mode, cum->fregno);
+ 	  else
+ 	    return NULL_RTX;
+@@ -5332,7 +5353,7 @@ rs6000_pass_by_reference (CUMULATIVE_ARG
+ 			  enum machine_mode mode, tree type,
+ 			  bool named ATTRIBUTE_UNUSED)
+ {
+-  if (DEFAULT_ABI == ABI_V4 && mode == TFmode)
++  if (DEFAULT_ABI == ABI_V4 && TARGET_IEEEQUAD && mode == TFmode)
+     {
+       if (TARGET_DEBUG_ARG)
+ 	fprintf (stderr, "function_arg_pass_by_reference: V4 long double\n");
+@@ -5783,14 +5804,16 @@ rs6000_gimplify_va_arg (tree valist, tre
+   align = 1;
+ 
+   if (TARGET_HARD_FLOAT && TARGET_FPRS
+-      && (TYPE_MODE (type) == SFmode || TYPE_MODE (type) == DFmode))
++      && (TYPE_MODE (type) == SFmode
++	  || TYPE_MODE (type) == DFmode
++	  || TYPE_MODE (type) == TFmode))
+     {
+       /* FP args go in FP registers, if present.  */
+       reg = fpr;
+-      n_reg = 1;
++      n_reg = (size + 7) / 8;
+       sav_ofs = 8*4;
+       sav_scale = 8;
+-      if (TYPE_MODE (type) == DFmode)
++      if (TYPE_MODE (type) != SFmode)
+ 	align = 8;
+     }
+   else
+@@ -5822,7 +5845,7 @@ rs6000_gimplify_va_arg (tree valist, tre
+ 	 As are any other 2 gpr item such as complex int due to a
+ 	 historical mistake.  */
+       u = reg;
+-      if (n_reg == 2)
++      if (n_reg == 2 && reg == gpr)
+ 	{
+ 	  u = build2 (BIT_AND_EXPR, TREE_TYPE (reg), reg,
+ 		     size_int (n_reg - 1));
+@@ -9028,33 +9051,32 @@ rs6000_init_libfuncs (void)
+   if (!TARGET_HARD_FLOAT)
+     return;
+ 
+-  if (DEFAULT_ABI != ABI_V4)
++  if (DEFAULT_ABI != ABI_V4 && TARGET_XCOFF
++      && !TARGET_POWER2 && !TARGET_POWERPC)
+     {
+-      if (TARGET_XCOFF && ! TARGET_POWER2 && ! TARGET_POWERPC)
+-	{
+-	  /* AIX library routines for float->int conversion.  */
+-	  set_conv_libfunc (sfix_optab, SImode, DFmode, "__itrunc");
+-	  set_conv_libfunc (ufix_optab, SImode, DFmode, "__uitrunc");
+-	  set_conv_libfunc (sfix_optab, SImode, TFmode, "_qitrunc");
+-	  set_conv_libfunc (ufix_optab, SImode, TFmode, "_quitrunc");
+-	}
++      /* AIX library routines for float->int conversion.  */
++      set_conv_libfunc (sfix_optab, SImode, DFmode, "__itrunc");
++      set_conv_libfunc (ufix_optab, SImode, DFmode, "__uitrunc");
++      set_conv_libfunc (sfix_optab, SImode, TFmode, "_qitrunc");
++      set_conv_libfunc (ufix_optab, SImode, TFmode, "_quitrunc");
++    }
+ 
++  if (!TARGET_IEEEQUAD)
+       /* AIX/Darwin/64-bit Linux quad floating point routines.  */
+-      if (!TARGET_XL_COMPAT)
+-	{
+-	  set_optab_libfunc (add_optab, TFmode, "__gcc_qadd");
+-	  set_optab_libfunc (sub_optab, TFmode, "__gcc_qsub");
+-	  set_optab_libfunc (smul_optab, TFmode, "__gcc_qmul");
+-	  set_optab_libfunc (sdiv_optab, TFmode, "__gcc_qdiv");
+-	}
+-      else
+-	{
+-	  set_optab_libfunc (add_optab, TFmode, "_xlqadd");
+-	  set_optab_libfunc (sub_optab, TFmode, "_xlqsub");
+-	  set_optab_libfunc (smul_optab, TFmode, "_xlqmul");
+-	  set_optab_libfunc (sdiv_optab, TFmode, "_xlqdiv");
+-	}
+-    }
++    if (!TARGET_XL_COMPAT)
++      {
++	set_optab_libfunc (add_optab, TFmode, "__gcc_qadd");
++	set_optab_libfunc (sub_optab, TFmode, "__gcc_qsub");
++	set_optab_libfunc (smul_optab, TFmode, "__gcc_qmul");
++	set_optab_libfunc (sdiv_optab, TFmode, "__gcc_qdiv");
++      }
++    else
++      {
++	set_optab_libfunc (add_optab, TFmode, "_xlqadd");
++	set_optab_libfunc (sub_optab, TFmode, "_xlqsub");
++	set_optab_libfunc (smul_optab, TFmode, "_xlqmul");
++	set_optab_libfunc (sdiv_optab, TFmode, "_xlqdiv");
++      }
+   else
+     {
+       /* 32-bit SVR4 quad floating point routines.  */
+@@ -11089,7 +11111,7 @@ rs6000_generate_compare (enum rtx_code c
+ 	 CLOBBERs to match cmptf_internal2 pattern.  */
+       if (comp_mode == CCFPmode && TARGET_XL_COMPAT
+ 	  && GET_MODE (rs6000_compare_op0) == TFmode
+-	  && (DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++	  && !TARGET_IEEEQUAD
+ 	  && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128)
+ 	emit_insn (gen_rtx_PARALLEL (VOIDmode,
+ 	  gen_rtvec (9,
+@@ -18878,6 +18900,7 @@ rs6000_function_value (tree valtype, tre
+ 						   GP_ARG_RETURN + 3),
+ 				      GEN_INT (12))));
+     }
++
+   if ((INTEGRAL_TYPE_P (valtype)
+        && TYPE_PRECISION (valtype) < BITS_PER_WORD)
+       || POINTER_TYPE_P (valtype))
+--- gcc/config/rs6000/linux64.h	2005-12-14 16:28:50.000000000 -0500
++++ gcc/config/rs6000/linux64.h	2006-01-25 15:20:35.000000000 -0500
+@@ -1,6 +1,6 @@
+ /* Definitions of target machine for GNU compiler,
+    for 64 bit PowerPC linux.
+-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005
++   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006
+    Free Software Foundation, Inc.
+ 
+    This file is part of GCC.
+@@ -568,3 +568,5 @@ while (0)
+    ppc64 glibc provides it at -0x7010(13).  */
+ #define TARGET_THREAD_SSP_OFFSET	(TARGET_64BIT ? -0x7010 : -0x7008)
+ #endif
++
++#define POWERPC_LINUX
+--- gcc/config/rs6000/darwin-ldouble.c	2005-10-28 17:05:49.000000000 -0400
++++ gcc/config/rs6000/darwin-ldouble.c	2006-01-25 15:20:35.000000000 -0500
+@@ -1,5 +1,6 @@
+ /* 128-bit long double support routines for Darwin.
+-   Copyright (C) 1993, 2003, 2004, 2005 Free Software Foundation, Inc.
++   Copyright (C) 1993, 2003, 2004, 2005, 2006
++   Free Software Foundation, Inc.
+ 
+ This file is part of GCC.
+ 
+@@ -48,7 +49,7 @@ Software Foundation, 51 Franklin Street,
+ 
+    This code currently assumes big-endian.  */
+ 
+-#if !_SOFT_FLOAT && (defined (__MACH__) || defined (__powerpc64__) || defined (_AIX))
++#if !_SOFT_FLOAT && (defined (__MACH__) || defined (__powerpc64__) || defined (__powerpc__) || defined (_AIX))
+ 
+ #define fabs(x) __builtin_fabs(x)
+ #define isless(x, y) __builtin_isless (x, y)
+@@ -67,7 +68,8 @@ extern long double __gcc_qsub (double, d
+ extern long double __gcc_qmul (double, double, double, double);
+ extern long double __gcc_qdiv (double, double, double, double);
+ 
+-#if defined __ELF__ && defined SHARED
++#if defined __ELF__ && defined SHARED \
++    && (defined __powerpc64__ || !(defined __linux__ || defined __gnu_hurd__))
+ /* Provide definitions of the old symbol names to satisfy apps and
+    shared libs built against an older libgcc.  To access the _xlq
+    symbols an explicit version reference is needed, so these won't
+--- gcc/config/rs6000/t-linux64	2006-01-25 15:14:46.000000000 -0500
++++ gcc/config/rs6000/t-linux64	2006-01-25 15:20:35.000000000 -0500
+@@ -4,9 +4,7 @@
+ LIB2FUNCS_EXTRA = tramp.S $(srcdir)/config/rs6000/ppc64-fp.c \
+ 	$(srcdir)/config/rs6000/darwin-ldouble.c
+ 
+-TARGET_LIBGCC2_CFLAGS = -mno-minimal-toc -fPIC -specs=bispecs
+-
+-SHLIB_MAPFILES += $(srcdir)/config/rs6000/libgcc-ppc64.ver
++TARGET_LIBGCC2_CFLAGS = -mno-minimal-toc -fPIC -mlong-double-128
+ 
+ MULTILIB_OPTIONS        = m64/m32
+ MULTILIB_DIRNAMES       = 64 32
+@@ -32,13 +30,3 @@ fp-bit32.c: $(srcdir)/config/fp-bit.c
+ 	  echo '#define FLOAT'; \
+ 	  cat $(srcdir)/config/fp-bit.c; \
+ 	  echo '#endif' ) > fp-bit32.c
+-
+-# Hack to use -mlong-double-128 just for compiling 64 bit libgcc
+-mklibgcc: bispecs
+-
+-bispecs: specs
+-	if [ x`$(GCC_FOR_TARGET) -print-multi-os-directory` = x../lib ]; then \
+-	  sed -e '/cc1_options/{ n; s/$$/ %{m64:-mlong-double-128}/; }' < specs > $@; \
+-	else \
+-	  sed -e '/cc1_options/{ n; s/$$/ %{!m32:-mlong-double-128}/; }' < specs > $@; \
+-	fi
+--- gcc/config/rs6000/rs6000.h	2005-12-12 12:15:42.000000000 -0500
++++ gcc/config/rs6000/rs6000.h	2006-01-25 15:20:35.000000000 -0500
+@@ -1,6 +1,7 @@
+ /* Definitions of target machine for GNU compiler, for IBM RS/6000.
+    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+-   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
++   2000, 2001, 2002, 2003, 2004, 2005, 2006
++   Free Software Foundation, Inc.
+    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
+ 
+    This file is part of GCC.
+@@ -291,6 +292,7 @@ extern const char *rs6000_traceback_name
+ /* These are separate from target_flags because we've run out of bits
+    there.  */
+ extern int rs6000_long_double_type_size;
++extern int rs6000_ieeequad;
+ extern int rs6000_altivec_abi;
+ extern int rs6000_spe_abi;
+ extern int rs6000_float_gprs;
+@@ -316,6 +318,7 @@ extern enum rs6000_nop_insertion rs6000_
+ #endif
+ 
+ #define TARGET_LONG_DOUBLE_128 (rs6000_long_double_type_size == 128)
++#define TARGET_IEEEQUAD rs6000_ieeequad
+ #define TARGET_ALTIVEC_ABI rs6000_altivec_abi
+ 
+ #define TARGET_SPE_ABI 0
+@@ -1214,8 +1217,8 @@ enum reg_class
+ /* Return a class of registers that cannot change FROM mode to TO mode.  */
+ 
+ #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS)			  \
+-  (((DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)		  \
+-    && GET_MODE_SIZE (FROM) >= 8 && GET_MODE_SIZE (TO) >= 8)		  \
++  (!TARGET_IEEEQUAD							  \
++   && GET_MODE_SIZE (FROM) >= 8 && GET_MODE_SIZE (TO) >= 8		  \
+    ? 0									  \
+    : GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO)				  \
+    ? reg_classes_intersect_p (FLOAT_REGS, CLASS)			  \
+--- gcc/config/rs6000/t-ppccomm	2005-10-28 17:05:49.000000000 -0400
++++ gcc/config/rs6000/t-ppccomm	2006-01-25 15:20:35.000000000 -0500
+@@ -1,6 +1,6 @@
+ # Common support for PowerPC ELF targets (both EABI and SVR4).
+ 
+-LIB2FUNCS_EXTRA = tramp.S
++LIB2FUNCS_EXTRA = tramp.S $(srcdir)/config/rs6000/darwin-ldouble.c
+ 
+ # This one can't end up in shared libgcc
+ LIB2FUNCS_STATIC_EXTRA = eabi.S
+@@ -11,6 +11,12 @@ eabi.S: $(srcdir)/config/rs6000/eabi.asm
+ tramp.S: $(srcdir)/config/rs6000/tramp.asm
+ 	cat $(srcdir)/config/rs6000/tramp.asm > tramp.S
+ 
++ifneq (,$findstring gnu,$(target))
++TARGET_LIBGCC2_CFLAGS += -mlong-double-128
++
++SHLIB_MAPFILES += $(srcdir)/config/rs6000/libgcc-ppc-glibc.ver
++endif
++
+ # Switch synonyms
+ MULTILIB_MATCHES_ENDIAN	= mlittle=mlittle-endian mbig=mbig-endian
+ MULTILIB_MATCHES_SYSV	= mcall-sysv=mcall-sysv-eabi mcall-sysv=mcall-sysv-noeabi mcall-sysv=mcall-linux mcall-sysv=mcall-netbsd
+--- gcc/config/rs6000/ppc64-fp.c	2005-10-28 17:05:49.000000000 -0400
++++ gcc/config/rs6000/ppc64-fp.c	2006-01-25 15:20:35.000000000 -0500
+@@ -31,6 +31,7 @@ Software Foundation, 51 Franklin Street,
+ 02110-1301, USA.  */
+ 
+ #if defined(__powerpc64__)
++#define TMODES
+ #include "config/fp-bit.h"
+ 
+ extern DItype __fixtfdi (TFtype);
+--- gcc/config/rs6000/rs6000.md	2006-01-25 15:14:46.000000000 -0500
++++ gcc/config/rs6000/rs6000.md	2006-01-25 15:20:35.000000000 -0500
+@@ -1,6 +1,7 @@
+ ;; Machine description for IBM RISC System 6000 (POWER) for GNU C compiler
+ ;; Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
+-;; 1999, 2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
++;; 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
++;; Free Software Foundation, Inc.
+ ;; Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
+ 
+ ;; This file is part of GCC.
+@@ -151,7 +152,7 @@
+ ; Any hardware-supported floating-point mode
+ (define_mode_macro FP [(SF "TARGET_HARD_FLOAT")
+   (DF "TARGET_HARD_FLOAT && (TARGET_FPRS || TARGET_E500_DOUBLE)")
+-  (TF "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  (TF "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128")])
+ 
+ ; Various instructions that come in SI and DI forms.
+@@ -7785,7 +7786,7 @@
+ (define_expand "movtf"
+   [(set (match_operand:TF 0 "general_operand" "")
+ 	(match_operand:TF 1 "any_operand" ""))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "{ rs6000_emit_move (operands[0], operands[1], TFmode); DONE; }")
+ 
+@@ -7795,7 +7796,7 @@
+ (define_insn_and_split "*movtf_internal"
+   [(set (match_operand:TF 0 "nonimmediate_operand" "=o,f,f,r,Y,r")
+ 	(match_operand:TF 1 "input_operand"         "f,o,f,YGHF,r,r"))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128
+    && (gpc_reg_operand (operands[0], TFmode)
+        || gpc_reg_operand (operands[1], TFmode))"
+@@ -7809,7 +7810,7 @@
+   [(parallel [(set (match_operand:TF 0 "nonimmediate_operand" "")
+ 		   (float_extend:TF (match_operand:DF 1 "input_operand" "")))
+ 	      (use (match_dup 2))])]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+ {
+   operands[2] = CONST0_RTX (DFmode);
+@@ -7819,7 +7820,7 @@
+   [(set (match_operand:TF 0 "nonimmediate_operand" "=o,f,&f,r")
+        (float_extend:TF (match_operand:DF 1 "input_operand" "fr,mf,mf,rmGHF")))
+    (use (match_operand:DF 2 "zero_reg_mem_operand" "rf,m,f,n"))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "#"
+   "&& reload_completed"
+@@ -7837,7 +7838,7 @@
+ (define_expand "extendsftf2"
+   [(set (match_operand:TF 0 "nonimmediate_operand" "")
+ 	(float_extend:TF (match_operand:SF 1 "gpc_reg_operand" "")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+ {
+   rtx tmp = gen_reg_rtx (DFmode);
+@@ -7849,14 +7850,14 @@
+ (define_expand "trunctfdf2"
+   [(set (match_operand:DF 0 "gpc_reg_operand" "")
+ 	(float_truncate:DF (match_operand:TF 1 "gpc_reg_operand" "")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "")
+ 
+ (define_insn_and_split "trunctfdf2_internal1"
+   [(set (match_operand:DF 0 "gpc_reg_operand" "=f,?f")
+ 	(float_truncate:DF (match_operand:TF 1 "gpc_reg_operand" "0,f")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN) && !TARGET_XL_COMPAT
++  "!TARGET_IEEEQUAD && !TARGET_XL_COMPAT
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "@
+    #
+@@ -7872,7 +7873,7 @@
+ (define_insn "trunctfdf2_internal2"
+   [(set (match_operand:DF 0 "gpc_reg_operand" "=f")
+ 	(float_truncate:DF (match_operand:TF 1 "gpc_reg_operand" "f")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN) && TARGET_XL_COMPAT
++  "!TARGET_IEEEQUAD && TARGET_XL_COMPAT
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "fadd %0,%1,%L1"
+   [(set_attr "type" "fp")])
+@@ -7881,7 +7882,7 @@
+   [(set (match_operand:SF 0 "gpc_reg_operand" "=f")
+ 	(float_truncate:SF (match_operand:TF 1 "gpc_reg_operand" "f")))
+    (clobber (match_scratch:DF 2 "=f"))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "#"
+   "&& reload_completed"
+@@ -7894,7 +7895,7 @@
+ (define_expand "floatsitf2"
+   [(set (match_operand:TF 0 "gpc_reg_operand" "=f")
+         (float:TF (match_operand:SI 1 "gpc_reg_operand" "r")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+ {
+   rtx tmp = gen_reg_rtx (DFmode);
+@@ -7922,7 +7923,7 @@
+ 	      (clobber (match_dup 3))
+ 	      (clobber (match_dup 4))
+ 	      (clobber (match_dup 5))])]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && (TARGET_POWER2 || TARGET_POWERPC)
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+ {
+@@ -7939,7 +7940,7 @@
+    (clobber (match_operand:DF 3 "gpc_reg_operand" "=&f"))
+    (clobber (match_operand:DI 4 "gpc_reg_operand" "=f"))
+    (clobber (match_operand:DI 5 "memory_operand" "=o"))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "#"
+   "&& (!no_new_pseudos || offsettable_nonstrict_memref_p (operands[5]))"
+@@ -7960,7 +7961,7 @@
+ (define_insn "negtf2"
+   [(set (match_operand:TF 0 "gpc_reg_operand" "=f")
+ 	(neg:TF (match_operand:TF 1 "gpc_reg_operand" "f")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "*
+ {
+@@ -7975,7 +7976,7 @@
+ (define_expand "abstf2"
+   [(set (match_operand:TF 0 "gpc_reg_operand" "=f")
+ 	(abs:TF (match_operand:TF 1 "gpc_reg_operand" "f")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "
+ {
+@@ -7995,7 +7996,7 @@
+ 			   (label_ref (match_operand 2 "" ""))
+ 			   (pc)))
+    (set (match_dup 6) (neg:DF (match_dup 6)))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN)
++  "!TARGET_IEEEQUAD
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "
+ {
+@@ -10934,7 +10935,7 @@
+   [(set (match_operand:CCFP 0 "cc_reg_operand" "=y")
+ 	(compare:CCFP (match_operand:TF 1 "gpc_reg_operand" "f")
+ 		      (match_operand:TF 2 "gpc_reg_operand" "f")))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN) && !TARGET_XL_COMPAT
++  "!TARGET_IEEEQUAD && !TARGET_XL_COMPAT
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "fcmpu %0,%1,%2\;bne %0,$+8\;fcmpu %0,%L1,%L2"
+   [(set_attr "type" "fpcompare")
+@@ -10952,7 +10953,7 @@
+     (clobber (match_scratch:DF 8 "=f"))
+     (clobber (match_scratch:DF 9 "=f"))
+     (clobber (match_scratch:DF 10 "=f"))]
+-  "(DEFAULT_ABI == ABI_AIX || DEFAULT_ABI == ABI_DARWIN) && TARGET_XL_COMPAT
++  "!TARGET_IEEEQUAD && TARGET_XL_COMPAT
+    && TARGET_HARD_FLOAT && TARGET_FPRS && TARGET_LONG_DOUBLE_128"
+   "#"
+   "&& reload_completed"
+--- gcc/config/rs6000/aix.h	2005-10-28 17:05:49.000000000 -0400
++++ gcc/config/rs6000/aix.h	2006-01-25 15:20:35.000000000 -0500
+@@ -1,6 +1,6 @@
+ /* Definitions of target machine for GNU compiler,
+    for IBM RS/6000 POWER running AIX.
+-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005
++   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006
+    Free Software Foundation, Inc.
+ 
+    This file is part of GCC.
+@@ -38,6 +38,8 @@
+ #define TARGET_ALTIVEC 0
+ #undef  TARGET_ALTIVEC_ABI
+ #define TARGET_ALTIVEC_ABI 0
++#undef  TARGET_IEEEQUAD
++#define TARGET_IEEEQUAD 0
+ 
+ /* The AIX linker will discard static constructors in object files before
+    collect has a chance to see them, so scan the object files directly.  */
+--- gcc/config/rs6000/linux.h	2005-10-28 17:05:49.000000000 -0400
++++ gcc/config/rs6000/linux.h	2006-01-25 15:20:35.000000000 -0500
+@@ -1,7 +1,7 @@
+ /* Definitions of target machine for GNU compiler,
+    for PowerPC machines running Linux.
+-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
+-   Free Software Foundation, Inc.
++   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
++   2004, 2005, 2006 Free Software Foundation, Inc.
+    Contributed by Michael Meissner (meissner@cygnus.com).
+ 
+    This file is part of GCC.
+@@ -118,3 +118,5 @@
+ /* ppc32 glibc provides __stack_chk_guard in -0x7008(2).  */
+ #define TARGET_THREAD_SSP_OFFSET	-0x7008
+ #endif
++
++#define POWERPC_LINUX
+--- gcc/doc/invoke.texi	2005-12-20 17:25:39.000000000 -0500
++++ gcc/doc/invoke.texi	2006-01-25 15:20:35.000000000 -0500
+@@ -11030,16 +11030,6 @@ enhancements.
+ @opindex mno-vrsave
+ Generate VRSAVE instructions when generating AltiVec code.
+ 
+-@item -mabi=spe
+-@opindex mabi=spe
+-Extend the current ABI with SPE ABI extensions.  This does not change
+-the default ABI, instead it adds the SPE ABI extensions to the current
+-ABI@.
+-
+-@item -mabi=no-spe
+-@opindex mabi=no-spe
+-Disable Booke SPE ABI extensions for the current ABI@.
+-
+ @item -msecure-plt
+ @opindex msecure-plt
+ Generate code that allows ld and ld.so to build executables and shared
+@@ -11393,7 +11383,27 @@ SVR4 ABI)@.
+ @opindex mabi
+ Extend the current ABI with a particular extension, or remove such extension.
+ Valid values are @var{altivec}, @var{no-altivec}, @var{spe},
+-@var{no-spe}@.
++@var{no-spe}, @var{ibmlongdouble}, @var{ieeelongdouble}@.
++
++@item -mabi=spe
++@opindex mabi=spe
++Extend the current ABI with SPE ABI extensions.  This does not change
++the default ABI, instead it adds the SPE ABI extensions to the current
++ABI@.
++
++@item -mabi=no-spe
++@opindex mabi=no-spe
++Disable Booke SPE ABI extensions for the current ABI@.
++
++@item -mabi=ibmlongdouble
++@opindex mabi=ibmlongdouble
++Change the current ABI to use IBM extended precision long double.
++This is a PowerPC 32-bit SYSV ABI option.
++
++@item -mabi=ieeelongdouble
++@opindex mabi=ieeelongdouble
++Change the current ABI to use IEEE extended precision long double.
++This is a PowerPC 32-bit Linux ABI option.
+ 
+ @item -mprototype
+ @itemx -mno-prototype
+--- gcc/mklibgcc.in	2005-11-16 04:02:51.000000000 -0500
++++ gcc/mklibgcc.in	2006-01-24 15:55:37.000000000 -0500
+@@ -315,6 +315,7 @@ for ml in $MULTILIBS; do
+ 
+   if [ "$FPBIT" ]; then
+     for name in $FPBIT_FUNCS; do
++      [ "$name" = _sf_to_tf -a -z "$TPBIT" ] && continue
+       if [ "$libgcc_s_so" ]; then
+ 	out="libgcc/${dir}/${name}${objext}"
+ 	outS="libgcc/${dir}/${name}_s${objext}"
+@@ -345,6 +346,7 @@ for ml in $MULTILIBS; do
+ 
+   if [ "$DPBIT" ]; then
+     for name in $DPBIT_FUNCS; do
++      [ "$name" = _df_to_tf -a -z "$TPBIT" ] && continue
+       if [ "$libgcc_s_so" ]; then
+ 	out="libgcc/${dir}/${name}${objext}"
+ 	outS="libgcc/${dir}/${name}_s${objext}"
+--- gcc/config/fp-bit.h	2006-01-04 08:57:50.000000000 +0100
++++ gcc/config/fp-bit.h	2006-01-24 23:08:04.000000000 +0100
+@@ -89,7 +89,9 @@ Software Foundation, 51 Franklin Street,
+ #endif /* ! FINE_GRAINED_LIBRARIES */
+ 
+ #if __LDBL_MANT_DIG__ == 113 || __LDBL_MANT_DIG__ == 106
+-# define TMODES
++# if defined(TFLOAT) || defined(L_sf_to_tf) || defined(L_df_to_tf)
++#  define TMODES
++# endif
+ #endif
+ 
+ typedef float SFtype __attribute__ ((mode (SF)));

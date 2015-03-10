@@ -1,0 +1,30 @@
+Index: linux-2.6.19/drivers/serial/8250.c
+===================================================================
+--- linux-2.6.19.orig/drivers/serial/8250.c	2007-01-05 02:12:24.000000000 -0800
++++ linux-2.6.19/drivers/serial/8250.c	2007-09-06 19:02:20.000000000 -0700
+@@ -170,11 +170,6 @@
+ 		.fifo_size	= 1,
+ 		.tx_loadsz	= 1,
+ 	},
+-	[PORT_16550] = {
+-		.name		= "16550",
+-		.fifo_size	= 1,
+-		.tx_loadsz	= 1,
+-	},
+ 	[PORT_16550A] = {
+ 		.name		= "16550A",
+ 		.fifo_size	= 16,
+@@ -188,9 +183,10 @@
+ 		.tx_loadsz	= 1,
+ 	},
+ 	[PORT_16650] = {
+-		.name		= "ST16650",
+-		.fifo_size	= 1,
+-		.tx_loadsz	= 1,
++		.name		= "XR16798",
++		.fifo_size	= 64,
++		.tx_loadsz	= 64,
++		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_10,
+ 		.flags		= UART_CAP_FIFO | UART_CAP_EFR | UART_CAP_SLEEP,
+ 	},
+ 	[PORT_16650V2] = {

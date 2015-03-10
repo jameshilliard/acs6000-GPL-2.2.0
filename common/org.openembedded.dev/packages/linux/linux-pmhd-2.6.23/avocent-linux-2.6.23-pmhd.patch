@@ -1,0 +1,3549 @@
+Index: linux-2.6.23/drivers/char/avocent_pmhd_outlet.c
+===================================================================
+--- /dev/null
++++ linux-2.6.23/drivers/char/avocent_pmhd_outlet.c
+@@ -0,0 +1,2920 @@
++/*
++ * avocent_pmhd_outlet.c
++ *
++ * The CS5463 is a voltage/current sensor from Cirrus Logic.
++ * Copyright (C) 2008 Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/spi/spi.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/poll.h>
++#include <linux/interrupt.h>
++#include <linux/irq.h>
++#include <linux/delay.h>
++#include <linux/miscdevice.h>
++#include <linux/completion.h>
++#include <asm/io.h>
++#include <sysdev/fsl_soc.h>
++#include <linux/avocent_pmhd_outlet.h>
++
++#define PMHD_FPGA_REGISTER_WRITE	0x40
++#define PMHD_FPGA_SYS_INFO		0
++#define PMHD_FPGA_SYS_ID		1
++#define PMHD_FPGA_INT_STATUS		2
++#define PMHD_FPGA_INT_OUTLET_STATUS1	3
++#define PMHD_FPGA_INT_OUTLET_STATUS2	4
++#define PMHD_FPGA_MISC_CONTROL		5
++#define PMHD_FPGA_RELAY_CONTROL1	6
++#define PMHD_FPGA_RELAY_CONTROL2	7
++#define PMHD_FPGA_LED_CONTROL1		8
++#define PMHD_FPGA_LED_CONTROL2		9
++#define PMHD_FPGA_LED_CONTROL3		10
++#define PMHD_FPGA_LED_CONTROL4		11
++#define PMHD_FPGA_MUX_CONTROL1		12
++#define PMHD_FPGA_MUX_CONTROL2		13
++#define PMHD_FPGA_HARDWIRED_OPTIONS	14
++#define PMHD_FPGA_VERSION		15
++
++#define CS5463_COMMAND_START_CONVERSION	0xE0
++#define CS5463_COMMAND_CONTINUOUS_CONV	0xE8
++#define CS5463_COMMAND_POWERUP		0xA0
++#define CS5463_COMMAND_SWRESET		0x80
++#define CS5463_COMMAND_POWERDOWN	0x88
++#define CS5463_COMMAND_SLEEP		0x90
++#define CS5463_COMMAND_REGISTER_WRITE	0x40
++#define CS5463_REGISTER_CONFIG		0
++#define CS5463_REGISTER_IDCOFF		1
++#define CS5463_REGISTER_IGN		2
++#define CS5463_REGISTER_VDCOFF		3
++#define CS5463_REGISTER_VGN		4
++#define CS5463_REGISTER_CYCLECOUNT	5
++#define CS5463_REGISTER_PULSERATEE	6
++#define CS5463_REGISTER_I		7
++#define CS5463_REGISTER_V		8
++#define CS5463_REGISTER_P		9
++#define CS5463_REGISTER_PACTIVE		10
++#define CS5463_REGISTER_IRMS		11
++#define CS5463_REGISTER_VRMS		12
++#define CS5463_REGISTER_EPSILON		13
++#define CS5463_REGISTER_POFF		14
++#define CS5463_REGISTER_STATUS		15
++#define CS5463_REGISTER_IACOFF		16
++#define CS5463_REGISTER_VACOFF		17
++#define CS5463_REGISTER_MODE		18
++#define CS5463_REGISTER_T		19
++#define CS5463_REGISTER_QAVG		20
++#define CS5463_REGISTER_Q		21
++#define CS5463_REGISTER_IPEAK		22
++#define CS5463_REGISTER_VPEAK		23
++#define CS5463_REGISTER_QTRIG		24
++#define CS5463_REGISTER_PFACTOR		25
++#define CS5463_REGISTER_MASK		26
++#define CS5463_REGISTER_S		27
++#define CS5463_REGISTER_CTRL		28
++#define CS5463_REGISTER_PH		29
++#define CS5463_REGISTER_PF		30
++#define CS5463_REGISTER_QF		31
++
++//Print debug info aquired from HW.
++//Run sysctl -w kernel.printk="8" see logs in console.
++#define printkbug(a, b...) if(ioctl_debug) printk(KERN_DEBUG a, ##b)
++
++//Conversions from what is read from HW and effective values
++
++#define singleA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define singleA_PM10i_PM20i(x) (((x / 0x100 * 500 / 493 * 6000) + 5) / 10 / 0x10000)
++#define singleV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define singleW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define singleW_PM10i_PM20i(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 600 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define singleP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define outletA(x) (((x / 0x100 * 500 / 493 * 3000) + 5) / 10 / 0x10000)
++#define outletV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define outletW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 300 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define outletP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define phaseA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define phaseV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define phaseW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define phaseP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++#define bankA(x) (((x / 0x100 * 500 / 493 * 9000) + 5) / 10 / 0x10000)
++#define bankV(x) (((x / 0x100 * 500 / 499 * 3360) + 5) / 10 / 0x10000)
++#define bankW(x) ((((long)(x * 0x100) / 0x800 * 500 / 493 * 500 / 499 * 900 / 0x100 * 336) + 5) / 10 / 0x1000)
++#define bankP(x) ((long)(x * 0x100) / 0x800 * 100 / 0x100000)
++
++//subtracting 65 below accounts for -6.5 oC offset determined in Lab experiment
++#define tempC(x) ((((long)(x * 0x100)) / 0x100 * 10 / 0x10000L) - 65)
++
++
++extern char avocent_pmhd_model[];
++extern int avocent_pmhd_input_type;
++extern char avocent_pmhd_input[];
++extern int avocent_pmhd_switched;
++
++#define MAX_INPUT_DESC 32	// <ust be less than MAX_BDINFO_STR
++static char *board_input_desc[] = {
++"3-Phase Wye 16A",
++"3-Phase Wye 32A",
++"Invalid",
++"Invalid",
++"Single Phase, 20A",
++"Single Phase, 30A",
++"Single Phase, 50A",
++"Single Phase, 60A",
++"3-Phase Delta 20A",
++"3-Phase Delta 30A",
++"3-Phase Delta 50A",
++"3-Phase Delta 60A",
++"Invalid",
++"Invalid",
++"Invalid",
++"Invalid",
++NULL
++};
++
++
++#define MAX_FUSE_20		20
++#define MAX_FUSE_15		15
++#define MAX_A_BANK		20
++#define MAX_A_SINGLE(x)	(x)
++#define MAX_A_WYE(x)	(x)
++#define MAX_A_DELTA(x)	((char)((int)x * 173 / 100))	//max_current * sqrt(3)
++
++struct pmhd_inlet_info {
++	char imux;
++	char vmux;
++	char type;
++	char type_number;
++	char board;
++	char ready;
++	char overcurrent;
++	unsigned long rms_current;
++	unsigned long rms_voltage;
++	unsigned long real_power;
++	unsigned long power_factor;
++};
++
++struct pmhd_outlet_info {
++	char imux;
++	char vmux;
++	char number;
++	char board;
++	char ready;
++	char overcurrent;
++	char relay;
++	char led;
++	char type;
++	unsigned long rms_current;
++	unsigned long rms_voltage;
++	unsigned long real_power;
++	unsigned long power_factor;
++};
++
++struct pmhd_board_info {
++	char number;
++	char detected;
++	char num_outlets;
++	char num_phases;
++	char num_banks;
++	char num_singles;
++	char num_blown;
++	char input;
++	char input_type;
++	char fuse_c19;
++	char fuse_c13;
++	char switched;
++	char outlet_per_fuse;
++	char cord;
++	char type;
++	char fpga;
++	char cur_outlet_inlet;
++	char ready;
++	char newoc;
++	char is_basic_model;
++	char is_pm10i_Pm20i;
++	char region;
++	char max_current;
++	unsigned char overcurrent;
++	unsigned char oc_mask;
++	unsigned char ooc_mask[2];
++	unsigned long temperature;
++	char outlet_multiplier;
++	char current_noise;
++	char sample_num;
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *phase;
++	struct pmhd_inlet_info *bank;
++	struct pmhd_inlet_info *blown;
++	struct pmhd_inlet_info *single;
++	struct spi_device *fpga_spi;
++	struct spi_device *cs5463_spi;
++};
++
++struct pmhd_spi_data {
++	char init;
++	char outlet_open;
++	char prev_num_boards;
++	char num_boards;
++	int irq;
++	struct pmhd_board_info board[4];
++	char converted;
++	struct work_struct queue;
++};
++
++static void next_conversion (struct pmhd_board_info *board);
++static struct pmhd_spi_data outlet_data;
++static int get_blown_fuse(struct pmhd_board_info *board, char bank_num);
++static DECLARE_WAIT_QUEUE_HEAD(outlet_wait);
++
++static int spi_write_then_read_flag = 0;
++static int outlet_handler_flag = 0;
++static int outlet_ioctl_flag = 0;
++static void *ioctl_completion = NULL;
++atomic_t chk_spi_flag = ATOMIC_INIT(0);
++static int ioctl_debug = 0;
++static int disable_bank_single_measure = 0;
++static int pm10ng_pm20ng = 0;
++static int measurement_not_available = 0;
++
++
++static int map_outlets(int outlet, char board_type)
++{
++	int outlet_num = outlet;
++	if (board_type == OUTLET_BOARD_TYPE_STONEHENGE_BASIC) {
++		if (outlet_num == 1) {
++			outlet_num = 1;
++		} else if (outlet_num >=2 && outlet_num <=8) {
++			outlet_num = 2;
++		} else if (outlet_num == 9) {
++			outlet_num = 3;
++		} else if (outlet_num >=10 && outlet_num <=16) {
++			outlet_num = 4;
++		} else if (outlet_num == 17) {
++			outlet_num = 5;
++		} else if (outlet_num >=18 && outlet_num <=24) {
++			outlet_num = 6;
++		}
++	}
++	else if (board_type == OUTLET_BOARD_TYPE_PM10NG_BASIC)
++	{
++		if (outlet_num >=1 && outlet_num <=5) {
++			outlet_num = 1;
++		}
++		if (outlet_num >=6 && outlet_num <=10) {
++			outlet_num = 2;
++		}
++	}
++	else if (board_type == OUTLET_BOARD_TYPE_PM20NG_BASIC)
++	{
++		if (outlet_num >=1 && outlet_num <=10) {
++			outlet_num = 1;
++		}
++		if (outlet_num >=11 && outlet_num <=20) {
++			outlet_num = 2;
++		}
++
++	}
++
++	return outlet_num;
++}
++
++
++static int my_spi_write_then_read(struct spi_device *spi,
++									const u8 *txbuf, unsigned n_tx,
++									u8 *rxbuf, unsigned n_rx)
++{
++	int ret = -1;
++	int count = 0;
++	int ctr = 0;
++	spi_write_then_read_flag  = atomic_read(&chk_spi_flag);
++
++	while(spi_write_then_read_flag) {
++		count++;
++		if(count > 10) {
++			printkbug("SPI Reschedule %d: %s\n", spi_write_then_read_flag, spi->dev.driver->name);
++			break;
++		}
++		printkbug("going to retry to write on SPI bus %s\n",spi->dev.driver->name);
++		msleep(5);
++	}
++
++	if(count < 10) {
++		atomic_set(&chk_spi_flag,1);
++		do {
++			ret = spi_write_then_read(spi, txbuf, n_tx, rxbuf, n_rx);
++			ctr++;
++			if((ret != 0)&&(ctr >= 5 )) {
++				printk(KERN_ERR"SPI Read-Write Fail\n");
++				break;
++			}
++			if(ret != 0 ) {
++				msleep(2);
++			}
++		}while( ret != 0 );
++		atomic_set(&chk_spi_flag,0);
++	}
++	return ret;
++}
++
++static void start_cs5463(struct pmhd_board_info *board)
++{
++	u8 txbuf[4], rxbuf[3];
++	/* Software reset */
++	txbuf[0] = CS5463_COMMAND_SWRESET;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++	do {
++		msleep(100);
++		txbuf[0] = CS5463_REGISTER_STATUS * 2;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	} while ((rxbuf[0] & 0x80) == 0);
++
++	/* Power up */
++	txbuf[0] = CS5463_COMMAND_POWERUP;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++
++	/* Set configuration register */
++	txbuf[0] = CS5463_REGISTER_CONFIG * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x11;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Set mode register */
++	txbuf[0] = CS5463_REGISTER_MODE * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x60;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Clear interrupts */
++	txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0xff;
++	txbuf[2] = 0xff;
++	txbuf[3] = 0xff;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	/* Reset interrupt mask */
++	txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x00;
++	txbuf[2] = 0x00;
++	txbuf[3] = 0x00;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	if(board->is_basic_model) {
++	/* Set cycle count register to "0x001f40" = 8000 (1f40h) cycles */
++		txbuf[0] = CS5463_REGISTER_CYCLECOUNT * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0x00;
++		txbuf[2] = 0x1f;
++		txbuf[3] = 0x40;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	}
++
++//Initialize temperature gain and offset with default values.
++#define CS5463_REGISTER_PG		31 //Write only
++#define CS5463_REGISTER_TGAIN	2
++#define CS5463_REGISTER_TOFF	3
++
++	txbuf[0] = CS5463_REGISTER_PG * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0;
++	txbuf[2] = 0;
++	txbuf[3] = 1; //set page register 1.
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++	txbuf[0] = CS5463_REGISTER_TGAIN * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0x34;
++	txbuf[2] = 0xE2;
++	txbuf[3] = 0xE7;	//Default value for oC according to data sheet
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++//subtracting 65 below accounts for -6.5 oC offset determined after Lab experiment
++	txbuf[0] = CS5463_REGISTER_TOFF * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0xF3;
++	txbuf[2] = 0xE7;
++	txbuf[3] = 0xD0;	//Default value for oC according to data sheet
++
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	txbuf[0] = CS5463_REGISTER_PG * 2 + CS5463_COMMAND_REGISTER_WRITE;
++	txbuf[1] = 0;
++	txbuf[2] = 0;
++	txbuf[3] = 0; //set page register back to 0.
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++}
++
++static int start_conversion (void)
++{
++	int i, j;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	u8 txbuf[4];
++	unsigned char mux1, mux2;
++	if (outlet_data.converted == CONVERSION_IN_PROGRESS_POWER ||
++		outlet_data.converted == CONVERSION_IN_PROGRESS_TEMPERATURE) {
++		printk(KERN_WARNING"Restarting conversion again..\n");
++		//return 0;
++	}
++
++	outlet_data.converted = CONVERSION_IN_PROGRESS_POWER;
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		board = outlet_data.board + i;
++		for (j = 0; j < board->num_outlets; j ++) {
++			outlet = board->outlet + j;
++			outlet->ready = 0;
++		}
++		for (j = 0; j < board->num_phases; j ++) {
++			inlet = board->phase + j;
++			inlet->ready = 0;
++		}
++		for (j = 0; j < board->num_banks; j ++) {
++			inlet = board->bank + j;
++			inlet->ready = 0;
++		}
++		for (j = 0; j < board->num_blown; j ++) {
++			inlet = board->blown + j;
++			inlet->ready = 0;
++		}
++		for (j = 0; j < board->num_singles; j ++) {
++			inlet = board->single + j;
++			inlet->ready = 0;
++		}
++		board->ready = 0;
++		if(board->sample_num != 0) {
++			board->current_noise = 1;
++		}
++		else {
++ 			board->sample_num = 1;
++		}
++
++		if( board->is_basic_model) { // If basic model,skip outlet measurement
++			if(board->num_phases) {
++				board->cur_outlet_inlet = 0x40;
++				inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++			} else if(board->num_blown) { //blown and bank "shares" 0x80
++				board->cur_outlet_inlet = 0x80;
++				inlet = board->blown + (board->cur_outlet_inlet & 0x1f);
++			} else if(board->num_banks) {
++				board->cur_outlet_inlet = 0xA0;
++				inlet = board->bank + (board->cur_outlet_inlet & 0x1f);
++			} else {
++				board->cur_outlet_inlet = 0xc0;
++				inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++			}
++
++			mux1 = inlet->imux;
++			mux2 = inlet->vmux;
++		}
++		else
++		{
++			board->cur_outlet_inlet = 0;
++			outlet = board->outlet;
++			mux1 = outlet->imux;
++			mux2 = outlet->vmux;
++		}
++
++		if (mux1 != 0xff) { 	//For current mux, mux = ff is invalid
++			txbuf[0] = PMHD_FPGA_MUX_CONTROL1 * 2 + PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = mux1;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		}
++		if (mux2 != 0) {	//For voltage mux, mux = 0 is invalid
++			txbuf[0] = PMHD_FPGA_MUX_CONTROL2 * 2 + PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = mux2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		}
++
++		/* Clear interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0xff;
++		txbuf[2] = 0xff;
++		txbuf[3] = 0xff;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++		/* Set interrupt mask (data ready) */
++		txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0x80;
++		txbuf[2] = 0x00;
++		txbuf[3] = 0x00;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++
++		if (mux1 == 0xff && mux2 == 0) {//No mux selected, goto next conversion.
++			next_conversion (board);
++			return 0;
++		}
++
++		// Set up a delay before starting next conversion
++		msleep(100);
++		txbuf[0] = CS5463_COMMAND_START_CONVERSION;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++	}
++	return 0;
++}
++
++static void next_conversion (struct pmhd_board_info *board)
++{
++	u8 txbuf[2];
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	unsigned char mux1, mux2;
++	int i;
++
++	board->cur_outlet_inlet ++;
++printkbug("Next Conversion %x: b %d, o %d, p %d, c %d, f %d, s %d\n", board->cur_outlet_inlet, board->number+1, board->num_outlets, board->num_phases, board->num_banks, board->num_blown, board->num_singles);
++	if ((board->cur_outlet_inlet & 0xc0) == 0 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_outlets) {
++		/* Once all outlets are measured, start with inlets */
++		board->cur_outlet_inlet = 0x40;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0x40 &&
++		(board->cur_outlet_inlet & 0x3f) >= board->num_phases) {
++		board->cur_outlet_inlet = 0x80;
++	}
++//Read first blown fuse: According to Joe Costa, we should move out from
++// blown fuse vmux in order read accurate values in banks.
++//Reading blown fuse first will force the conversion to switch to banks
++// rigth after all blown fuse measurements are done.
++	if ((board->cur_outlet_inlet & 0xe0) == 0x80 && //Blown and bank shares 0x80
++		(board->cur_outlet_inlet & 0x1f) >= board->num_blown) {
++		board->cur_outlet_inlet = 0xA0;
++	}
++	if (((board->cur_outlet_inlet & 0xe0) == 0xA0 )&&
++		(((board->cur_outlet_inlet & 0x1f) >= board->num_banks)|| (disable_bank_single_measure && pm10ng_pm20ng && (board->num_banks > 0))))  {
++		board->cur_outlet_inlet = 0xc0;
++	}
++	if (((board->cur_outlet_inlet & 0xc0) == 0xc0) &&
++		(((board->cur_outlet_inlet & 0x3f) >= board->num_singles)|| (disable_bank_single_measure && pm10ng_pm20ng && (board->num_banks > 0) ))) {
++		board->ready = 1;
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board2;
++			board2 = outlet_data.board + i;
++			if (! board2->ready) {
++				return;
++			}
++		}
++		outlet_data.converted = CONVERSION_IN_PROGRESS_TEMPERATURE;
++
++		/* Set interrupt mask (temperature) */
++		txbuf[0] = CS5463_REGISTER_MASK * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = 0x00;
++		txbuf[2] = 0x00;
++		txbuf[3] = 0x80;
++//Always read temperature from board 1.
++		my_spi_write_then_read(outlet_data.board[0].cs5463_spi, txbuf, 4, NULL, 0);
++
++		/* Continuous conversions */
++		txbuf[0] = CS5463_COMMAND_CONTINUOUS_CONV;
++		my_spi_write_then_read(outlet_data.board[0].cs5463_spi, txbuf, 1, NULL, 0);
++		return;
++	}
++	if ((board->cur_outlet_inlet & 0xc0) == 0xc0) {
++		inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else if ((board->cur_outlet_inlet & 0xe0) == 0x80) {
++		inlet = board->blown + (board->cur_outlet_inlet & 0x1f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else if ((board->cur_outlet_inlet & 0xe0) == 0xA0) {
++		inlet = board->bank + (board->cur_outlet_inlet & 0x1f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x40) {
++		inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++		mux1 = inlet->imux;
++		mux2 = inlet->vmux;
++	} else {
++		outlet = board->outlet + board->cur_outlet_inlet;
++		mux1 = outlet->imux;
++		mux2 = outlet->vmux;
++	}
++	if (mux1 != 0xff) { 	//For current mux, mux = ff is invalid
++		txbuf[0] = PMHD_FPGA_MUX_CONTROL1 * 2 + PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = mux1;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	}
++	if (mux2 != 0) {	//For voltage mux, mux = 0 is invalid
++		txbuf[0] = PMHD_FPGA_MUX_CONTROL2 * 2 + PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = mux2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	}
++
++	if (mux1 == 0xff && mux2 == 0) {//No mux selected, skip to next conversion.
++		next_conversion (board);	//Recurse in next_conversion
++		return;
++	}
++
++	// Set up a delay before starting next conversion
++	msleep(100);
++	txbuf[0] = CS5463_COMMAND_START_CONVERSION;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++}
++
++static void outlet_get_info(struct pmhd_board_info *board)
++{
++	u8 txbuf[1], rxbuf[3];
++	struct pmhd_outlet_info *outlet;
++	struct pmhd_inlet_info *inlet;
++	unsigned long rms_current, rms_voltage, real_power, power_factor;
++
++	txbuf[0] = CS5463_REGISTER_IRMS * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	rms_current = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_VRMS * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	rms_voltage = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_PACTIVE * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	real_power = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	txbuf[0] = CS5463_REGISTER_PFACTOR * 2;
++	my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++	power_factor = rxbuf[0] * 0x10000 + rxbuf[1] * 0x100 + rxbuf[2];
++
++	if ((board->cur_outlet_inlet & 0xc0) == 0xc0) {
++		inlet = board->single + (board->cur_outlet_inlet & 0x3f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, single %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x3f)+1, singleA(rms_current), singleV(rms_voltage), singleW(real_power), singleP(power_factor));
++	} else if ((board->cur_outlet_inlet & 0xe0) == 0x80) {
++//blown fuse shares 0x80 with banks
++		inlet = board->blown + (board->cur_outlet_inlet & 0x1f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, blown %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x1f)+1, bankA(rms_current), bankV(rms_voltage), bankW(real_power), bankP(power_factor));
++	} else if ((board->cur_outlet_inlet & 0xe0) == 0xA0) {
++//blown fuse shares 0x80 with banks
++		inlet = board->bank + (board->cur_outlet_inlet & 0x1f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, bank %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x1f)+1, bankA(rms_current), bankV(rms_voltage), bankW(real_power), bankP(power_factor));
++	} else if ((board->cur_outlet_inlet & 0xc0) == 0x40) {
++		inlet = board->phase + (board->cur_outlet_inlet & 0x3f);
++		inlet->rms_current = rms_current;
++		inlet->rms_voltage = rms_voltage;
++		inlet->real_power = real_power;
++		inlet->power_factor = power_factor;
++		inlet->ready = 1;
++printkbug("PMHD board %d, phase %d: %ldA %ldV %ldW %ld\n", board->number +1, (board->cur_outlet_inlet & 0x3f)+1, phaseA(rms_current), phaseV(rms_voltage), phaseW(real_power), phaseP(power_factor));
++	} else {
++		outlet = board->outlet + board->cur_outlet_inlet;
++		outlet->rms_current = rms_current;
++		outlet->rms_voltage = rms_voltage;
++		outlet->real_power = real_power;
++		outlet->power_factor = power_factor;
++		outlet->ready = 1;
++printkbug("PMHD board %d, outlet %d: %ldA %ldV %ldW %ld\n", board->number +1, board->cur_outlet_inlet +1, outletA(rms_current), outletV(rms_voltage), outletW(real_power), outletP(power_factor));
++	}
++}
++
++static void check_fpga_int(struct pmhd_board_info *board, u8 status)
++{
++	int i;
++	u8 txbuf[4], rxbuf[3], rxbuf2[3];
++
++	rxbuf[0] = status;
++	if (rxbuf[0] & 0x20) {
++		/* FPGA */
++		struct pmhd_inlet_info *inlet;
++		board->overcurrent = rxbuf[0] & (board->num_singles ? 0x03 : (board->num_phases ? 0x1d : 0x01));
++
++printkbug("PMHD board %d, overcurrent (0x%x): %s%s%s%s%s\n", board->number +1, rxbuf[0], (rxbuf[0] & BOARD_OVERLOAD_X)?"X ":"", (rxbuf[0] & BOARD_OVERLOAD_Y)?"Y ":"", (rxbuf[0] & BOARD_OVERLOAD_Z)?"Z ":"", (rxbuf[0] & BOARD_OVERLOAD_S)?"S ":"", (rxbuf[0] & BOARD_OVERLOAD_O)?"O ":"");
++
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_X && board->num_phases >= 1) {
++			inlet = board->phase;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_Y && board->num_phases >= 2) {
++			inlet = board->phase + 1;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_Z && board->num_phases >= 3) {
++			inlet = board->phase + 2;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if ((board->overcurrent & ~board->oc_mask) & BOARD_OVERLOAD_S && board->num_singles == 1) {
++			inlet = board->single;
++			inlet->overcurrent = 1;
++			board->newoc = 1;
++		}
++		if (board->overcurrent & BOARD_OVERLOAD_O) {
++			/* Outlet */
++			txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS2 * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf2, 1);
++			if (board->num_outlets > 8) {
++				txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS1 * 2;
++				my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf2 + 1, 1);
++			}
++
++printkbug("PMHD board %d, outlet overcurrent (0x%x%x): %s%s%s%s%s%s%s%s\n", board->number +1, rxbuf2[1], rxbuf2[0], (rxbuf2[0] & 0x01)?"1 ":"", (rxbuf2[0] & 0x02)?"2 ":"", (rxbuf2[0] & 0x04)?"3 ":"", (rxbuf2[0] & 0x08)?"4 ":"", (rxbuf2[0] & 0x10)?"5 ":"", (rxbuf2[0] & 0x20)?"6 ":"", (rxbuf2[0] & 0x40)?"7 ":"", (rxbuf2[0] & 0x80)?"8 ":"");
++
++			for (i = 0; i < board->num_outlets; i ++) {
++				struct pmhd_outlet_info *outlet;
++				outlet = board->outlet + i;
++				if (board->type == OUTLET_BOARD_TYPE_NAZCA && board->num_outlets == 3) {
++					if ((rxbuf2[0] & ~board->ooc_mask[0]) & (1 << (2*i+1))) {
++						outlet->overcurrent = 1;
++						board->newoc = 1;
++					}
++				} else {
++					if ((rxbuf2[i/8] & ~board->ooc_mask[i/8]) & (1 << (i%8))) {
++						outlet->overcurrent = 1;
++						board->newoc = 1;
++					}
++				}
++			}
++			board->ooc_mask[0] = rxbuf2[0];
++			board->ooc_mask[1] = rxbuf2[1];
++		}
++		board->oc_mask = rxbuf[0] & 0x1e;
++		wake_up(&outlet_wait);
++	}
++}
++
++static void check_cs5463_int(struct pmhd_board_info *board, u8 status)
++{
++	u8 txbuf[4], rxbuf[3], rxbuf2[3];
++
++	rxbuf[0] = status;
++	if (rxbuf[0] & 0x40) {
++		/* CS5463 */
++		/* read interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2;
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf, 3);
++
++		if (outlet_data.converted == CONVERSION_IN_PROGRESS_POWER &&
++			(rxbuf[0] & 0x80)) {
++			outlet_get_info(board);
++			next_conversion(board);
++		} else if (outlet_data.converted == CONVERSION_IN_PROGRESS_TEMPERATURE &&
++			rxbuf[2] & 0x80) {
++			txbuf[0] = CS5463_REGISTER_T * 2;
++			my_spi_write_then_read(board->cs5463_spi, txbuf, 1, rxbuf2, 3);
++			if (rxbuf2[0] != 0x80 || rxbuf2[1] != 0 || rxbuf2[2] != 0) {
++				board->temperature = rxbuf2[0] * 0x10000 + rxbuf2[1] * 0x100 + rxbuf2[2];
++
++printkbug("PMHD board %d, temperature: %ldoC\n", board->number +1, tempC(board->temperature));
++
++				/* Halt conversions */
++				txbuf[0] = CS5463_COMMAND_POWERUP;
++				my_spi_write_then_read(board->cs5463_spi, txbuf, 1, NULL, 0);
++				/* conversion complete */
++				outlet_data.converted = CONVERSION_DONE;
++				wake_up(&outlet_wait);
++			}
++		}
++		/* clear interrupts */
++		txbuf[0] = CS5463_REGISTER_STATUS * 2 + CS5463_COMMAND_REGISTER_WRITE;
++		txbuf[1] = rxbuf[0];
++		txbuf[2] = rxbuf[1];
++		txbuf[3] = rxbuf[2];
++		my_spi_write_then_read(board->cs5463_spi, txbuf, 4, NULL, 0);
++	}
++}
++
++#define MAX_OUTLET_BOARDS 32
++static void check_interrupt(void)
++{
++	int i, ix;
++	struct pmhd_board_info *board;
++	u8 txbuf[4], rxbuf[3];
++	int fpga_mask = 0;
++	int cs5463_mask = 0;
++	u8 status[MAX_OUTLET_BOARDS];
++	int change = 0;
++
++	memset(status, 0, MAX_OUTLET_BOARDS);
++
++// Read FPGAs (all boards) up to 10 times.
++	for (ix = 0; ix < 10; ix++) {
++		change = 0;
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			board = outlet_data.board + i;
++			txbuf[0] = PMHD_FPGA_INT_STATUS * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++// Check for change in the measurement chip bit
++			if ((rxbuf[0] & 0x40) && !(cs5463_mask & (1 << i)) ) {
++				cs5463_mask |= 1 << i; //set change in the board's chip
++				status[i] |= 0x40; //save register reading
++				change++;
++			}
++// Check for change in the fpga bit
++			if ((rxbuf[0] & 0x20) && !(fpga_mask & (1 << i)) ) {
++				fpga_mask |= 1 << i;   //set change in the board's fpga
++				status[i] |= (rxbuf[0] & 0x3f); //save register reading
++				change++;
++			}
++			if ((status[i] ^ rxbuf[0]) & 0x1f) {
++printkbug("FPGA OCP (%d) %x/%x \n", i, (status[i] & 0x1f), (rxbuf[0] & 0x1f));
++				status[i] &= 0xe0; //noise: reset reading
++				status[i] |= (rxbuf[0] & 0x1f); //save register reading
++				change++;
++			}
++		}
++// Nothing changed, stop loop
++		if (!change) {
++			break;
++		}
++	}
++printkbug("FPGA/CS5563 interrupt loop %d times\n", ix);
++
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		board = outlet_data.board + i;
++		if (!change && fpga_mask & (1 << i)) {
++			check_fpga_int(board, status[i]);
++		}
++		if (cs5463_mask & (1 << i)) {
++			check_cs5463_int(board, status[i]);
++		}
++	}
++}
++
++static void outlet_handle_irq(struct work_struct *queue)
++{
++	if (!outlet_handler_flag && !outlet_ioctl_flag) {
++		outlet_handler_flag = 1;
++		check_interrupt();
++		outlet_handler_flag = 0;
++//Release ioctl
++		if (ioctl_completion) {
++			complete(ioctl_completion);
++		}
++	} else {
++		msleep(100);
++printkbug("IRQ Rescheduled %d %d\n", outlet_handler_flag, outlet_ioctl_flag);
++		if (outlet_handler_flag)
++			outlet_handler_flag++;
++		schedule_work(&outlet_data.queue);
++		return;
++	}
++}
++
++static irqreturn_t outlet_handler(int irq, void *dev_id)
++{
++	schedule_work(&outlet_data.queue);
++	return IRQ_HANDLED;
++}
++
++static int detect_board(struct pmhd_board_info *board)
++{
++	u8 txbuf[1];
++#ifdef NOT_REQUIRED
++	u8 txbuf2[2];
++#endif
++	u8 rxbuf[1];
++	u8 sysid, sysinfo;
++	char *name;
++	char phases, singles, highA;
++
++	//mp: added as in Fuji's working directory...
++	txbuf[0] = PMHD_FPGA_VERSION * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	///////////////
++#ifdef NOT_REQUIRED
++	//Bug-51579
++	//FPGA by default reset all the HW interrupt , no need of this piece of code
++	//This code fragment cause outlet flashing when unit is tripped.
++	/* disable current overload protection */
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 1, rxbuf, 1);
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2 + PMHD_FPGA_REGISTER_WRITE;
++	txbuf2[1] = rxbuf[0] | 0x80;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 2, NULL, 0);
++
++	/* read FPGA interrupt status registers (to reset HW interrupt) */
++	txbuf[0] = PMHD_FPGA_INT_STATUS * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS1 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	txbuf[0] = PMHD_FPGA_INT_OUTLET_STATUS2 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++	/* enable current overload protection */
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 1, rxbuf, 1);
++	txbuf2[0] = PMHD_FPGA_MISC_CONTROL * 2 + PMHD_FPGA_REGISTER_WRITE;
++	txbuf2[1] = rxbuf[0] & ~0x80;
++	my_spi_write_then_read(board->fpga_spi, txbuf2, 2, NULL, 0);
++#endif
++// Read FPGA's System ID
++	txbuf[0] = PMHD_FPGA_SYS_ID * 2;
++	if (my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1)) {
++		printk(KERN_ALERT" board#%d SysID error\n", board->number);
++		return 0;
++	}
++	sysid = rxbuf[0];
++	board->type = sysid;
++	board->is_basic_model = (sysid == OUTLET_BOARD_TYPE_STONEHENGE_BASIC ||
++							sysid == OUTLET_BOARD_TYPE_PM10NG_BASIC ||
++							sysid == OUTLET_BOARD_TYPE_PM20NG_BASIC)?1:0;
++
++	board->is_pm10i_Pm20i = (sysid == OUTLET_BOARD_TYPE_PM10NG ||
++							sysid == OUTLET_BOARD_TYPE_PM10NG_BASIC ||
++							sysid == OUTLET_BOARD_TYPE_PM20NG ||
++							sysid == OUTLET_BOARD_TYPE_PM20NG_BASIC)?1:0;
++	board->outlet_multiplier = 1;
++
++// Read FPGA's System Info
++	txbuf[0] = PMHD_FPGA_SYS_INFO * 2;
++	if (my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1)) {
++		printk(KERN_ALERT" board#%d SysINFO error\n", board->number);
++		return 0;
++	}
++
++	sysinfo = rxbuf[0];
++	board->input = sysinfo >> 4;
++	board->switched = (board->is_basic_model)?0:sysinfo&1;
++	board->outlet_per_fuse = 0;
++	board->fuse_c19 = MAX_FUSE_20;
++	board->fuse_c13 = MAX_FUSE_15;
++	board->cord = INPUT_CORD_DETACHABLE;
++	board->region = REGION_US;
++	board->input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++	board->max_current = 30;	//Should set to 0?
++	board->num_blown = 0;
++	phases = 0;
++	singles = 1;
++
++	highA = 0;	//Low input current models (< 30A)
++	switch(board->input) {
++		case 0: // International 3-Phase Wye 16A
++			board->region = REGION_INTERNATIONAL;
++			board->max_current = 16;
++			board->input_type = INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE;
++			phases = 3;
++			singles = 0;
++			break;
++		case 1: //International 32A 3-phase Wye
++			board->region = REGION_INTERNATIONAL;
++			board->max_current = 32;
++			board->input_type = INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE;
++			highA = 1;
++			phases = 3;
++			singles = 0;
++			break;
++		case 4: // Both 16A/20A single phase
++			if (board->is_pm10i_Pm20i) {
++				board->region = (sysinfo & 0x04)?REGION_US:REGION_INTERNATIONAL;
++				board->max_current = (sysinfo & 0x04)?20:16;
++			} else {
++				board->region = REGION_US;
++				board->max_current = 20;
++			}
++			board->input_type = (board->region == REGION_US)?
++				INPUT_TYPE_NORTHAMERICA_1_PHASE:INPUT_TYPE_INTERNATIONAL_1_PHASE;
++			phases = 0;
++			singles = 1;
++			break;
++		case 5: // Both 30A/32A single phase
++			if (board->is_pm10i_Pm20i) {
++				board->region = (sysinfo & 0x04)?REGION_US:REGION_INTERNATIONAL;
++				board->max_current = (sysinfo & 0x04)?30:32;
++			} else {
++				board->region = REGION_US;
++				board->max_current = 30;
++			}
++			board->input_type = (board->region == REGION_US)?	//Both???
++				INPUT_TYPE_NORTHAMERICA_1_PHASE:INPUT_TYPE_INTERNATIONAL_1_PHASE;
++			highA = (board->is_pm10i_Pm20i)?1:0;
++			phases = 0;
++			singles = 1;
++			break;
++		case 6: // USA 50A single phase
++			board->region = REGION_US;
++			board->max_current = 50;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE;
++			phases = 0;
++			singles = 1;
++			break;
++		case 7: // Both 60A/63A single phase
++			board->region = REGION_US;
++			board->max_current = 60;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_1_PHASE; //Both???
++			phases = 0;
++			singles = 1;
++			break;
++		case 8: // USA 20A 3-phase Delta
++			board->region = REGION_US;
++			board->max_current = 20;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++			phases = 3;
++			singles = 0;
++			break;
++		case 9: // USA 30A 3-phase Delta
++			board->region = REGION_US;
++			board->max_current = 30;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++			phases = 3;
++			singles = 0;
++			break;
++		case 10: // USA 50A 3-phase Delta
++			board->region = REGION_US;
++			board->max_current = 50;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++			highA = 1;
++			phases = 3;
++			singles = 0;
++			break;
++		case 11: // USA 60A 3-phase Delta
++			board->region = REGION_US;
++			board->max_current = 60;
++			board->input_type = INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA;
++			highA = 1;
++			phases = 3;
++			singles = 0;
++			break;
++		default:
++			break;
++	}
++
++	txbuf[0] = PMHD_FPGA_VERSION * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	board->fpga = rxbuf[0];
++
++	switch (board->type) {
++	case OUTLET_BOARD_TYPE_NAZCA:
++		name="Nazca";
++		txbuf[0] = PMHD_FPGA_HARDWIRED_OPTIONS * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++		board->outlet_per_fuse = (rxbuf[0]&2)?1:2;
++		board->num_outlets = (rxbuf[0]&1)?6:3;
++		if (board->fpga <= 6) {
++			board->num_phases = 0;
++			board->num_singles = 0;
++			board->num_banks = 0;
++		} else {
++			board->num_phases = phases;
++			board->num_singles = singles;
++			board->num_banks = (highA)?6:3; //Number of circuit branches (fuses)
++		}
++		board->fuse_c19 = (sysinfo&8)?MAX_FUSE_20:MAX_FUSE_15;
++		board->fuse_c13 = board->fuse_c19;	// should be 0? no C13 in nazca
++		break;
++	case OUTLET_BOARD_TYPE_STONEHENGE:
++		name="Stonehenge";
++		board->fuse_c19 = (sysinfo&8)?MAX_FUSE_20:MAX_FUSE_15;
++		board->fuse_c13 = (sysinfo&4)?MAX_FUSE_20:MAX_FUSE_15;
++		board->num_outlets = 8;	//Per card
++		board->num_phases = phases;
++		board->num_singles = singles;
++		board->num_banks = (highA)?6:3; //Number of circuit branches (fuses)
++		break;
++	case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++		name="StonehengeBasic";
++		board->num_outlets = 6; //Per FPGA
++		// for user space it should be multiplied to show the actual no of outlets
++		board->outlet_multiplier = 4;
++		board->num_phases = phases;
++		board->num_singles = singles;
++		board->num_banks = (singles)?2:(highA)?6:3; //Number of circuit branches (fuses)
++		board->fuse_c19 = MAX_FUSE_20;
++		board->fuse_c13 = MAX_FUSE_15;
++		break;
++	case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++	case OUTLET_BOARD_TYPE_PM10NG:
++		name=(board->type == OUTLET_BOARD_TYPE_PM10NG)?"PM10NG":"PM10NGBasic";
++		disable_bank_single_measure = (board->type == OUTLET_BOARD_TYPE_PM10NG)?1:0;
++		pm10ng_pm20ng = (board->type == OUTLET_BOARD_TYPE_PM10NG)?1:0;
++		board->cord = (sysinfo & 0x02)?INPUT_CORD_FIXED:INPUT_CORD_DETACHABLE;
++		board->num_outlets = 10;
++		board->num_phases = 0;
++		board->num_singles = 1;
++		board->num_banks = (highA)?2:0; //Number of circuit branches (fuses)
++		board->num_blown = (highA)?2:0;	//Number of blown fuse detect.
++		board->fuse_c19 = MAX_FUSE_20;
++		board->fuse_c13 = MAX_FUSE_15;
++		break;
++	case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++		name="PM20NGBasic";
++		board->cord = (sysinfo & 0x02)?INPUT_CORD_FIXED:INPUT_CORD_DETACHABLE;
++		board->num_outlets = 20; //Per card
++		board->num_phases = 0;
++		board->num_singles = 1;
++		board->num_banks = (highA)?2:0; //Number of circuit branches (fuses)
++		board->num_blown = (highA)?2:0;	//Number of blown fuse detect.
++		board->fuse_c19 = MAX_FUSE_20;
++		board->fuse_c13 = MAX_FUSE_15;
++		break;
++	case OUTLET_BOARD_TYPE_PM20NG:
++		name="PM20NG";
++		disable_bank_single_measure = 1;
++		pm10ng_pm20ng = 1;
++		board->cord = (sysinfo & 0x02)?INPUT_CORD_FIXED:INPUT_CORD_DETACHABLE;
++		board->num_outlets = 10; //Per card
++		board->num_phases = 0;
++		board->num_singles = 1;
++		board->num_banks = (highA)?2:0; //Number of circuit branches (fuses)
++		board->num_blown = (highA)?2:0;	//Number of blown fuse detect.
++		board->fuse_c19 = MAX_FUSE_20;
++		board->fuse_c13 = MAX_FUSE_15;
++		break;
++	default:
++		printk("pmhd_fpga: board %d not detected [%02x]\n",
++			board->number + 1, board->type);
++		return 0;
++	}
++
++//Only master board reads aggregations (phases/banks)
++	if (board->number != 0) {
++		board->num_phases = 0;
++		board->num_singles = 0;
++		board->num_banks = 0;
++		board->num_blown = 0;
++	}
++	printk("pmhd_fpga: board %d detected - Input:%d "
++			"Outlets:%d Type:%s\n",
++			board->number + 1, board->input,
++			board->num_outlets, name);
++	return 1;
++}
++
++static void load_outlets(struct pmhd_board_info *board)
++{
++	int i;
++	u8 txbuf[1];
++	u8 rxbuf[6];
++
++	txbuf[0] = PMHD_FPGA_RELAY_CONTROL2 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	if (board->num_outlets > 8) {
++		txbuf[0] = PMHD_FPGA_RELAY_CONTROL1 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 1, 1);
++	}
++	txbuf[0] = PMHD_FPGA_LED_CONTROL4 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 2, 1);
++	txbuf[0] = PMHD_FPGA_LED_CONTROL3 * 2;
++	my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 3, 1);
++	if (board->num_outlets > 8) {
++		txbuf[0] = PMHD_FPGA_LED_CONTROL2 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 4, 1);
++		txbuf[0] = PMHD_FPGA_LED_CONTROL1 * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf + 5, 1);
++	}
++	for (i = 0; i < board->num_outlets; i ++) {
++		struct pmhd_outlet_info *outlet = board->outlet + i;
++		if (board->type == OUTLET_BOARD_TYPE_NAZCA &&
++			board->num_outlets == 3) {
++			outlet->number = 2 * i + 1;
++		} else {
++			outlet->number = i;
++		}
++		outlet->imux = 0x80 + outlet->number;
++		switch (board->type) {
++		case OUTLET_BOARD_TYPE_STONEHENGE: /* SH */
++			outlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++			break;
++		case OUTLET_BOARD_TYPE_NAZCA:
++			outlet->vmux = (outlet->number / 2) + 1;
++			break;
++		case OUTLET_BOARD_TYPE_PM10NG:
++		case OUTLET_BOARD_TYPE_PM20NG:
++			outlet->vmux = 1;	//All measurements from mux1 (mux2: blown fuse)
++			break;
++		default: 	//Include all Basic model that have no outlet measurements
++			outlet->vmux = 0;
++			break;
++		}
++		if (board->type == OUTLET_BOARD_TYPE_NAZCA ||
++			(board->type == OUTLET_BOARD_TYPE_STONEHENGE && i == 0)) {
++			outlet->type = OUTLET_TYPE_C19;
++		} else {
++			outlet->type = OUTLET_TYPE_C13;
++		}
++		outlet->relay = (rxbuf[outlet->number/8] & (1 << (outlet->number%8))) ? 1 : 0;
++		outlet->led = (rxbuf[outlet->number/4+2] >> ((outlet->number%4)*2)) & 3;
++	}
++}
++
++static void load_phases(struct pmhd_board_info *board)
++{
++	int i;
++	for (i = 0; i < board->num_phases; i ++) {
++		struct pmhd_inlet_info *inlet = board->phase + i;
++		if (board->input_type == INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE) {
++			//3-phase Wye
++			inlet->imux = (0x01 + i);
++		} else {
++			//3-phase Delta
++			inlet->imux = (0x05 + i);
++		}
++		switch (board->type) {
++		case OUTLET_BOARD_TYPE_STONEHENGE: /* SH */
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++			break;
++		case OUTLET_BOARD_TYPE_NAZCA:
++		case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++			inlet->vmux = i + 1;
++			break;
++		case OUTLET_BOARD_TYPE_PM10NG:
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM20NG:
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			inlet->vmux = 0;	//Always single phase: Skip conversion
++			inlet->imux = 0xff;
++			break;
++		default:
++			inlet->vmux = 0;
++			break;
++		}
++	}
++}
++
++static void load_blown(struct pmhd_board_info *board)
++{
++	int i;
++	struct pmhd_inlet_info *inlet;
++
++	for (i = 0; i < board->num_blown; i ++) {
++		inlet = board->blown + i;
++
++		switch (board->type) {
++		case OUTLET_BOARD_TYPE_PM10NG:
++			inlet->imux = 0; //Read from total (aggregate)
++			inlet->vmux = (0x01 + i); //mux1 and 2: blown fuse.
++			break;
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			inlet->imux = (0x80 + i); //Read from outlet 1,2
++			inlet->vmux = (0x01 + i); //mux1 and 2: blown fuse.
++			break;
++		case OUTLET_BOARD_TYPE_PM20NG:
++			inlet->imux = 0xff; //Will get (ioctl) from outlet 1 of each board
++			inlet->vmux = 0;
++			break;
++		default:
++			inlet->imux = 0xff;	//No current mux
++			inlet->vmux = 0;	//No volatge mux
++			return;
++		}
++	}
++}
++
++static void load_banks(struct pmhd_board_info *board)
++{
++	int i;
++	struct pmhd_inlet_info *inlet;
++
++	for (i = 0; i < board->num_banks; i ++) {
++		inlet = board->bank + i;
++
++		switch (board->type) {
++		case OUTLET_BOARD_TYPE_NAZCA:
++			if (board->num_banks == 3) {
++				inlet->imux = (0x01 + i); //Read from the bank
++				inlet->vmux = i + 1;
++			} else {
++				//Read from the outlet (1 outlet = 1bank)
++				inlet->imux = (0x80 + i); //Read from the outlet
++				inlet->vmux = i/2 + 1;	//Read from banks (0&1, 2&3, 4&5)
++			}
++			break;
++		case OUTLET_BOARD_TYPE_STONEHENGE:
++			if (board->num_banks == 6) {	//Needs Adjsut
++//Read from banks (odds, C13s but needs adjust)
++// or outlets (evens, C19s but skip convertion. Get from outlet in ioctl)
++				inlet->imux = (i%2)?(0x01 + i/2):0xff;
++			} else {
++				inlet->imux = (0x01 + i); //Read from the bank
++			}
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++			break;
++		case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++			if (board->num_banks == 2) {
++				inlet->imux = (0x80 + i); //Read from outlets 1 and 2
++				inlet->vmux = 1; //Only one V sensor: Bank 1.
++			} else if (board->num_banks == 3) {
++				inlet->imux = (0x80 + i*2); //Read from outlets 1,3,5
++				inlet->vmux = i + 1;
++			} else {
++				//Read from the outlet (1 outlet = 1bank)
++				inlet->imux = (0x80 + i); //Read from outlets 1 through 6
++				inlet->vmux = i/2 + 1;	//Read from banks (0&1, 2&3, 4&5)
++			}
++			break;
++		case OUTLET_BOARD_TYPE_PM10NG:
++		case OUTLET_BOARD_TYPE_PM20NG:
++//Note (TODO???): for PM20NG we could read curret in slave board(bank1) by
++// selecting imux 0 (aggregate) from that board, but the current implementation
++// assumes retrieving values only from master board. Since the Power and
++// power factor in bank will require calculation anyway, the code will
++// calculate current in banks by adding current in all outlets in the bank
++// like it is done for PM10NG which cannot provide bank current.
++			inlet->imux = 0;	//Read from total to get voltage. Will need
++			inlet->vmux = 1;	// calculation from outlets in ioctl.
++			break;
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			inlet->imux = (0x80 + i); //Read from outlets 1,2
++			inlet->vmux = 1;	//All measurements from mux1 (mux2: blown fuse)
++			break;
++		default:
++			inlet->imux = 0xff;	//No current mux
++			inlet->vmux = 0;	//No volatge mux
++			return;
++		}
++	}
++}
++
++static void load_singles(struct pmhd_board_info *board)
++{
++	int i;
++	for (i = 0; i < board->num_singles; i ++) {
++		struct pmhd_inlet_info *inlet = board->single + i;
++		inlet->imux = 0x00;
++		if (board->type == OUTLET_BOARD_TYPE_STONEHENGE) {
++			inlet->vmux = 0; /* for Stonehenge there is no voltage mux */
++		} else {
++			inlet->vmux = 1;
++		}
++	}
++}
++
++static int outlet_open(struct inode *inode, struct file *file)
++{
++	int i, ret;
++
++// To define the product model and input cable
++	int total_outlets = 0;
++	int total_switched = 0;
++	char model_str[64] = {0};
++	int basic_model = 0;
++	int multiplier = 1;
++	int board_type = -1;
++
++	if (outlet_data.outlet_open) {
++		outlet_data.outlet_open ++;
++		return 0;
++	}
++	outlet_data.converted = CONVERSION_IDLE;
++	for (i = 0; i < outlet_data.prev_num_boards; i ++) {
++		struct pmhd_board_info *board = outlet_data.board + i;
++		if (! detect_board(board)) {
++			break;
++		}
++		board->newoc = 0;
++		board->oc_mask = board->ooc_mask[0] = board->ooc_mask[1] = 0;
++
++		if (board->num_outlets) {
++			board->outlet = kzalloc(sizeof (struct pmhd_outlet_info) * board->num_outlets, GFP_KERNEL);
++			if (board->outlet) {
++				load_outlets(board);
++			} else {
++				board->num_outlets = 0;
++			}
++		}
++
++		if (board->num_phases) {
++			board->phase = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_phases, GFP_KERNEL);
++			if (board->phase) {
++				load_phases(board);
++			} else {
++				board->num_phases = 0;
++			}
++		}
++
++		if (board->num_blown) {
++			board->blown = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_blown, GFP_KERNEL);
++			if (board->blown) {
++				load_blown(board);
++			} else {
++				board->num_blown = 0;
++			}
++		}
++		if (board->num_banks) {
++			board->bank = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_banks, GFP_KERNEL);
++			if (board->bank) {
++				load_banks(board);
++			} else {
++				board->num_banks = 0;
++			}
++		}
++
++		if (board->num_singles) {
++			board->single = kzalloc(sizeof (struct pmhd_inlet_info) * board->num_singles, GFP_KERNEL);
++			if (board->single) {
++				load_singles(board);
++			} else {
++				board->num_singles = 0;
++			}
++		}
++
++		if (board->is_basic_model) {
++			basic_model = 1;
++			multiplier = board->outlet_multiplier;
++		}
++		board->current_noise = 3;
++		board->sample_num = 0;
++		start_cs5463(board);
++
++		total_outlets += board->num_outlets;
++		total_switched += board->switched;
++		board_type = board->type;
++
++		if ((board->type == OUTLET_BOARD_TYPE_NAZCA)|| (board->type == OUTLET_BOARD_TYPE_STONEHENGE_BASIC)||(board->type == OUTLET_BOARD_TYPE_PM10NG_BASIC)||(board->type == OUTLET_BOARD_TYPE_PM20NG_BASIC)) {
++			/* As Nazca FPGA listens to all combinations of
++			LA1/LA2, we should not check for other boards */
++			i ++;
++			break;
++		}
++	}
++	check_interrupt();
++
++	outlet_data.num_boards = i;
++
++	if(!basic_model) {
++		//For more than one outlet card appliance,even if one or more card
++		//are not detected or present model string should show the same model number
++		if(board_type == OUTLET_BOARD_TYPE_STONEHENGE) {
++			total_outlets = 24;
++		}
++		else if (board_type == OUTLET_BOARD_TYPE_PM20NG) {
++			total_outlets = 20;
++		}
++		sprintf(model_str, "PM%d0%02d",
++					(total_switched == outlet_data.num_boards)?3:2,
++					total_outlets);
++	} else {
++
++		sprintf(model_str, "PM10%02d", total_outlets * multiplier);
++	}
++
++	strncpy(avocent_pmhd_model, model_str, 1+strlen(model_str));
++	printk("avocent_pmhd_model set to %s\n", avocent_pmhd_model);
++
++//[LC]??? Using the first entry... Is it OK?
++	avocent_pmhd_input_type = outlet_data.board[0].input;
++	strncpy(avocent_pmhd_input, board_input_desc[(outlet_data.board[0].input & 0x00ff)], MAX_INPUT_DESC);
++	printk("avocent_pmhd_input (%d) set to %s\n", avocent_pmhd_input_type, avocent_pmhd_input);
++
++	avocent_pmhd_switched = (total_switched == outlet_data.num_boards)?1:0;
++
++	INIT_WORK(&outlet_data.queue, outlet_handle_irq);
++	ret = request_irq (outlet_data.irq, outlet_handler, 0, "pmhd_fpga", &outlet_data);
++	if (ret) {
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board = outlet_data.board + i;
++			kfree(board->outlet);
++		}
++		printk (KERN_WARNING "pmhd_fpga: request_irq error.\n");
++		return ret;
++	}
++	outlet_data.outlet_open ++;
++	return 0;
++}
++
++static int outlet_release(struct inode *inode, struct file *file)
++{
++	int i;
++	if (! outlet_data.outlet_open) {
++		return 0;
++	}
++	outlet_data.outlet_open --;
++	if (! outlet_data.outlet_open) {
++		for (i = 0; i < outlet_data.num_boards; i ++) {
++			struct pmhd_board_info *board = outlet_data.board + i;
++			kfree(board->outlet);
++		}
++		free_irq(outlet_data.irq, &outlet_data);
++	}
++	return 0;
++}
++
++static int read_numboards(unsigned long arg)
++{
++	int num_boards = outlet_data.num_boards;
++	copy_to_user((int __user *)arg, &num_boards, sizeof(int));
++	return 0;
++}
++
++static int read_board_info (unsigned long arg)
++{
++	char board_num;
++	struct outlet_board_info info;
++	struct pmhd_board_info *board;
++
++	copy_from_user(&info, (struct outlet_board_info __user *)arg, sizeof(struct outlet_board_info));
++
++	board_num = info.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	info.input_type = board->input_type;
++	info.max_current = board->max_current;
++	info.fuse_c19 = board->fuse_c19;
++	info.fuse_c13 = board->fuse_c13;
++	info.outlets = board->num_outlets * board->outlet_multiplier;
++	info.phases = board->num_phases;
++	info.banks = board->num_banks;
++	info.single = board->num_singles;
++	info.outlet_per_fuse = board->outlet_per_fuse;
++	info.cord = board->cord;
++	info.board_type = board->type;
++	info.fpga = board->fpga;
++	info.switched = board->switched;
++
++	copy_to_user((struct outlet_board_info __user *)arg, &info, sizeof(struct outlet_board_info));
++	return 0;
++}
++
++static int read_board_status (unsigned long arg, unsigned int cmd)
++{
++	char board_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct outlet_board_status status;
++	int signal;
++
++	copy_from_user(&status, (struct outlet_board_status __user *)arg, sizeof(struct outlet_board_status));
++	board_num = status.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	status.overload = board->overcurrent;
++	//subtracting 65 below accounts for -6.5 oC offset determined after Lab experiment
++	status.temperature = tempC(board->temperature);
++	if (board->num_singles) {
++		inlet = board->single;
++		status.overcurrent = inlet->overcurrent;
++
++		if (cmd == IOCTL_BOARD_READ ||	//Values are based on readings
++			(board->num_banks == 0)) {
++			status.voltage = singleV(inlet->rms_voltage);
++
++			if(board->is_pm10i_Pm20i && !board->is_basic_model) {
++				//correction apply only on Giza2000/3000 and Tulum2000/3000
++				status.current = singleA_PM10i_PM20i(inlet->rms_current);
++			}
++			else {
++				status.current = singleA(inlet->rms_current);
++			}
++
++			(((long)(inlet->real_power * 0x100)) < 0)? (signal=-1):(signal=1);
++			if(board->is_pm10i_Pm20i && !board->is_basic_model) {
++				//correction apply only on Giza2000/3000 and Tulum2000/3000
++				status.power = singleW_PM10i_PM20i(inlet->real_power) * signal;
++			} else {
++				status.power = singleW(inlet->real_power) * signal;
++			}
++			status.power_factor = abs(singleP(inlet->power_factor));
++		} else {	//Values are based on calculation from outlets.
++			int ix, iy;
++			struct pmhd_outlet_info *pout = NULL;
++			struct pmhd_inlet_info *pbank = NULL;
++			struct pmhd_board_info *brd_bnk;
++			unsigned long Pb = 0, VIb = 0, Ib = 0, Io, Vb = 0;
++
++//PDU values reported only in board 1 (master), i.e. the only board
++// with num_singles set, but has to account for outlets in all boards.
++
++// PDU current (Ib) is the sum of current of all outlets.
++// PDU voltage (Vb) is the voltage in the first outlet with voltage not 0.
++// PDU power (Pb) is the sum of power of all outlets..
++// PDU power factor is P divided by product of current and voltage.
++
++			if(board->is_basic_model) { // No outlet level measurements
++				for (ix = 0; ix < outlet_data.num_boards; ix++) {
++					brd_bnk = outlet_data.board + ix;
++					for (iy = 0; iy < brd_bnk->num_banks; iy++) {
++						if ((pbank = brd_bnk->bank + iy)) {
++							if((Io = outletA(pbank->rms_current)) > board->current_noise) { //Discard noise (<=0.1A)
++								Ib += Io;
++								signal = (((long)(pbank->real_power * 0x100)) < 0)?-1:1;
++								Pb += outletW(pbank->real_power) * signal;
++							}
++							if (Vb == 0) {
++								Vb = outletV(pbank->rms_voltage);
++							}
++						} else {
++							return -EINVAL;
++						}
++					}
++				}
++			} else {
++//TODO???: improve this to get values from banks.
++// Main issue: bank values are not saved.
++				for (ix = 0; ix < outlet_data.num_boards; ix++) {
++					brd_bnk = outlet_data.board + ix;
++					for (iy = 0; iy < brd_bnk->num_outlets; iy++) {
++						if ((pout = brd_bnk->outlet + iy)) {
++							if((Io = outletA(pout->rms_current)) > board->current_noise) { //Discard noise (<=0.1A)
++								Ib += Io;
++								signal = (((long)(pout->real_power * 0x100)) < 0)?-1:1;
++								Pb += outletW(pout->real_power) * signal;
++							}
++							if (Vb == 0 && iy == 0) {
++								Vb = outletV(pout->rms_voltage);
++							}
++						} else {
++							return -EINVAL;
++						}
++					}
++				}
++			}
++			status.current = Ib;
++			status.voltage = Vb;
++			status.power = Pb;
++
++// Calculate PF as Pb/VIb.
++			VIb = Vb * Ib; //Since Current is *10, VIb is *10
++			status.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0); //Pf *100. Round VIb.
++printkbug(KERN_DEBUG "Calc single Vb: %ld, Ib: %ld, Pb: %ld, Pfb: %ld\n\n", status.voltage, status.current, status.power, status.power_factor);
++
++			if (status.power_factor > 100)
++				status.power_factor = 100;
++		}
++	}
++
++	if (status.current <= board->current_noise/*100mA*/) {
++		status.power_factor = status.power = status.current = 0;
++	}
++	if(status.voltage < FUSE_OK_MIN_VOLT) {
++		status.voltage = -1;
++		status.current = -10;
++		status.power = -1;
++		status.power_factor = -100;
++	}
++	copy_to_user((struct outlet_board_status __user *)arg, &status, sizeof(struct outlet_board_status));
++	return 0;
++}
++
++
++// Reset overcurrent requires to be applied to all boards: BTS 50765 comment #9
++//
++static int reset_overcurrent(void)
++{
++	int ix, iy, i;
++	struct pmhd_board_info *board;
++	u8 txbuf[2], rxbuf[1];
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++
++// Read FPGA register
++		txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++// Reset OC bit
++		txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++		txbuf[1] = rxbuf[0] | 0x80;
++		my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	}
++
++// Wait before re-enable overcurrrent
++	mdelay(100);	//Do not use sleep here to avoid disrupting the reset
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++
++		for (iy = 0; iy < 3; iy++) {	//Make sure bit is reset
++// Read FPGA register
++			txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++			my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++
++			if (rxbuf[0] & 0x80) {
++				txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++//Reenable overcurrent
++				txbuf[1] = rxbuf[0] & 0x7f;
++printkbug("Resetting overcurrent on board %d (%d retry)\n", board->number+1, iy);
++				my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			} else {
++				break;	//Bit already reset.
++			}
++		}
++		if (iy >= 3) {	//Could not reset, what to do?
++			printk(KERN_ERR "Fail to reset overcurrent on board %d. HW Overcurrent protection disabled.\n", board->number+1);
++		}
++	}
++
++	for (ix = 0; ix < outlet_data.num_boards; ix ++) {
++		board = outlet_data.board + ix;
++		/* Reset overcurrent variables */
++		board->overcurrent = board->newoc = 0;
++		board->oc_mask = board->ooc_mask[0] = board->ooc_mask[1] = 0;
++		for (i = 0; i < board->num_outlets; i ++) {
++			struct pmhd_outlet_info *outlet = board->outlet + i;
++			outlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_phases; i ++) {
++			struct pmhd_inlet_info *inlet = board->phase + i;
++			inlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_blown; i ++) {
++			struct pmhd_inlet_info *inlet = board->blown + i;
++			inlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_banks; i ++) {
++			struct pmhd_inlet_info *inlet = board->bank + i;
++			inlet->overcurrent = 0;
++		}
++		for (i = 0; i < board->num_singles; i ++) {
++			struct pmhd_inlet_info *inlet = board->single + i;
++			inlet->overcurrent = 0;
++		}
++	}
++	return 0;
++}
++
++static int handle_board_control (unsigned long arg)
++{
++	char board_num;
++	struct pmhd_board_info *board;
++	u8 txbuf[2], rxbuf[1];
++	int set;
++	unsigned char mask;
++	int ret;
++	struct outlet_board_control control;
++
++	copy_from_user(&control, (struct outlet_board_control __user *)arg, sizeof(struct outlet_board_control));
++	board_num = control.board;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++
++	board = outlet_data.board + board_num;
++
++	switch (control.control) {
++	case OUTLET_BOARD_OVERCURRENT_RESET:
++		reset_overcurrent();
++		return 0;
++	case OUTLET_BOARD_PROBE_RESET:
++		mask = 0x40;
++		set = 2;
++		break;
++	case OUTLET_BOARD_BUZZER_ON:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x20;
++		set = 1;
++		break;
++	case OUTLET_BOARD_BUZZER_OFF:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x20;
++		set = 0;
++		break;
++	case OUTLET_BOARD_INPUT_PROTECTION_ON:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x02;
++		set = 1;
++		break;
++	case OUTLET_BOARD_INPUT_PROTECTION_OFF:
++		if (board_num) return -EINVAL; //only for Master Board
++		mask = 0x02;
++		set = 0;
++		break;
++	case OUTLET_BOARD_OUTPUT_PROTECTION_ON:
++		mask = 0x01;
++		set = 1;
++		break;
++	case OUTLET_BOARD_OUTPUT_PROTECTION_OFF:
++		mask = 0x01;
++		set = 0;
++		break;
++	default :
++		return -EINVAL;
++	}
++	txbuf[0] = PMHD_FPGA_MISC_CONTROL * 2;
++	ret = my_spi_write_then_read(board->fpga_spi, txbuf, 1, rxbuf, 1);
++	if (ret < 0) {
++		return ret;
++	}
++	txbuf[0] |= PMHD_FPGA_REGISTER_WRITE;
++	if (set == 0) {
++		txbuf[1] = rxbuf[0] & ~mask;
++	} else {
++		txbuf[1] = rxbuf[0] | mask;
++	}
++	ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++	if (ret < 0) {
++		return ret;
++	}
++	if (set == 2) {
++		msleep(100);
++		txbuf[1] = rxbuf[0] & ~mask;
++		ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++		if (ret < 0) {
++			return ret;
++		}
++	}
++	if (control.control == OUTLET_BOARD_PROBE_RESET) {
++		start_cs5463(board);
++	}
++	return 0;
++}
++
++static int read_outlet_info (unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct outlet_data_info info;
++
++	copy_from_user(&info, (struct outlet_data_info __user *)arg, sizeof(struct outlet_data_info));
++	board_num = info.board;
++	outlet_num = info.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++	if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++		return -EINVAL;
++	}
++	outlet_num --;
++	outlet = board->outlet + outlet_num;
++	info.type = outlet->type;
++	if (outlet->type == OUTLET_TYPE_C19) {
++		info.max_current = board->fuse_c19;
++	} else {
++		info.max_current = board->fuse_c13;
++	}
++
++	copy_to_user((struct outlet_data_info __user *)arg, &info, sizeof(struct outlet_data_info));
++	return 0;
++}
++
++static int read_outlet_status (unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet;
++	struct outlet_status_info info;
++	int i, signal;
++	int chk_fuse = FUSE_NOT;
++
++	copy_from_user(&info, (struct outlet_status_info __user *)arg, sizeof(struct outlet_status_info));
++	board_num = info.board;
++	outlet_num = info.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++	if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++		return -EINVAL;
++	}
++	outlet_num --;
++	outlet = board->outlet + outlet_num;
++	info.overcurrent = outlet->overcurrent;
++	info.power_factor = info.power = info.current = 0;
++	info.voltage = outletV(outlet->rms_voltage);
++	if (outlet->relay) {
++		info.current = outletA(outlet->rms_current);
++		if (info.current <= board->current_noise/*100mA*/) {
++			info.current = 0;
++		} else {
++			(((long)(outlet->real_power * 0x100)) < 0) ? (signal=-1) : (signal=1);
++			info.power = outletW(outlet->real_power) * signal;
++			info.power_factor = abs(outletP(outlet->power_factor));
++		}
++
++		measurement_not_available = 0;
++		if(board->type == OUTLET_BOARD_TYPE_STONEHENGE) {
++			//In Stonehenge when voltage zero is reported in c13 outlet, set voltage,current,power to -1 and pf -100
++			if(info.voltage < FUSE_OK_MIN_VOLT) {
++				if((outlet_num % 8 ) != 0 ) { // check it is not c19, as voltage 0 is real voltage
++					measurement_not_available = 1;
++				}
++			}
++		}
++		else if (board->type == OUTLET_BOARD_TYPE_PM10NG)  {
++			//check bank is fuse ?
++			if(outlet_num < 5) {
++				chk_fuse = get_blown_fuse(board,0);
++			}
++			else {
++				chk_fuse = get_blown_fuse(board,1);
++			}
++		}
++		else if (board->type == OUTLET_BOARD_TYPE_PM20NG)  {
++			//check bank is fuse ?
++			if(board_num == 1) {//Board was inverted above
++				chk_fuse = get_blown_fuse(board,0);
++			}
++			else {
++				chk_fuse = get_blown_fuse(board,1);
++			}
++		}
++		else {
++			// do nothing
++		}
++
++		if((board->type == OUTLET_BOARD_TYPE_PM10NG) ||(board->type == OUTLET_BOARD_TYPE_PM20NG)){
++			if(chk_fuse == FUSE_BLOWN){
++				info.power = info.power_factor = info.voltage = info.current = 0;
++			}
++			else if(chk_fuse == FUSE_OK) {
++				if(info.voltage < FUSE_OK_MIN_VOLT) {
++					measurement_not_available = 1;
++				}
++			}
++		}
++
++		if(measurement_not_available == 1) {
++			info.power = -1;
++			info.power_factor = -100;
++			info.voltage =  -1;
++			info.current = -10;
++		}
++
++	}
++	info.relay = (outlet->relay)?OUTLET_RELAY_ON:OUTLET_RELAY_OFF;
++	info.led = outlet->led;
++	info.ocp = 0;
++
++	/* reference board 1(master) for phase/singles information */
++	board = outlet_data.board;
++
++	for (i = 0; i < board->num_phases; i ++) {
++		struct pmhd_inlet_info *phase = board->phase + i;
++		if (phase->overcurrent) {
++			info.ocp = 1;
++			break;
++		}
++	}
++
++	for (i = 0; i < board->num_singles; i ++) {
++		struct pmhd_inlet_info *single = board->single + i;
++		if (single->overcurrent) {
++			info.ocp = 1;
++			break;
++		}
++	}
++	if (outlet->overcurrent) {
++		info.ocp = 1;
++	}
++
++	copy_to_user((struct outlet_status_info __user *)arg, &info, sizeof(struct outlet_status_info));
++	return 0;
++}
++
++static int handle_outlet_control(unsigned long arg)
++{
++	char board_num, outlet_num;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *outlet, *outlet2;
++	u8 txbuf[2];
++	int ret;
++	int i;
++	struct outlet_control control;
++
++	copy_from_user(&control, (struct outlet_control __user *)arg, sizeof(struct outlet_control));
++	board_num = control.board;
++	outlet_num = control.outlet;
++
++	/* reverse order of boards */
++	board_num = outlet_data.num_boards - board_num + 1;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++	outlet_num = map_outlets(outlet_num, board->type);
++
++		if (outlet_num <= 0 || outlet_num > board->num_outlets) {
++			return -EINVAL;
++		}
++		outlet_num --;
++		outlet = board->outlet + outlet_num;
++
++		switch (control.command) {
++		case OUTLET_CONTROL_COMMAND_RELAY:
++			if(!board->switched) { //   check for switched unit
++				return -EINVAL;
++			}
++			// Fall Through
++		case OUTLET_CONTROL_COMMAND_RELAY_FORCE:
++			if (control.value != OUTLET_RELAY_ON &&
++				control.value != OUTLET_RELAY_OFF) {
++				return -EINVAL;
++			}
++			if (control.value == OUTLET_RELAY_ON) {
++				outlet->relay = 1;
++			} else {
++				outlet->relay = 0;
++			}
++			txbuf[0] = (PMHD_FPGA_RELAY_CONTROL2 - (outlet->number)/8) * 2 + PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = 0;
++			for (i = 0; i < board->num_outlets; i ++) {
++				outlet2 = board->outlet + i;
++				if (((outlet2->number)/8) == ((outlet->number)/8)) {
++					txbuf[1] |= outlet2->relay << ((outlet2->number)%8);
++				}
++			}
++			ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			if (ret < 0) {
++				return ret;
++			}
++			break;
++
++		case OUTLET_CONTROL_COMMAND_LED:
++			if (control.value & ~3) {
++				return -EINVAL;
++			}
++			outlet->led = control.value;
++			txbuf[0] = (PMHD_FPGA_LED_CONTROL4 - (outlet->number)/4) * 2 | PMHD_FPGA_REGISTER_WRITE;
++			txbuf[1] = 0;
++			for (i = 0; i < board->num_outlets; i ++) {
++				outlet2 = board->outlet + i;
++				if (((outlet2->number)/4) == ((outlet->number)/4)) {
++					int pos = 2 * (outlet2->number%4);
++					txbuf[1] |= outlet2->led << pos;
++				}
++			}
++			ret = my_spi_write_then_read(board->fpga_spi, txbuf, 2, NULL, 0);
++			if (ret < 0) {
++				return ret;
++			}
++			break;
++
++		default:
++			return -EINVAL;
++		}
++
++	return 0;
++}
++
++static int read_conversion_status(unsigned long arg)
++{
++	int status = outlet_data.converted;
++	copy_to_user((int __user *)arg, &status, sizeof(int));
++	return 0;
++}
++
++static int read_phase_status (unsigned long arg)
++{
++	char board_num, phase_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct phase_status_info info;
++	int signal;
++
++	copy_from_user(&info, (struct phase_status_info __user *)arg, sizeof(struct phase_status_info));
++	board_num = info.board;
++	phase_num = info.phase;
++
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	if (phase_num <= 0 || phase_num > board->num_phases) {
++		return -EINVAL;
++	}
++	phase_num --;
++	inlet = board->phase + phase_num;
++	info.overcurrent = inlet->overcurrent;
++	info.voltage = phaseV(inlet->rms_voltage);
++	info.current = phaseA(inlet->rms_current);
++	if (info.current <= board->current_noise/*100mA*/) {
++		info.power_factor = info.power = info.current = 0;
++	} else {
++		(((long)(inlet->real_power * 0x100)) < 0) ? (signal=-1) : (signal=1);
++		info.power = phaseW(inlet->real_power) * signal;
++		info.power_factor = abs(phaseP(inlet->power_factor));
++	}
++	switch (board->input_type) {
++	case INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE:
++		info.max_current = MAX_A_WYE(board->max_current);
++		break;
++	case INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA:
++		info.max_current = MAX_A_DELTA(board->max_current);
++		break;
++	case INPUT_TYPE_INTERNATIONAL_1_PHASE:
++	case INPUT_TYPE_NORTHAMERICA_1_PHASE:
++	default :
++		info.max_current = MAX_A_SINGLE(board->max_current);
++		break;
++	}
++
++	copy_to_user((struct phase_status_info __user *)arg, &info, sizeof(struct phase_status_info));
++	return 0;
++}
++
++static void set_blown_fuse_led(struct pmhd_board_info *board, char bank_num,char fuse_status)
++{
++	char  outlet_num;
++	u8 txbuf[2];
++	u8 rxbuf[1];
++	int ret;
++	int pos;
++	int out_start,out_end;
++	struct pmhd_board_info *brd_bnk;
++	unsigned char reverse;
++
++	if( fuse_status == FUSE_NOT  )
++		return;
++
++	switch (board->type) {
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM10NG:
++			out_start = (!bank_num)?1:6;
++			out_end = out_start + 4;
++			brd_bnk = board;
++			break;
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			out_start = (!bank_num)?1:11;
++			out_end = out_start + 9;
++			brd_bnk = board;
++			break;
++		case OUTLET_BOARD_TYPE_PM20NG:
++			reverse = (outlet_data.num_boards > 1)?
++						outlet_data.num_boards - bank_num - 1 : 0;
++			if (reverse >= outlet_data.num_boards) {
++				return;
++			}
++			brd_bnk = outlet_data.board + reverse;
++			out_start = 1;	//All outlets are in the same board
++			out_end = out_start + 9;
++			break;
++		default:
++			return;	//Do nothing
++	}
++	out_start = map_outlets(out_start, board->type);
++	out_end = map_outlets(out_end, board->type);
++
++	for(outlet_num = out_start-1; outlet_num < out_end; outlet_num++) {
++		txbuf[0] = (PMHD_FPGA_LED_CONTROL4 - (outlet_num)/4) * 2;
++		my_spi_write_then_read(brd_bnk->fpga_spi, txbuf, 1, rxbuf , 1);
++		txbuf[1] = rxbuf[0];
++
++		pos = 2 * (outlet_num%4);
++		txbuf[1] &=  (~(0x03 << pos));
++		if(fuse_status == FUSE_BLOWN){
++			txbuf[1] |= (OUTLET_LED_YELLOW << pos);
++		}
++		else{
++			txbuf[1] |= (OUTLET_LED_RELAY << pos);
++		}
++
++		txbuf[0] = (PMHD_FPGA_LED_CONTROL4 - (outlet_num)/4) * 2 | PMHD_FPGA_REGISTER_WRITE;
++		ret = my_spi_write_then_read(brd_bnk->fpga_spi, txbuf, 2, NULL, 0);
++		if (ret < 0) {
++			return;
++		}
++	}
++}
++
++static int get_blown_fuse(struct pmhd_board_info *board, char bank_num)
++{
++	int blownV;
++	struct pmhd_inlet_info *inlet;
++	struct pmhd_board_info *brd_bnk;
++	unsigned char reverse;
++
++	switch (board->type) {
++		case OUTLET_BOARD_TYPE_PM10NG:
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			if (board->num_blown) {	//Giza/Tulum
++				inlet = board->blown + bank_num; //Point to blown fuse
++				blownV = (inlet->imux & 0x80)?
++						outletV(inlet->rms_voltage):bankV(inlet->rms_voltage);
++				return (blownV >= FUSE_OK_MIN_VOLT)?FUSE_OK:FUSE_BLOWN;
++			}
++			break;
++
++		case OUTLET_BOARD_TYPE_PM20NG:	//Get it from voltage in 1st outlet
++			reverse = (outlet_data.num_boards > 1)?
++						outlet_data.num_boards - bank_num - 1 : 0;
++			if (reverse >= outlet_data.num_boards) {
++				return FUSE_NOT;
++			}
++			brd_bnk = outlet_data.board + reverse;
++			blownV = outletV(brd_bnk->outlet->rms_voltage);	//1st outlet
++			return (blownV >= FUSE_OK_MIN_VOLT)?FUSE_OK:FUSE_BLOWN;
++
++		case OUTLET_BOARD_TYPE_STONEHENGE:
++		case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++		case OUTLET_BOARD_TYPE_NAZCA:
++//TODO??? Partial detection blown fuses in SH (not all circuits/models)
++			return FUSE_NOT;
++
++	}
++	return FUSE_NOT;
++}
++
++static int read_bank_status (unsigned long arg)
++{
++	char board_num, bank_num, c19;
++	unsigned char reverse;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct bank_status_info info;
++	int ix, signal;
++	struct pmhd_outlet_info *pout = NULL;
++	struct pmhd_board_info *brd_bnk;
++	unsigned long Pb = 0, VIb = 0, Ib = 0;
++
++	copy_from_user(&info, (struct bank_status_info __user *)arg, sizeof(struct bank_status_info));
++	board_num = info.board;
++	bank_num = info.bank;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	if (bank_num <= 0 || bank_num > board->num_banks) {
++		return -EINVAL;
++	}
++	bank_num --;
++	inlet = board->bank + bank_num;
++	info.overcurrent = inlet->overcurrent;
++
++//Power and power factor for Stonehenge 3phases must be derived from outlets
++// because the voltage in the bank is not available in the master board
++// The code will calculate and printk power factor using both methods,
++// but will follow Carlos approach to return on the ioctl struct.
++
++//According to Carlos Martins, Pfb should use Pb/VIb, but Vb is actually
++// derived from Vout1 (one outlet in the bank), because there is no way to
++// measure Vb (boards 2 and 3) from board1. So maybe it is better
++// to calculate Pfb as Pb/sum(Voutb * Ioutb). outb is outlets in bank.
++// The code will calculate and printk power factor using both methods,
++// but will follow Carlos approach to return on the ioctl struct.
++
++	if (board->type == OUTLET_BOARD_TYPE_STONEHENGE &&
++		board->num_banks == 6) {
++//Needs adjsut: Banks values are for the set of 1C19+7C13.
++// Circuit is either a single C19 or 7C13s.
++// "Circuits" 0,2,4 are copied from C19 on boards 0,1,2.
++// "Circuits" 1,3,5 are banks 1,3,5 (i.e. C19 + C13) - C19 of each board
++// Thus C19 measurements is necessary anyway.
++		//bank_num mapped into board, reversed to follow outlet order.
++		reverse = outlet_data.num_boards - (bank_num/2) - 1;
++		if (reverse >= outlet_data.num_boards) {
++			return -EINVAL;
++		}
++		brd_bnk = outlet_data.board + reverse;
++		c19 = map_outlets(1, brd_bnk->type) - 1; //C19 is first on each board
++
++		pout = brd_bnk->outlet + c19;
++		if (bank_num%2) {	//Odd circuits, 7C13s of each board
++			// circuit current = bank current - c19 current
++			// circuit power = sum of power in all outlets in bank
++			info.current = bankA(inlet->rms_current);
++			info.current -= outletA(pout->rms_current);
++
++			// circuit voltage = voltage in one outlet in bank (C19 is OK).
++			info.voltage = outletV(pout->rms_voltage);
++
++			// circuit power = sum of power in all outlets in bank
++			for (ix = 1; ix < brd_bnk->num_outlets; ix++) {//Skip C19 outlet
++				if ((pout = brd_bnk->outlet + ix)) {
++					signal = (((long)(pout->real_power * 0x100)) < 0)? -1:1;
++					Pb += outletW(pout->real_power) * signal;
++					VIb += outletV(pout->rms_voltage) * // Since Current is *10
++							outletA(pout->rms_current);	// VIb is *10 too.
++				}
++			}
++			info.power = Pb;
++
++// Calculate PFb as Pb/sum(Voutb * Ioutb) --- Arnaldo approach ---
++			//Pf *100. Round VIb
++			info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0);
++printkbug(KERN_DEBUG "\nSH banks. Pb: %ld, Pfb1: %ld", info.power, info.power_factor);
++
++// Calculate PF as P/VI. --- Carlos Martins approach ---
++			VIb = info.voltage * info.current; //Current is *10
++			//Pf *100. Round VIb
++			info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0);
++printkbug(KERN_DEBUG " Vb: %ld, Ib: %ld, Pfb2: %ld\n\n", info.voltage, info.current, info.power_factor);
++
++		} else {			//Even circuits, 1C19 of each board
++			info.voltage = outletV(pout->rms_voltage);
++			info.current = outletA(pout->rms_current);
++			signal = (((long)(pout->real_power * 0x100)) < 0)? -1:1;
++			info.power = outletW(pout->real_power) * signal;
++			info.power_factor = abs(outletP(pout->power_factor));
++		}
++	} else if (board->type == OUTLET_BOARD_TYPE_STONEHENGE &&
++				board->num_phases) {
++//SH 3-phases: calculate power and power factor from outlets.
++		/* reverse order of boards */
++		reverse = outlet_data.num_boards - bank_num - 1;
++		if (reverse >= outlet_data.num_boards) {
++			return -EINVAL;
++		}
++		brd_bnk = outlet_data.board + reverse;
++
++//Get voltage and current from bank. Voltage will be replaced below
++		info.voltage = bankV(inlet->rms_voltage);
++		info.current = bankA(inlet->rms_current);
++
++// bank power (Pb) is the sum of power of all outlets in the board.
++// bank power factor is P divided by product of current and voltage in bank.
++		for (ix = 0; ix < brd_bnk->num_outlets; ix++) {
++			if ((pout = brd_bnk->outlet + ix)) {
++				signal = (((long)(pout->real_power * 0x100)) < 0)? -1:1;
++				Pb += outletW(pout->real_power) * signal;
++				VIb += outletV(pout->rms_voltage) * // Since Current is *10
++						outletA(pout->rms_current);	// VIb is *10 too.
++
++//Set Voltage in bank (instead of using always from board 1) from one outlet
++//  in the bank (outlet1) assuming all outlets have same voltage (no vmux).
++				if (!ix) {	//Vbank is the Vout1 of that board.
++					info.voltage = outletV(pout->rms_voltage);
++				}
++			}
++		}
++		info.power = Pb;
++
++// Calculate PFb as Pb/sum(Voutb * Ioutb) --- Arnaldo approach ---
++		//Pf *100. Round VIb
++		info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0);
++printkbug(KERN_DEBUG "\nSH banks. Pb: %ld, Pfb1: %ld", info.power, info.power_factor);
++
++// Calculate PF as P/VI. --- Carlos Martins approach ---
++		VIb = info.voltage * info.current; //Current is *10
++		//Pf *100. Round VIb
++		info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0);
++printkbug(KERN_DEBUG " Vb: %ld, Ib: %ld, Pfb2: %ld\n\n", info.voltage, info.current, info.power_factor);
++
++	} else if (board->type == OUTLET_BOARD_TYPE_PM10NG ||	//GIZA
++				board->type == OUTLET_BOARD_TYPE_PM20NG) {	//TULUM
++		int oini = 0, oend = 0;
++//Need to calculate power and power factor from outlets.
++		/* reverse order of boards */
++			reverse = (outlet_data.num_boards > 1)?
++						outlet_data.num_boards - bank_num - 1 : 0;
++		if (reverse >= outlet_data.num_boards) {
++			return -EINVAL;
++		}
++		brd_bnk = outlet_data.board + reverse;
++
++//Get voltage and current from bank. Voltage will be replaced below
++		info.voltage = bankV(inlet->rms_voltage);
++
++		if (board->type == OUTLET_BOARD_TYPE_PM10NG) {
++			oini = (bank_num)?5:0;		//Assumes only 2 banks
++			oend = oini + 5;
++		} else {
++			oini = (bank_num)?10:0;		//Assumes only 2 banks
++			oend = oini + 10;
++		}
++
++// bank power (Pb) is the sum of power of all outlets in the board.
++// bank power factor is P divided by product of current and voltage in bank.
++		for (ix = oini; ix < oend; ix++) {
++			if ((pout = brd_bnk->outlet + ix)) {
++				signal = (((long)(pout->real_power * 0x100)) < 0)? -1:1;
++				Pb += outletW(pout->real_power) * signal;
++				Ib += outletA(pout->rms_current);	// Since Current is *10.
++				VIb += outletV(pout->rms_voltage) * // VIb is *10 too.
++						outletA(pout->rms_current);
++printkbug(KERN_DEBUG "\nGT banks. oini %d. oend %d. ix %d. Ib %ld, Pb %ld", oini, oend, ix, Ib, Pb);
++			}
++		}
++		info.current = Ib;
++		info.power = Pb;
++
++// Calculate PFb as Pb/sum(Voutb * Ioutb) ---Arnaldo approach ---
++		info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0); //Pf*100. Round VIb.
++printkbug(KERN_DEBUG "\nGT banks. Pb: %ld, Pfb1: %ld", info.power, info.power_factor);
++
++// Calculate PF as P/VI. --- Carlos Martins approach ---
++		VIb = info.voltage * info.current; //Since Current is *10, VIb is *10
++		info.power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0); //Pf *100. Round VIb.
++printkbug(KERN_DEBUG " Vb: %ld, Ib: %ld, Pfb2: %ld\n\n", info.voltage, info.current, info.power_factor);
++
++	} else if (inlet->imux & 0x80) {
++//Measurements done from outlets: see load_banks
++		info.voltage = outletV(inlet->rms_voltage);
++		info.current = outletA(inlet->rms_current);
++		signal = (((long)(inlet->real_power * 0x100)) < 0)? -1:1;
++		info.power = outletW(inlet->real_power) * signal;
++		info.power_factor = abs(outletP(inlet->power_factor));
++	} else {
++		info.voltage = bankV(inlet->rms_voltage);
++		info.current = bankA(inlet->rms_current);
++		signal = (((long)(inlet->real_power * 0x100)) < 0)? -1:1;
++		info.power = bankW(inlet->real_power) * signal;
++		info.power_factor = abs(bankP(inlet->power_factor));
++	}
++	if (info.current <= board->current_noise) {	//Discard "noise" (<=0.1A)
++		info.power_factor = info.power = info.current = 0;
++	}
++	info.max_current = MAX_A_BANK;
++
++	if (info.power_factor > 100) {
++		info.power_factor = 100;    //Avoid Pf > 1.0
++	}
++
++	info.blown_fuse = get_blown_fuse(board, bank_num);
++	measurement_not_available = 0;
++	if(info.blown_fuse == FUSE_NOT) {
++		//For Stonehenge
++		if(info.voltage < FUSE_OK_MIN_VOLT) {
++			measurement_not_available = 1;
++		}
++	}
++	else {
++		//For Giza Tulum
++		set_blown_fuse_led(board, bank_num,info.blown_fuse);
++		if(info.blown_fuse == FUSE_BLOWN) {
++			info.voltage = 	info.current = 	info.power = info.power_factor = 0;
++		}
++		else {
++			if(info.voltage < FUSE_OK_MIN_VOLT) {
++				measurement_not_available = 1;
++			}
++		}
++	}
++
++	if(measurement_not_available == 1) {
++		info.voltage = -1;
++		info.current = -10;
++		info.power = -1;
++		info.power_factor = -100;
++	}
++
++	copy_to_user((struct bank_status_info __user *)arg, &info, sizeof(struct bank_status_info));
++	return 0;
++}
++
++
++//Calculate bank values for current, voltage, power and power factor
++// based on the values measured in the outlets.
++//Although some models have the ability to read values in banks,
++// the decision to calculate from outlets was taken (Nei) to avoid
++// inconsistencies in the values presented and by the fact the in some
++// cases the calculation is required due to HW limitations.
++static int calc_bank_outlets (char board_num, int oini, int oend,
++								struct bank_status_info *info)
++{
++	int ix, signal;
++	struct pmhd_board_info *board;
++	struct pmhd_outlet_info *pout;
++	unsigned long Pb = 0, VIb = 0, Ib = 0, Io, Vb = 0;
++
++	// Reverse boards: works for 1, 2 (Tulum) and 3 (Stonehenge) boards.
++	if (outlet_data.num_boards > 1) {
++		board_num = outlet_data.num_boards - board_num + 1;
++	}
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++
++// bank current (Ib) is the sum of current of all outlets.
++// bank voltage (Vb) is the voltage in the first outlet.
++// bank power (Pb) is the sum of power of all outlets..
++// bank power factor is P divided by product of current and voltage.
++	for (ix = oini; ix <= oend; ix++) {
++		if ((pout = board->outlet + (ix-1))) {
++			if((Io = outletA(pout->rms_current)) > board->current_noise) { //Discard noise (<=0.1A)
++				Ib += Io;
++				signal = (((long)(pout->real_power * 0x100)) < 0)? -1:1;
++				Pb += outletW(pout->real_power) * signal;
++			}
++			if (ix == oini) {
++				Vb = outletV(pout->rms_voltage);
++			}
++		} else {
++			return -EINVAL;
++		}
++	}
++	info->current = Ib;
++	info->voltage = Vb;
++	info->power = Pb;
++
++// Calculate PF as Pb/VIb.
++	VIb = Vb * Ib; //Since Current is *10, VIb is *10
++	info->power_factor = abs((VIb)?(Pb*100/((VIb+5)/10)):0 ); //Pf *100. Round VIb.
++printkbug(KERN_DEBUG "Calc bank Vb: %ld, Ib: %ld, Pb: %ld, Pfb: %ld\n\n", info->voltage, info->current, info->power, info->power_factor);
++
++	if (info->power_factor > 100)
++		info->power_factor = 100;
++
++	return 0;
++}
++
++static int calc_bank_status (unsigned long arg)
++{
++	char board_num, bank_num;
++	struct pmhd_board_info *board;
++	struct pmhd_inlet_info *inlet;
++	struct bank_status_info info;
++	int signal;
++
++	copy_from_user(&info, (struct bank_status_info __user *)arg, sizeof(struct bank_status_info));
++	board_num = info.board;
++	bank_num = info.bank;
++
++	if (board_num <= 0 || board_num > outlet_data.num_boards) {
++		return -EINVAL;
++	}
++	board_num --;
++	board = outlet_data.board + board_num;
++	if (bank_num <= 0 || bank_num > board->num_banks) {
++		return -EINVAL;
++	}
++	bank_num --;
++	inlet = board->bank + bank_num;
++	info.overcurrent = inlet->overcurrent;
++
++	switch (board->type) {
++		case OUTLET_BOARD_TYPE_NAZCA:
++			if ((board->num_banks == 6)|| ( board->num_outlets == 3)) {
++// Bank is a single C19.
++//PM3003: get from outlets 1,3,5
++				if (calc_bank_outlets(1, bank_num+1, bank_num+1, &info) < 0) {
++					return -EINVAL;
++				}
++			} else {
++// Bank is 2 C19s.
++				if (calc_bank_outlets(1, (bank_num*2)+1, (bank_num*2)+2, &info) < 0) {
++					return -EINVAL;
++				}
++			}
++			break;
++
++//Basic models don't have outlet measurement.
++		case OUTLET_BOARD_TYPE_STONEHENGE_BASIC:
++//Measurements done from outlets: see load_banks
++			info.voltage = outletV(inlet->rms_voltage);
++			info.current = outletA(inlet->rms_current);
++			signal = (((long)(inlet->real_power * 0x100)) < 0)? -1:1;
++			info.power = outletW(inlet->real_power) * signal;
++			info.power_factor = abs(outletP(inlet->power_factor));
++			break;
++
++		case OUTLET_BOARD_TYPE_STONEHENGE:
++			if (board->num_banks == 6) {
++// Bank is either a single C19 or 7C13s.
++				if (bank_num%2) {	//Odd circuits, 7C13s of each board
++					if (calc_bank_outlets(1 + bank_num/2, 2, 8, &info) < 0) {
++						return -EINVAL;
++					}
++				} else {			//Even circuits, 1C19 of each board
++					if (calc_bank_outlets(1 + bank_num/2, 1, 1, &info) < 0) {
++						return -EINVAL;
++					}
++				}
++			} else {
++// Bank is a single C19 and 7C13s.
++				if (calc_bank_outlets(bank_num + 1, 1, 8, &info) < 0) {
++					return -EINVAL;
++				}
++			}
++			break;
++
++		case OUTLET_BOARD_TYPE_PM10NG:
++			if (board->num_banks == 0)
++				return -EINVAL;
++			if (calc_bank_outlets(1, (bank_num*5)+1, (bank_num*5)+5, &info) < 0) {
++				return -EINVAL;
++			}
++			break;
++
++		case OUTLET_BOARD_TYPE_PM20NG:
++			if (board->num_banks == 0)
++				return -EINVAL;
++			if (calc_bank_outlets(bank_num + 1, 1, 10, &info) < 0) {
++				return -EINVAL;
++			}
++			break;
++
++//Basic models don't have outlet measurement.
++		case OUTLET_BOARD_TYPE_PM10NG_BASIC:
++		case OUTLET_BOARD_TYPE_PM20NG_BASIC:
++			if (board->num_banks == 0)
++				return -EINVAL;
++//Measurements done from outlets: see load_banks
++			info.voltage = outletV(inlet->rms_voltage);
++			info.current = outletA(inlet->rms_current);
++			signal = (((long)(inlet->real_power * 0x100)) < 0)? -1:1;
++			info.power = outletW(inlet->real_power) * signal;
++			info.power_factor = abs(outletP(inlet->power_factor));
++			break;
++
++		default:
++			return -EINVAL;
++
++	}
++	if (info.current <= board->current_noise) {	//Discard "noise" (<=0.1A)
++		info.power_factor = info.power = info.current = 0;
++	}
++	info.max_current = MAX_A_BANK;
++
++	if (info.power_factor > 100) {
++		info.power_factor = 100;    //Avoid Pf > 1.0
++	}
++
++	info.blown_fuse = get_blown_fuse(board, bank_num);
++	measurement_not_available = 0;
++	if(info.blown_fuse == FUSE_NOT) {
++		//For Stonehenge
++		if(info.voltage < FUSE_OK_MIN_VOLT) {
++			measurement_not_available = 1;
++		}
++	} else {
++		//For Giza Tulum
++		set_blown_fuse_led(board, bank_num, info.blown_fuse);
++		if(info.blown_fuse == FUSE_BLOWN) {
++			info.voltage =  info.current =  info.power = info.power_factor = 0;
++		} else {
++			if(info.voltage < FUSE_OK_MIN_VOLT) {
++				measurement_not_available = 1;
++			}
++		}
++	}
++
++	if(measurement_not_available == 1) {
++		info.voltage = -1;
++		info.current = -10;
++		info.power = -1;
++		info.power_factor = -100;
++	}
++
++	copy_to_user((struct bank_status_info __user *)arg, &info, sizeof(struct bank_status_info));
++	return 0;
++}
++
++
++static int outlet_ioctl(struct inode *inode, struct file *file,
++	unsigned int cmd, unsigned long arg)
++{
++	int ret = -EINVAL;
++	DECLARE_COMPLETION_ONSTACK(conversion);
++
++	if (outlet_handler_flag) {
++printkbug("Ioctl %d while conversion in course, wait...\n", cmd);
++		ioctl_completion = (void *)&conversion;
++		wait_for_completion(&conversion);
++		ioctl_completion = NULL;
++printkbug("Ioctl %d resuming\n", cmd);
++	}
++
++	outlet_ioctl_flag = 1;
++	switch(cmd) {
++	case IOCTL_GET_NUMBOARDS:
++		ret = read_numboards(arg);
++		break;
++
++	case IOCTL_BOARD_INFO:
++		ret = read_board_info (arg);
++		break;
++
++	case IOCTL_BOARD_READ:
++	case IOCTL_BOARD_STATUS:
++		ret = read_board_status (arg, cmd);
++		break;
++
++	case IOCTL_BOARD_CONTROL:
++		ret = handle_board_control(arg);
++		break;
++
++	case IOCTL_OUTLET_INFO:
++		ret = read_outlet_info (arg);
++		break;
++
++	case IOCTL_OUTLET_STATUS:
++		ret = read_outlet_status (arg);
++		break;
++
++	case IOCTL_OUTLET_CONTROL:
++		ret = handle_outlet_control(arg);
++		break;
++
++	case IOCTL_CONVERSION_START:
++		ret = start_conversion ();
++		break;
++
++	case IOCTL_CONVERSION_STATUS:
++		ret = read_conversion_status(arg);
++		break;
++
++	case IOCTL_PHASE_STATUS:
++		ret = read_phase_status (arg);
++		break;
++
++	case IOCTL_BANK_READ:
++		ret = read_bank_status(arg);
++		break;
++
++	case IOCTL_BANK_STATUS:
++		ret = calc_bank_status(arg);
++		break;
++
++	case IOCTL_OUTLET_DEBUG:
++		ioctl_debug = (ioctl_debug)?0:1;
++		disable_bank_single_measure = (ioctl_debug)?0:1;
++		break;
++	}
++	outlet_ioctl_flag = 0;
++
++	return (ret);
++}
++
++static unsigned int outlet_poll(struct file *file, poll_table *wait)
++{
++	unsigned int ret = 0;
++	int i;
++
++	if (outlet_data.converted == CONVERSION_DONE) {
++		ret |= POLLIN | POLLRDNORM;
++		outlet_data.converted = CONVERSION_IDLE;
++	}
++	for (i = 0; i < outlet_data.num_boards; i ++) {
++		struct pmhd_board_info *board;
++		board = outlet_data.board + i;
++		if (board->newoc) {
++			ret |= POLLIN | POLLRDNORM;
++			board->newoc = 0;
++		}
++	}
++	poll_wait(file, &outlet_wait, wait);
++	return ret;
++}
++
++static const struct file_operations outlet_fops = {
++	.owner		= THIS_MODULE,
++	.open		= outlet_open,
++	.release	= outlet_release,
++	.ioctl		= outlet_ioctl,
++	.poll		= outlet_poll,
++};
++
++static struct miscdevice outlet_misc_device = {
++	AVOCENT_PMHD_OUTLET_MINOR,
++	"outlet",
++	&outlet_fops,
++};
++
++/* FPGA driver */
++
++static int __devinit pmhd_fpga_probe(struct spi_device *spi)
++{
++	int ret = 0;
++	struct pmhd_board_info *board;
++	int board_num = (spi->chip_select - 1) / 2;
++
++	board = outlet_data.board + board_num;
++	dev_set_drvdata(&spi->dev, board);
++	board->number = board_num;
++	board->fpga_spi = spi;
++	//mp: commented out for spin 2
++	//spi->mode = SPI_CPHA;
++
++	if (outlet_data.prev_num_boards == 0) {
++		/* misc device should be registered only once */
++		ret = misc_register (&outlet_misc_device);
++		if (ret) {
++			goto spi_register_outlet_misc;
++		}
++	}
++
++	outlet_data.prev_num_boards ++;
++	return 0;
++
++spi_register_outlet_misc:
++	dev_set_drvdata(&spi->dev, NULL);
++	return ret;
++}
++
++static int __exit pmhd_fpga_remove(struct spi_device *spi)
++{
++	struct pmhd_board_info *board = dev_get_drvdata(&spi->dev);
++	outlet_data.prev_num_boards --;
++	if (outlet_data.prev_num_boards == 0) {
++		misc_deregister (&outlet_misc_device);
++	}
++	board->detected = 0;
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver pmhd_fpga_driver = {
++	.driver = {
++		.name	= "pmhd-fpga",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= pmhd_fpga_probe,
++	.remove	= __devexit_p(pmhd_fpga_remove),
++};
++
++/* CS5463 driver */
++
++static int __devinit cs5463_probe(struct spi_device *spi)
++{
++	struct pmhd_board_info *board;
++	int board_num = (spi->chip_select - 1) / 2;
++	board = outlet_data.board + board_num;
++	dev_set_drvdata(&spi->dev, board);
++	board->cs5463_spi = spi;
++
++	return 0;
++}
++
++static int __exit cs5463_remove(struct spi_device *spi)
++{
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver cs5463_driver = {
++	.driver = {
++		.name	= "cs5463",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= cs5463_probe,
++	.remove	= __devexit_p(cs5463_remove),
++};
++
++static int __init init_pmhd_outlet(void)
++{
++	int ret;
++	printk ("PM High Density outlet driver.\n");
++	memset(&outlet_data, 0, sizeof(struct pmhd_spi_data));
++	outlet_data.irq = irq_create_mapping(NULL, 20);
++	set_irq_type(outlet_data.irq, IRQ_TYPE_EDGE_FALLING);
++	ret = spi_register_driver(&pmhd_fpga_driver);
++	if (ret) {
++		return ret;
++	}
++	ret = spi_register_driver(&cs5463_driver);
++	if (ret) {
++		spi_unregister_driver(&pmhd_fpga_driver);
++		return ret;
++	}
++	return 0;
++}
++
++
++static void __exit cleanup_pmhd_outlet(void)
++{
++	spi_unregister_driver(&cs5463_driver);
++	spi_unregister_driver(&pmhd_fpga_driver);
++	irq_dispose_mapping(outlet_data.irq);
++}
++
++module_init(init_pmhd_outlet);
++module_exit(cleanup_pmhd_outlet);
++
++MODULE_AUTHOR("Helio Fujimoto");
++MODULE_DESCRIPTION("Avocent PMHD SPI Linux driver");
++MODULE_LICENSE("GPL");
+Index: linux-2.6.23/drivers/char/avocent_pmhd_display.c
+===================================================================
+--- /dev/null
++++ linux-2.6.23/drivers/char/avocent_pmhd_display.c
+@@ -0,0 +1,351 @@
++/*
++ * avocent_pmhd_display.c
++ *
++ * The CS5463 is a voltage/current sensor from Cirrus Logic.
++ * Copyright (C) 2008 Helio Fujimoto <helio.fujimoto@avocent.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/spi/spi.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/poll.h>
++#include <linux/interrupt.h>
++#include <linux/irq.h>
++#include <linux/delay.h>
++#include <linux/miscdevice.h>
++#include <asm/io.h>
++#include <sysdev/fsl_soc.h>
++#include <linux/avocent_pmhd_display.h>
++
++#define MAX6950_REGISTER_DECODE		1
++#define MAX6950_REGISTER_INTENSITY	2
++#define	MAX6950_REGISTER_SCANLIMIT	3
++#define	MAX6950_REGISTER_CONFIG		4
++#define	MAX6950_REGISTER_DISPLAYTEST	7
++#define	MAX6950_REGISTER_P0		0x20
++#define	MAX6950_REGISTER_P1		0x40
++#define	MAX6950_REGISTER_P0_1		0x60
++
++#define	MAX6950_CONFIG_GLOBALBLINK	0x08
++#define	MAX6950_CONFIG_FASTBLINK	0x04
++#define	MAX6950_CONFIG_UP		0x01
++
++struct max6950_data {
++	struct spi_device *spi;
++	int irq;
++	char display_open;
++	char key;
++};
++
++static struct max6950_data max6950;
++
++extern __be32 __iomem *gpio_regs;
++
++static DECLARE_WAIT_QUEUE_HEAD(display_wait);
++
++static void start_max6950(void)
++{
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	int i;
++	/* Initialize display */
++	txbuf[0] = MAX6950_REGISTER_DISPLAYTEST;
++	txbuf[1] = 0;	/* normal */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_DECODE;
++	txbuf[1] = 0;	/* no decode */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_INTENSITY;
++	txbuf[1] = 8;	/* middle intensity */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_SCANLIMIT;
++	txbuf[1] = 5;	/* 5 displays */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = 0;	/* display off */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	for (i = 0; i < 5; i ++) {
++		txbuf[0] = MAX6950_REGISTER_P0_1 + i;
++		txbuf[1] = 0;	/* display off */
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++}
++
++static void stop_max6950(void)
++{
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	/* Turn off display */
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = 0;	/* display off */
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++}
++
++static irqreturn_t switch_handler(int irq, void *dev_id)
++{
++	u32 intr;
++
++	intr = in_be32(gpio_regs + 3);
++	if (intr & 0x60) {
++		max6950.key = 1;
++		wake_up(&display_wait);
++	}
++	out_be32(gpio_regs + 3, intr & 0x60);
++	return IRQ_HANDLED;
++}
++
++static int display_open(struct inode *inode, struct file *file)
++{
++	int ret;
++	if (! max6950.display_open) {
++		start_max6950();
++		/* Initialize GPIOs */
++		out_be32(gpio_regs, (in_be32(gpio_regs) & ~0x60) | 0x780);
++		out_be32(gpio_regs + 2, in_be32(gpio_regs + 2) & ~0x780);
++		out_be32(gpio_regs + 3, 0x60);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) | 0x60);
++		out_be32(gpio_regs + 5, in_be32(gpio_regs + 5) & ~0x60);
++		ret = request_irq (max6950.irq, switch_handler, IRQF_SHARED,
++			"switch", &max6950);
++		if (ret) {
++			printk (KERN_WARNING "display switch: request_irq "
++				"error.\n");
++			return ret;
++		}
++	}
++	max6950.display_open ++;
++	return 0;
++}
++
++static int display_release(struct inode *inode, struct file *file)
++{
++	if (! max6950.display_open) {
++		return 0;
++	}
++	max6950.display_open --;
++	if (! max6950.display_open) {
++		stop_max6950();
++		free_irq(max6950.irq, &max6950);
++		out_be32(gpio_regs, in_be32(gpio_regs) & ~0x780);
++		out_be32(gpio_regs + 4, in_be32(gpio_regs + 4) & ~0x60);
++	}
++	return 0;
++}
++
++static ssize_t display_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
++{
++	/* The buffer should have the format "[+|-][D1][D2][D3][T1][T2]"
++	(e.g. "+13.4b1"). '+'/'-' - blinks between what is in '+' and '-' */
++	u8 blink = 0, set = 0;
++	u32 led = 0, data;
++	u8 digit[5];
++	struct spi_device *spi = max6950.spi;
++	u8 txbuf[2];
++	int i, j;
++	static u8 ledmap[] = {
++		0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70,
++		0x7f, 0x7b, 0x77, 0x1f, 0x4e, 0x3d, 0x4f, 0x47
++	};
++
++	j = 0;
++
++	for (i = 0; i < 5; i ++) {
++		digit[i] = 0;
++	}
++	if ((j < count) && (buf[j] == '+' || buf[j] == '-')) {
++		blink = MAX6950_CONFIG_GLOBALBLINK;
++		if (buf[j] == '-') {
++			set = 1;
++		}
++		j ++;
++	}
++	for (i = 0; i < 5 && j < count; i ++, j ++) {
++		if (buf[j] >= '0' && buf[j] <= '9') {
++			digit[i] = ledmap[buf[j] - '0'];
++		} else if (buf[j] >= 'A' && buf[j] <= 'F') {
++			digit[i] = ledmap[buf[j] - 'A' + 0x0a];
++		} else if (buf[j] >= 'a' && buf[j] <= 'f') {
++			digit[i] = ledmap[buf[j] - 'a' + 0x0a];
++		} else if (buf[j] == 'p' || buf[j] == 'P') {
++			digit[i] = 0x67;
++		} else if (buf[j] == 'o' || buf[j] == 'O') {
++			digit[i] = 0x63;
++		} else {
++			digit[i] = 0;
++		}
++		if (set == 0 && i == 3) {
++			if (buf[j] == 'A' || buf[j] == 'a') {
++				led = 0x400;
++			} else if (buf[j] == 'B' || buf[j] == 'b' ||
++				buf[j] == 'P' || buf[j] == 'p') {
++				led = 0x200;
++			} else if (buf[j] >= '0' && buf[j] <= '9') {
++				led = 0x100;
++			} else if (buf[j] == 'o' || buf[j] == 'O') {
++				led = 0x080;
++			}
++		}
++		if (j < count - 1 && buf[j + 1] == '.') {
++			digit[i] |= 0x80;
++			j ++;
++		}
++	}
++	if (i < 5) {
++		return 0;
++	}
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = MAX6950_CONFIG_UP | MAX6950_CONFIG_FASTBLINK | blink;
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	for (i = 0; i < 5; i ++) {
++		txbuf[0] = ((set)?MAX6950_REGISTER_P1:MAX6950_REGISTER_P0) + i;
++		txbuf[1] = digit[i];
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++	/* turn on leds */
++	if (! set) {
++		data = in_be32(gpio_regs + 2);
++		out_be32(gpio_regs + 2, (data & ~0x780L) | led);
++	}
++
++	return j;
++}
++
++static int read_key(int *key)
++{
++	u32 data = in_be32(gpio_regs + 2);
++	*key = ((data & 0x40) ? 0 : SWITCH_FUNCTION_1) | ((data & 0x20) ? 0 : SWITCH_FUNCTION_2);
++	return 0;
++}
++
++static int display_ioctl(struct inode *inode, struct file *file,
++	unsigned int cmd, unsigned long arg)
++{
++	switch(cmd) {
++	case IOCTL_READKEY:
++		return read_key ((int *)arg);
++
++	default:
++		return -EINVAL;
++	}
++}
++
++static unsigned int display_poll(struct file *file, poll_table *wait)
++{
++	unsigned int ret = 0;
++	if (max6950.key) {
++		ret = POLLIN | POLLRDNORM;
++		max6950.key = 0;
++	}
++	poll_wait(file, &display_wait, wait);
++	return ret;
++}
++
++static const struct file_operations display_fops = {
++	.owner		= THIS_MODULE,
++	.open		= display_open,
++	.release	= display_release,
++	.write		= display_write,
++	.ioctl		= display_ioctl,
++	.poll		= display_poll,
++};
++
++static struct miscdevice display_misc_device = {
++	AVOCENT_PMHD_DISPLAY_MINOR,
++	"display",
++	&display_fops,
++};
++
++static int __devinit max6950_probe(struct spi_device *spi)
++{
++	int ret, ix;
++	u8 txbuf[2];
++
++	/* sysfs hook */
++	dev_set_drvdata(&spi->dev, &max6950);
++	max6950.spi = spi;
++
++	ret = misc_register (&display_misc_device);
++	if (ret) {
++		goto spi_register_display_misc;
++	}
++
++	printk ("PM Display probe.\n");
++	start_max6950();
++
++	txbuf[0] = MAX6950_REGISTER_CONFIG;
++	txbuf[1] = MAX6950_CONFIG_UP | MAX6950_CONFIG_FASTBLINK | MAX6950_CONFIG_GLOBALBLINK;
++	spi_write_then_read(spi, txbuf, 2, NULL, 0);
++
++	for (ix = 0; ix < 5; ix++) {
++		txbuf[0] = MAX6950_REGISTER_P0 + ix;
++		txbuf[1] = 0x01;
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++		txbuf[0] = MAX6950_REGISTER_P1 + ix;
++		txbuf[1] = 0x00;
++		spi_write_then_read(spi, txbuf, 2, NULL, 0);
++	}
++	return 0;
++
++spi_register_display_misc:
++	dev_set_drvdata(&spi->dev, NULL);
++	return ret;
++}
++
++static int __exit max6950_remove(struct spi_device *spi)
++{
++	misc_deregister (&display_misc_device);
++	dev_set_drvdata(&spi->dev, NULL);
++	return 0;
++}
++
++static struct spi_driver max6950_driver = {
++	.driver = {
++		.name	= "max6950",
++		.owner	= THIS_MODULE,
++	},
++	.probe	= max6950_probe,
++	.remove	= __devexit_p(max6950_remove),
++};
++
++static int __init init_max6950(void)
++{
++	printk ("PM High Density display driver.\n");
++	memset(&max6950, 0, sizeof(struct max6950_data));
++	if (!(max6950.irq = irq_find_mapping(NULL, 74))) {
++			max6950.irq = irq_create_mapping(NULL, 74);
++	}
++	return spi_register_driver(&max6950_driver);
++}
++
++static void __exit cleanup_max6950(void)
++{
++	spi_unregister_driver(&max6950_driver);
++//mp: we may be using it in serial/8250.c !!!
++//	irq_dispose_mapping(max6950.irq);
++}
++
++module_init(init_max6950);
++module_exit(cleanup_max6950);
++
++MODULE_AUTHOR("Helio Fujimoto");
++MODULE_DESCRIPTION("MAX6950 Linux driver for Avocent PMHD");
++MODULE_LICENSE("GPL");
+Index: linux-2.6.23/include/linux/avocent_pmhd_outlet.h
+===================================================================
+--- /dev/null
++++ linux-2.6.23/include/linux/avocent_pmhd_outlet.h
+@@ -0,0 +1,194 @@
++// IOCTL defines
++#define IOCTL_GET_NUMBOARDS		1
++#define IOCTL_BOARD_INFO		2
++#define	IOCTL_BOARD_STATUS		3
++#define	IOCTL_BOARD_CONTROL		4
++#define	IOCTL_OUTLET_INFO		5
++#define	IOCTL_OUTLET_STATUS		6
++#define	IOCTL_OUTLET_CONTROL		7
++#define	IOCTL_CONVERSION_START		8
++#define IOCTL_CONVERSION_STATUS		9
++#define	IOCTL_PHASE_STATUS		10
++#define	IOCTL_BANK_STATUS		11
++#define	IOCTL_BANK_READ			12
++#define	IOCTL_BOARD_READ		13
++#define IOCTL_OUTLET_DEBUG		14
++
++// Values for 'input_type' field (outlet_board_info)
++enum {
++	INPUT_TYPE_INTERNATIONAL_3_PHASE_WYE,
++	INPUT_TYPE_NORTHAMERICA_3_PHASE_DELTA,
++	INPUT_TYPE_INTERNATIONAL_1_PHASE,
++	INPUT_TYPE_NORTHAMERICA_1_PHASE,
++};
++
++// Values for 'cord' field (outlet_board_info)
++enum {
++	INPUT_CORD_FIXED,
++	INPUT_CORD_DETACHABLE,
++};
++ // Values for 'Region internation/usa (outlet_board_info)
++enum {
++       REGION_INTERNATIONAL,
++       REGION_US,
++};
++
++// Values for 'board_type' field (outlet_board_info)
++#define OUTLET_BOARD_TYPE_NAZCA                 0
++#define OUTLET_BOARD_TYPE_STONEHENGE            1
++#define OUTLET_BOARD_TYPE_PM10NG                2
++#define OUTLET_BOARD_TYPE_PM20NG                3
++#define OUTLET_BOARD_TYPE_STONEHENGE_BASIC      4
++#define OUTLET_BOARD_TYPE_PM10NG_BASIC          5
++#define OUTLET_BOARD_TYPE_PM20NG_BASIC          6
++
++// Mask for 'overload' field (outlet_board_status)
++#define BOARD_OVERLOAD_X		0x10
++#define BOARD_OVERLOAD_Y		8
++#define BOARD_OVERLOAD_Z		4
++#define BOARD_OVERLOAD_S		2
++#define BOARD_OVERLOAD_O		1
++
++// Values for 'control' field (outlet_board_control)
++enum {
++	OUTLET_BOARD_OVERCURRENT_RESET,
++	OUTLET_BOARD_PROBE_RESET,
++	OUTLET_BOARD_BUZZER_ON,
++	OUTLET_BOARD_BUZZER_OFF,
++	OUTLET_BOARD_INPUT_PROTECTION_ON,
++	OUTLET_BOARD_INPUT_PROTECTION_OFF,
++	OUTLET_BOARD_OUTPUT_PROTECTION_ON,
++	OUTLET_BOARD_OUTPUT_PROTECTION_OFF,
++};
++
++// Values for outlet control commands
++enum {
++	OUTLET_CONTROL_COMMAND_RELAY,
++	OUTLET_CONTROL_COMMAND_LED,
++	OUTLET_CONTROL_COMMAND_OFFSET,
++	OUTLET_CONTROL_COMMAND_RELAY_FORCE,
++};
++
++// Values for 'relay' field (outlet_status_info) and for RELAY control command
++enum {
++	OUTLET_RELAY_ON,
++	OUTLET_RELAY_OFF,
++};
++
++// Values for 'led' field (outlet_status_info) and for LED control command
++enum {
++	OUTLET_LED_OFF,
++	OUTLET_LED_GREEN,
++	OUTLET_LED_YELLOW,
++	OUTLET_LED_RELAY,
++};
++
++// Values for conversion status
++enum {
++	CONVERSION_IDLE,
++	CONVERSION_IN_PROGRESS_POWER,
++	CONVERSION_IN_PROGRESS_TEMPERATURE,
++	CONVERSION_DONE,
++};
++
++// Values for 'outlet type' field (outlet_data_info)
++enum {
++	OUTLET_TYPE_C13,
++	OUTLET_TYPE_C19,
++};
++
++// Structure for IOCTL_BOARD_INFO
++struct outlet_board_info {
++	char board;
++	char input_type;
++	char max_current;
++	char fuse_c19;
++	char fuse_c13;
++	char outlets;
++	char phases;
++	char banks;
++	char single;
++	char cord;
++	char board_type;
++	char switched;
++	char fpga;
++	char outlet_per_fuse;
++};
++
++// Structure for IOCTL_BOARD_STATUS
++struct outlet_board_status {
++	char board;
++	unsigned char overload; // for Nazca 1st spin
++	char overcurrent;
++	long temperature;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++// Structure for IOCTL_BOARD_CONTROL
++struct outlet_board_control {
++	char board;
++	unsigned char control;
++};
++
++// Structure for IOCTL_OUTLET_INFO
++struct outlet_data_info {
++	char board;
++	char outlet;
++	char type;
++	char max_current;
++};
++
++// Structure for IOCTL_OUTLET_STATUS
++struct outlet_status_info {
++	char board;
++	char outlet;
++	char relay;
++	char led;
++	char overcurrent;
++	char ocp;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++// Structure for IOCTL_OUTLET_CONTROL
++struct outlet_control {
++	char board;
++	char outlet;
++	char command;
++	char value;
++};
++
++// Structure for IOCTL_PHASE_STATUS
++struct phase_status_info {
++	char board;
++	char phase;
++	char overcurrent;
++	char max_current;
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
++
++#define FUSE_NOT			0
++#define FUSE_OK			1
++#define FUSE_BLOWN			2
++#define FUSE_OK_MIN_VOLT	20	//20V: Min voltage to consider fuse OK.
++
++// Structure for IOCTL_BANK_STATUS
++struct bank_status_info {
++	char board;
++	char bank;
++	char overcurrent;
++	char max_current;
++	char blown_fuse;		//0 blown, 1 OK, 2 not available
++	long current;
++	long voltage;
++	long power;
++	long power_factor;
++};
+Index: linux-2.6.23/include/linux/avocent_pmhd_display.h
+===================================================================
+--- /dev/null
++++ linux-2.6.23/include/linux/avocent_pmhd_display.h
+@@ -0,0 +1,7 @@
++// IOCTL defines
++#define	IOCTL_READKEY		8
++
++// Masks for the display switch (IOCTL_READKEY). The argument is a pointer to an integer
++#define SWITCH_FUNCTION_1	1
++#define SWITCH_FUNCTION_2	2
++
+Index: linux-2.6.23/drivers/char/Makefile
+===================================================================
+--- linux-2.6.23.orig/drivers/char/Makefile
++++ linux-2.6.23/drivers/char/Makefile
+@@ -96,6 +96,8 @@ obj-$(CONFIG_CS5535_GPIO)	+= cs5535_gpio
+ obj-$(CONFIG_GPIO_VR41XX)	+= vr41xx_giu.o
+ obj-$(CONFIG_GPIO_TB0219)	+= tb0219.o
+ obj-$(CONFIG_TELCLOCK)		+= tlclk.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent_pmhd_display.o
++obj-$(CONFIG_AVOCENT_PMHD)	+= avocent_pmhd_outlet.o
+ 
+ obj-$(CONFIG_MWAVE)		+= mwave/
+ obj-$(CONFIG_AGP)		+= agp/
+Index: linux-2.6.23/include/linux/miscdevice.h
+===================================================================
+--- linux-2.6.23.orig/include/linux/miscdevice.h
++++ linux-2.6.23/include/linux/miscdevice.h
+@@ -32,6 +32,9 @@
+ #define	HPET_MINOR	     228
+ #define KVM_MINOR            232
+ 
++#define AVOCENT_PMHD_OUTLET_MINOR	100
++#define AVOCENT_PMHD_DISPLAY_MINOR	101
++
+ struct device;
+ 
+ struct miscdevice  {
+Index: linux-2.6.23/drivers/spi/spi_mpc83xx.c
+===================================================================
+--- linux-2.6.23.orig/drivers/spi/spi_mpc83xx.c
++++ linux-2.6.23/drivers/spi/spi_mpc83xx.c
+@@ -135,8 +135,10 @@ u32 mpc83xx_spi_tx_buf_##type(struct mpc
+ {								\
+ 	u32 data;						\
+ 	const type * tx = mpc83xx_spi->tx;			\
+-	if (!tx)						\
+-		return 0;					\
++	if (!tx) {						\
++		data = (u32)(~((type)0));			\
++		return data;					\
++	}							\
+ 	data = *tx++ << mpc83xx_spi->tx_shift;			\
+ 	mpc83xx_spi->tx = tx;					\
+ 	return data;						\
+@@ -269,9 +271,9 @@ int mpc83xx_spi_setup_transfer(struct sp
+ 	if ((mpc83xx_spi->spibrg / hz) >= 64) {
+ 		pm = mpc83xx_spi->spibrg / (hz * 64) - 1;
+ 		if (pm > 0x0f) {
+-			dev_err(&spi->dev, "Requested speed is too "
+-				"low: %d Hz. Will use %d Hz instead.\n",
+-				hz, mpc83xx_spi->spibrg / 1024);
++			//dev_err(&spi->dev, "Requested speed is too "
++			//	"low: %d Hz. Will use %d Hz instead.\n",
++			//	hz, mpc83xx_spi->spibrg / 1024);
+ 			pm = 0x0f;
+ 		}
+ 		cs->hw_mode |= SPMODE_PM(pm) | SPMODE_DIV16;

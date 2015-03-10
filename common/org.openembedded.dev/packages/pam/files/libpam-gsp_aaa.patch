@@ -1,0 +1,893 @@
+Index: Linux-PAM-0.79/libpam/include/security/pam_modules.h
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/include/security/pam_modules.h	2001-02-04 22:50:41.000000000 -0800
++++ Linux-PAM-0.79/libpam/include/security/pam_modules.h	2008-07-29 18:25:17.000000000 -0700
+@@ -25,8 +25,8 @@
+ extern int pam_get_data(const pam_handle_t *pamh,
+ 			const char *module_data_name, const void **data);
+ 
+-extern int pam_get_user(pam_handle_t *pamh, const char **user
+-			, const char *prompt);
++extern int pam_get_user(pam_handle_t *pamh, const char **user,
++			const char *prompt);
+ 
+ #ifdef PAM_STATIC
+ 
+Index: Linux-PAM-0.79/libpam/include/security/_pam_types.h
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/include/security/_pam_types.h	2005-03-18 00:13:12.000000000 -0800
++++ Linux-PAM-0.79/libpam/include/security/_pam_types.h	2008-07-29 18:25:17.000000000 -0700
+@@ -25,6 +25,8 @@
+ 
+ #include <locale.h>
+ 
++//#include <avo_defs.h> /* GSP AAA [EL] */
++//
+ /* This is a blind structure; users aren't allowed to see inside a
+  * pam_handle_t, so we don't define struct pam_handle here.  This is
+  * defined in a file private to the PAM library.  (i.e., it's private
+@@ -91,12 +93,16 @@
+ 				   calling again, verify that conversation
+ 				   is completed */
+ 
++#define PAM_REDIRECT		32 /* redirect module is called, new service handlers
++									have been loaded */
+ /*
+  * Add new #define's here - take care to also extend the libpam code:
+  * pam_strerror() and "libpam/pam_tokens.h" .
+  */
+ 
+-#define _PAM_RETURN_VALUES 32   /* this is the number of return values */
++#define _PAM_RETURN_VALUES 33   /* this is the number of return values */
++
++#define PAM_RACCESS_DENIED 34	/* Access permission denied. IP or Hostname or ttyS[n] is not allowed for user */
+ 
+ 
+ /* ---------------------- The Linux-PAM flags -------------------- */
+@@ -130,6 +136,7 @@
+  * aged.  If this flag is not passed, the password service should
+  * update all passwords. */
+ #define PAM_CHANGE_EXPIRED_AUTHTOK	0x0020U
++#define PAM_ENFORCE_PASSWORD_STRENGTH	0x0040U
+ 
+ /* ------------------ The Linux-PAM item types ------------------- */
+ 
+@@ -145,15 +152,20 @@
+ 
+ #define PAM_RUSER          8	/* The remote user name */
+ #define PAM_USER_PROMPT    9    /* the prompt for getting a username */
+-#define PAM_FAIL_DELAY     10   /* app supplied function to override failure
+-				   delays */
++#define PAM_FAIL_DELAY     10   /* app function to override failure delays */
++#define PAM_SANITIZE       100   /* preserve AUTHTOK between auth calls */
++
++/* Custom Avocent types */
++#define PAM_ORIG_SERVICE   502  /* Original PAM service name passed in 
++				 * during pam_start() [EL] */
++#define PAM_SID            503  /* GSP AAA Session ID [EL] */
+ 
+ /* ---------- Common Linux-PAM application/module PI ----------- */
+ 
+ extern int pam_set_item(pam_handle_t *pamh, int item_type, const void *item);
+ extern int pam_get_item(const pam_handle_t *pamh, int item_type,
+ 			const void **item);
+-extern const char *pam_strerror(pam_handle_t *pamh, int errnum);
++extern const char *pam_strerror(const pam_handle_t *pamh, int errnum);
+ 
+ extern int pam_putenv(pam_handle_t *pamh, const char *name_value);
+ extern const char *pam_getenv(pam_handle_t *pamh, const char *name);
+@@ -320,5 +332,17 @@
+  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+  * OF THE POSSIBILITY OF SUCH DAMAGE.  */
+ 
+-#endif /* _SECURITY__PAM_TYPES_H */
++/* GSP AAA [EL] */
++#define GSP_SID_SZ 32
++struct sid_data {
++	char sid[GSP_SID_SZ];      /* Character buffer, not a string */
++	int sid_sz;           /* Size of SID; most likely GSP_SID_SZ */
++};
+ 
++/* GSP AAA [EL] */
++struct gsp_auth_orig_service {
++	char *orig_service;
++	int orig_service_sz; /* optional */
++};
++
++#endif /* _SECURITY__PAM_TYPES_H */
+Index: Linux-PAM-0.79/libpam/pam_auth.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_auth.c	2005-03-30 06:33:15.000000000 -0800
++++ Linux-PAM-0.79/libpam/pam_auth.c	2008-07-29 18:25:17.000000000 -0700
+@@ -32,7 +32,10 @@
+     }
+ 
+     retval = _pam_dispatch(pamh, flags, PAM_AUTHENTICATE);
+-
++	if (retval == PAM_REDIRECT) {
++		__PAM_TO_APP(pamh);
++		retval = _pam_dispatch(pamh, flags, PAM_AUTHENTICATE);
++	}
+     if (retval != PAM_INCOMPLETE) {
+ 	_pam_sanitize(pamh);
+ 	_pam_await_timer(pamh, retval);   /* if unsuccessful then wait now */
+Index: Linux-PAM-0.79/libpam/pam_data.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_data.c	2004-09-24 01:17:36.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_data.c	2008-07-29 18:25:17.000000000 -0700
+@@ -114,10 +114,14 @@
+     while (data) {
+ 	last = data;
+ 	data = data->next;
++
+ 	if (last->cleanup) {
++    	//syslog(4, "calling cleanup-name %s (%x)", last->name, last->data);
+ 	    last->cleanup(pamh, last->data, status);
++		//_pam_drop(last->data);
+ 	}
+ 	_pam_drop(last->name);
+ 	_pam_drop(last);
+     }
++    pamh->data = NULL;
+ }
+Index: Linux-PAM-0.79/libpam/pam_dispatch.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_dispatch.c	2005-01-10 02:09:28.000000000 -0800
++++ Linux-PAM-0.79/libpam/pam_dispatch.c	2008-07-29 18:25:17.000000000 -0700
+@@ -81,6 +81,9 @@
+ 	} else {
+ 	    D(("passing control to module..."));
+ 	    retval = h->func(pamh, flags, h->argc, h->argv);
++		if (retval == PAM_REDIRECT) {
++			return (retval);
++		}
+ 	    D(("module returned: %s", pam_strerror(pamh, retval)));
+ 	    if (h->must_fail) {
+ 		D(("module poorly listed in PAM config; forcing failure"));
+@@ -291,7 +294,12 @@
+     /* Load all modules, resolve all symbols */
+ 
+     if ((retval = _pam_init_handlers(pamh)) != PAM_SUCCESS) {
+-	_pam_system_log(LOG_ERR, "unable to dispatch function");
++	//[RK]Aug/16/05 - _pam_system_log(LOG_ERR, "unable to dispatch function");
++	if (retval == PAM_BAD_ITEM) {
++		if ((choice == PAM_CLOSE_SESSION) || (choice == PAM_SETCRED)) {
++			retval = PAM_SUCCESS;
++		}
++	}
+ 	return retval;
+     }
+ 
+@@ -303,7 +311,7 @@
+ 	break;
+     case PAM_SETCRED:
+ 	h = pamh->handlers.conf.setcred;
+-	use_cached_chain = _PAM_MAY_BE_FROZEN;
++	//use_cached_chain = _PAM_MAY_BE_FROZEN;
+ 	break;
+     case PAM_ACCOUNT:
+ 	h = pamh->handlers.conf.acct_mgmt;
+@@ -317,9 +325,9 @@
+ 	break;
+     case PAM_CHAUTHTOK:
+ 	h = pamh->handlers.conf.chauthtok;
+-	if (flags & PAM_UPDATE_AUTHTOK) {
+-	    use_cached_chain = _PAM_MUST_BE_FROZEN;
+-	}
++//	if (flags & PAM_UPDATE_AUTHTOK && pamh->no_sanitize < 2) {
++//	    use_cached_chain = _PAM_MUST_BE_FROZEN;
++//	}
+ 	break;
+     default:
+ 	_pam_system_log(LOG_ERR, "undefined fn choice; %d", choice);
+@@ -367,6 +375,9 @@
+ 
+     /* call the list of module functions */
+     retval = _pam_dispatch_aux(pamh, flags, h, resumed, use_cached_chain);
++    if (retval == PAM_REDIRECT) {
++		return (retval);
++	}
+     resumed = PAM_FALSE;
+ 
+     __PAM_TO_APP(pamh);
+Index: Linux-PAM-0.79/libpam/pam_end.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_end.c	2004-09-24 01:17:36.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_end.c	2008-07-29 18:25:17.000000000 -0700
+@@ -67,6 +67,18 @@
+     _pam_drop(pamh->pam_conversation);
+     pamh->fail_delay.delay_fn_ptr = NULL;
+ 
++    /* GSP AAA Cleanup [EL] */
++    if (pamh->orig_srvc) {
++		if (pamh->orig_srvc->orig_service)
++    			free(pamh->orig_srvc->orig_service);
++    		free(pamh->orig_srvc);
++		pamh->orig_srvc = NULL;
++    }
++    if (pamh->sdata) {
++		free(pamh->sdata);
++		pamh->sdata = NULL;	
++    }
++
+     /* and finally liberate the memory for the pam_handle structure */
+ 
+     _pam_drop(pamh);
+Index: Linux-PAM-0.79/libpam/pam_item.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_item.c	2004-09-24 01:17:37.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_item.c	2008-07-30 10:00:32.000000000 -0700
+@@ -39,10 +39,21 @@
+ 
+     switch (item_type) {
+ 
++    case PAM_SANITIZE:
++		pamh->no_sanitize = (unsigned)item;
++		if (pamh->no_sanitize == 3) {
++			__PAM_TO_APP(pamh);
++		}
++		if (pamh->no_sanitize == 2) {
++			__PAM_TO_MODULE(pamh);
++		}
++		break;
++
+     case PAM_SERVICE:
+ 	/* Setting handlers_loaded to 0 will cause the handlers
+ 	 * to be reloaded on the next call to a service module.
+ 	 */
++	_pam_free_data(pamh, 0);
+ 	pamh->handlers.handlers_loaded = 0;
+ 	RESET(pamh->service_name, item);
+ 	{
+@@ -136,11 +147,29 @@
+         break;
+ 
+     case PAM_FAIL_DELAY:
+-	pamh->fail_delay.delay_fn_ptr = item;
+-	break;
++	    pamh->fail_delay.delay_fn_ptr = item;
++	    break;
++
++    case PAM_SID: /* GSP AAA SID [EL] */
++	    if (item == NULL) {
++			_pam_drop(pamh->sdata);
++	    } else {
++		    struct sid_data *sdata = NULL;
++		    
++		    if ((sdata = (struct sid_data *)malloc(sizeof(struct sid_data))) == NULL) {
++			    _pam_system_log(LOG_CRIT,
++					    "pam_set_item: malloc failed for sid_data");
++			    retval = PAM_BUF_ERR;
++		    } else {
++			    *sdata = *((const struct sid_data *)item); /* copy */
++			    _pam_drop(pamh->sdata);
++			    pamh->sdata = sdata;
++		    }
++	    }
++	    break;
+ 
+     default:
+-	retval = PAM_BAD_ITEM;
++	    retval = PAM_BAD_ITEM;
+     }
+ 
+     return retval;
+@@ -220,6 +249,14 @@
+     case PAM_FAIL_DELAY:
+ 	*item = pamh->fail_delay.delay_fn_ptr;
+ 	break;
++	
++    case PAM_ORIG_SERVICE: /* GSP AAA Original PAM Service (GET only) [EL] */
++	    *item = pamh->orig_srvc;
++	    break;
++
++    case PAM_SID: /* GSP AAA SID [EL] */
++	    *item = pamh->sdata;
++	    break;
+ 
+     default:
+ 	retval = PAM_BAD_ITEM;
+Index: Linux-PAM-0.79/libpam/pam_misc.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_misc.c	2004-09-24 01:17:37.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_misc.c	2008-07-29 18:25:17.000000000 -0700
+@@ -195,8 +195,11 @@
+      * this is for security. We reset the auth-tokens here.
+      */
+     __PAM_TO_MODULE(pamh);
+-    pam_set_item(pamh, PAM_AUTHTOK, NULL);
+-    pam_set_item(pamh, PAM_OLDAUTHTOK, NULL);
++
++	if (!pamh->no_sanitize) {
++    	pam_set_item(pamh, PAM_AUTHTOK, NULL);
++    	pam_set_item(pamh, PAM_OLDAUTHTOK, NULL);
++	}
+     pamh->caller_is = old_caller_is;
+ }
+ 
+Index: Linux-PAM-0.79/libpam/pam_prelude.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_prelude.c	2005-03-31 00:22:24.000000000 -0800
++++ Linux-PAM-0.79/libpam/pam_prelude.c	2008-07-29 18:25:17.000000000 -0700
+@@ -602,4 +602,4 @@
+         return 0;
+ }
+ 
+-#endif PRELUDE
++#endif /* PRELUDE */
+Index: Linux-PAM-0.79/libpam/pam_private.h
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_private.h	2004-09-22 05:49:13.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_private.h	2008-07-29 18:25:17.000000000 -0700
+@@ -133,6 +133,7 @@
+     char *authtok;
+     unsigned caller_is;
+     struct pam_conv *pam_conversation;
++    unsigned no_sanitize;
+     char *oldauthtok;
+     char *prompt;                /* for use by pam_get_user() */
+     char *service_name;
+@@ -146,6 +147,9 @@
+     struct service handlers;
+     struct _pam_former_state former;  /* library state - support for
+ 					 event driven applications */
++    struct gsp_auth_orig_service *orig_srvc; /* GSP Change; original 
++						service [EL] */
++    struct sid_data *sdata; /* GSP change; store SID [EL] */
+ };
+ 
+ /* Values for select arg to _pam_dispatch() */
+Index: Linux-PAM-0.79/libpam/pam_start.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_start.c	2004-09-24 01:17:37.000000000 -0700
++++ Linux-PAM-0.79/libpam/pam_start.c	2008-07-29 18:25:17.000000000 -0700
+@@ -55,6 +55,12 @@
+ 	}
+ 	for (tmp=(*pamh)->service_name; *tmp; ++tmp)
+ 	    *tmp = tolower(*tmp);                   /* require lower case */
++
++	/* GSP AAA Set original PAM service */
++	(*pamh)->orig_srvc = (struct gsp_auth_orig_service *)
++		calloc(1, sizeof(struct gsp_auth_orig_service));
++	(*pamh)->orig_srvc->orig_service = _pam_strdup((*pamh)->service_name);
++	(*pamh)->orig_srvc->orig_service_sz = strlen((*pamh)->service_name);
+     } else
+        	(*pamh)->service_name = NULL;
+ 
+@@ -78,6 +84,9 @@
+     (*pamh)->fail_delay.delay_fn_ptr = NULL;
+     (*pamh)->former.choice = PAM_NOT_STACKED;
+ 
++    /* Clear GSP AAA fields [EL] */
++    (*pamh)->sdata = NULL;
++
+     if (pam_conversation == NULL
+ 	|| ((*pamh)->pam_conversation = (struct pam_conv *)
+ 	    malloc(sizeof(struct pam_conv))) == NULL) {
+Index: Linux-PAM-0.79/libpam/pam_strerror.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_strerror.c	2005-01-10 02:09:28.000000000 -0800
++++ Linux-PAM-0.79/libpam/pam_strerror.c	2008-07-29 18:25:17.000000000 -0700
+@@ -1,12 +1,12 @@
+ /* pam_strerror.c */
+ 
+ /*
+- * $Id: pam_strerror.c,v 1.4 2005/01/07 15:31:26 t8m Exp $
++ * $Id: pam_strerror.c,v 1.2 2007/06/04 03:00:28 erik Exp $
+  */
+ 
+ #include "pam_private.h"
+ 
+-const char *pam_strerror(pam_handle_t *pamh, int errnum)
++const char *pam_strerror(const pam_handle_t *pamh, int errnum)
+ {
+ #ifdef UGLY_HACK_FOR_PRIOR_BEHAVIOR_SUPPORT  /* will be removed from v 1.0 */
+ 
+@@ -87,6 +87,10 @@
+ 	return "Conversation is waiting for event";
+     case PAM_INCOMPLETE:
+ 	return "Application needs to call libpam again";
++    case PAM_REDIRECT:
++	return "Application is redirected to use new service";
++    case PAM_RACCESS_DENIED:
++	return "Authorization needs to connect on serial port was denied."; 
+     }
+ 
+     return "Unknown PAM error";
+Index: Linux-PAM-0.79/libpam/pam_tokens.h
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/pam_tokens.h	2001-01-21 22:07:29.000000000 -0800
++++ Linux-PAM-0.79/libpam/pam_tokens.h	2008-07-29 18:25:17.000000000 -0700
+@@ -61,6 +61,7 @@
+     "bad_item",          /* 29 */
+     "conv_again",        /* 30 */
+     "incomplete",        /* 31 */
++    "redirect",        /* 32 */
+ /* add new return codes here */
+     "default"            /* this is _PAM_RETURN_VALUES and indicates
+ 			    the default return action */
+Index: Linux-PAM-0.79/libpam_misc/misc_conv.c
+===================================================================
+--- Linux-PAM-0.79.orig/libpam_misc/misc_conv.c	2004-09-22 05:51:20.000000000 -0700
++++ Linux-PAM-0.79/libpam_misc/misc_conv.c	2008-07-29 18:25:17.000000000 -0700
+@@ -171,7 +171,7 @@
+     /* reading the line */
+     while (delay >= 0) {
+ 
+-	fprintf(stderr, "%s", prompt);
++	//[RK]May/02/05 - Bug 3713 fprintf(stderr, "%s", prompt);
+ 	/* this may, or may not set echo off -- drop pending input */
+ 	if (have_term)
+ 	    (void) tcsetattr(STDIN_FILENO, TCSAFLUSH, &term_tmp);
+@@ -180,6 +180,9 @@
+ 	    D(("<failed to set alarm>"));
+ 	    break;
+ 	} else {
++	   //[RK]May/02/05 - Bug 3713
++	   fprintf(stderr, "%s", prompt);
++
+ 	    nc = read(STDIN_FILENO, line, INPUTSIZE-1);
+ 	    if (have_term) {
+ 		(void) tcsetattr(STDIN_FILENO, TCSADRAIN, &term_before);
+Index: Linux-PAM-0.79/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/Makefile	2005-03-29 06:07:07.000000000 -0800
++++ Linux-PAM-0.79/Makefile	2008-07-29 18:25:17.000000000 -0700
+@@ -13,7 +13,7 @@
+ 
+ -include Make.Rules
+ 
+-THINGSTOMAKE = libpam libpamc libpam_misc modules doc examples
++THINGSTOMAKE = libpam libpamc libpam_misc modules examples
+ 
+ all: $(THINGSTOMAKE)
+ 
+Index: Linux-PAM-0.79/modules/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/modules/Makefile	2004-09-28 06:49:21.000000000 -0700
++++ Linux-PAM-0.79/modules/Makefile	2008-07-29 18:25:17.000000000 -0700
+@@ -8,7 +8,8 @@
+ 
+ include ../Make.Rules
+ 
+-MODDIRS=$(shell /bin/ls -d pam_*/Makefile | cut -f1 -d/)
++#MODDIRS=$(shell /bin/ls -d pam_*/Makefile | cut -f1 -d/)
++MODDIRS=$(shell cat modules.txt)
+ 
+ all:	
+ 	@echo building the static modutil library
+Index: Linux-PAM-0.79/modules/modules.txt
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ Linux-PAM-0.79/modules/modules.txt	2008-07-29 18:25:17.000000000 -0700
+@@ -0,0 +1,20 @@
++pam_access
++pam_deny
++pam_env
++pam_filter
++pam_group
++pam_issue
++pam_lastlog
++pam_limits
++pam_listfile
++pam_motd
++pam_nologin
++pam_permit
++pam_rootok
++pam_securetty
++pam_time
++pam_warn
++pam_wheel
++pam_tally
++pam_cracklib
++pam_unix
+Index: Linux-PAM-0.79/modules/pam_limits/pam_limits.c
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_limits/pam_limits.c	2005-02-21 01:43:05.000000000 -0800
++++ Linux-PAM-0.79/modules/pam_limits/pam_limits.c	2008-07-29 18:25:17.000000000 -0700
+@@ -254,14 +254,14 @@
+     return retval;
+ }
+ 
+-static void process_limit(int source, const char *lim_type,
++static void process_limit(int uid, int source, const char *lim_type,
+ 			  const char *lim_item, const char *lim_value,
+ 			  int ctrl, struct pam_limit_s *pl)
+ {
+     int limit_item;
+     int limit_type = 0;
+     long limit_value;
+-    char *endptr;
++    char *endptr = NULL;
+     const char *value_orig = lim_value;
+ 
+     if (ctrl & PAM_DEBUG_ARG)
+@@ -314,6 +314,16 @@
+         return;
+     }
+ 
++    if (!uid && limit_item != LIMIT_LOGIN) {
++        _pam_log(LOG_DEBUG,"limit '%s' could not be applid to root", lim_item);
++        return;
++	}
++
++    if (!uid && limit_item != LIMIT_LOGIN) {
++        _pam_log(LOG_DEBUG,"limit '%s' could not be applid to root", lim_item);
++        return;
++	}
++
+     if (strcmp(lim_type,"soft")==0)
+ 	limit_type=LIMIT_SOFT;
+     else if (strcmp(lim_type, "hard")==0)
+@@ -402,8 +412,8 @@
+     return;
+ }
+ 
+-static int parse_config_file(pam_handle_t *pamh, const char *uname, int ctrl,
+-			     struct pam_limit_s *pl)
++static int parse_config_file(pam_handle_t *pamh, const char *uname, int uid,
++			     int ctrl, struct pam_limit_s *pl)
+ {
+     FILE *fil;
+     char buf[LINE_LENGTH];
+@@ -471,14 +481,14 @@
+ 
+         if (i == 4) { /* a complete line */
+             if (strcmp(uname, domain) == 0) /* this user have a limit */
+-                process_limit(LIMITS_DEF_USER, ltype, item, value, ctrl, pl);
++                process_limit(uid, LIMITS_DEF_USER, ltype, item, value, ctrl, pl);
+             else if (domain[0]=='@') {
+ 		    if (ctrl & PAM_DEBUG_ARG) {
+ 			_pam_log(LOG_DEBUG, "checking if %s is in group %s",
+ 			 	uname, domain + 1);
+ 		    }
+                 if (_pammodutil_user_in_group_nam_nam(pamh, uname, domain+1))
+-                    process_limit(LIMITS_DEF_GROUP, ltype, item, value, ctrl,
++                    process_limit(uid, LIMITS_DEF_GROUP, ltype, item, value, ctrl,
+ 				  pl);
+             } else if (domain[0]=='%') {
+ 		    if (ctrl & PAM_DEBUG_ARG) {
+@@ -486,15 +496,15 @@
+ 			 	uname, domain + 1);
+ 		    }
+ 		if (strcmp(domain,"%") == 0)
+-		    process_limit(LIMITS_DEF_ALL, ltype, item, value, ctrl,
++		    process_limit(uid, LIMITS_DEF_ALL, ltype, item, value, ctrl,
+ 				  pl);
+ 		else if (_pammodutil_user_in_group_nam_nam(pamh, uname, domain+1)) {
+ 		    strcpy(pl->login_group, domain+1);
+-                    process_limit(LIMITS_DEF_ALLGROUP, ltype, item, value, ctrl,
++                    process_limit(uid, LIMITS_DEF_ALLGROUP, ltype, item, value, ctrl,
+ 				  pl);
+ 		}
+             } else if (strcmp(domain, "*") == 0)
+-                process_limit(LIMITS_DEF_DEFAULT, ltype, item, value, ctrl,
++                process_limit(uid, LIMITS_DEF_DEFAULT, ltype, item, value, ctrl,
+ 			      pl);
+ 	} else if (i == 2 && ltype[0] == '-') { /* Probably a no-limit line */
+ 	    if (strcmp(uname, domain) == 0) {
+@@ -605,7 +615,7 @@
+         return PAM_IGNORE;
+     }
+ 
+-    retval = parse_config_file(pamh, pwd->pw_name, ctrl, &pl);
++    retval = parse_config_file(pamh, pwd->pw_name, pwd->pw_uid, ctrl, &pl);
+     if (retval == PAM_IGNORE) {
+ 	D(("the configuration file has an applicable '<domain> -' entry"));
+ 	return PAM_SUCCESS;
+Index: Linux-PAM-0.79/modules/pam_securetty/pam_securetty.c
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_securetty/pam_securetty.c	2004-11-18 05:41:17.000000000 -0800
++++ Linux-PAM-0.79/modules/pam_securetty/pam_securetty.c	2008-07-29 18:25:17.000000000 -0700
+@@ -120,6 +120,11 @@
+ 	uttyname += sizeof(TTY_PREFIX)-1;
+     }
+ 
++    if (!strcmp(uttyname, "ssh") || !strcmp(uttyname, "web") ||
++	!strcmp(uttyname, "osd") || !strcmp(uttyname, "kvm")) {
++	    return PAM_SUCCESS;
++    }
++
+     if (stat(SECURETTY_FILE, &ttyfileinfo)) {
+ 	_pam_log(LOG_NOTICE, "Couldn't open " SECURETTY_FILE);
+ 	return PAM_SUCCESS; /* for compatibility with old securetty handling,
+Index: Linux-PAM-0.79/modules/pam_stress/pam_stress.c
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_stress/pam_stress.c	2004-09-22 02:37:50.000000000 -0700
++++ Linux-PAM-0.79/modules/pam_stress/pam_stress.c	2008-07-29 18:25:17.000000000 -0700
+@@ -225,6 +225,7 @@
+      const char *username;
+      int retval=PAM_SUCCESS;
+      char *pass;
++     char *prompt = NULL;
+      int ctrl;
+ 
+      D(("called."));
+@@ -234,7 +235,10 @@
+ 
+      /* try to get the username */
+ 
+-     retval = pam_get_user(pamh, &username, "username: ");
++     pam_get_item(pamh,PAM_USER_PROMPT,(const void **)&prompt);
++     if (prompt == NULL) prompt = "username: ";
++     retval = pam_get_user(pamh, &username, prompt);\
++
+      if (retval != PAM_SUCCESS || !username) {
+ 	  _pam_log(LOG_WARNING, "pam_sm_authenticate: failed to get username");
+ 	  if (retval == PAM_SUCCESS)
+Index: Linux-PAM-0.79/modules/pam_unix/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_unix/Makefile	2004-11-08 00:58:37.000000000 -0800
++++ Linux-PAM-0.79/modules/pam_unix/Makefile	2008-07-29 18:25:17.000000000 -0700
+@@ -18,11 +18,11 @@
+ #USE_CRACKLIB=-D"USE_CRACKLIB"
+ #endif
+ 
+-ifeq ($(shell if [ -f /usr/lib/cracklib_dict.hwm ]; then echo yes ; fi),yes)
+- CRACKLIB_DICTPATH=/usr/lib/cracklib_dict
+-else
+- CRACKLIB_DICTPATH=/usr/share/dict/cracklib_dict
+-endif
++#ifeq ($(shell if [ -f /usr/lib/cracklib_dict.hwm ]; then echo yes ; fi),yes)
++# CRACKLIB_DICTPATH=/usr/lib/cracklib_dict
++#else
++# CRACKLIB_DICTPATH=/usr/share/dict/cracklib_dict
++#endif
+ EXTRAS += -DCRACKLIB_DICTS=\"$(CRACKLIB_DICTPATH)\"
+ 
+ ifeq ($(HAVE_LIBCRYPT),yes)
+Index: Linux-PAM-0.79/modules/pam_warn/pam_warn.c
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_warn/pam_warn.c	2002-05-28 21:44:43.000000000 -0700
++++ Linux-PAM-0.79/modules/pam_warn/pam_warn.c	2008-07-29 18:25:17.000000000 -0700
+@@ -47,9 +47,11 @@
+ {
+      const char *service=NULL, *user=NULL, *terminal=NULL,
+ 	 *rhost=NULL, *ruser=NULL;
++     const char *prompt = NULL;
+ 
+      OBTAIN(PAM_SERVICE, service, "<unknown>");
+      OBTAIN(PAM_TTY, terminal, "<unknown>");
++     OBTAIN(PAM_USER_PROMPT, prompt, "Who are you? ");
+      OBTAIN(PAM_USER, user, "<unknown>");
+      OBTAIN(PAM_RUSER, ruser, "<unknown>");
+      OBTAIN(PAM_RHOST, rhost, "<unknown>");
+Index: Linux-PAM-0.79/modules/pam_cracklib/pam_cracklib.c
+===================================================================
+--- Linux-PAM-0.79.orig/modules/pam_cracklib/pam_cracklib.c	2004-09-15 05:06:17.000000000 -0700
++++ Linux-PAM-0.79/modules/pam_cracklib/pam_cracklib.c	2008-07-29 18:25:17.000000000 -0700
+@@ -49,6 +49,7 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <ctype.h>
++#include <shadow.h>
+ 
+ extern char *FascistCheck(char *pw, const char *dictpath);
+ 
+@@ -56,6 +57,7 @@
+ #define CRACKLIB_DICTPATH "/usr/share/dict/cracklib_dict"
+ #endif
+ 
++#define PROMPT0 "Old password: "
+ #define PROMPT1 "New %s%spassword: "
+ #define PROMPT2 "Retype new %s%spassword: "
+ #define MISTYPED_PASS "Sorry, passwords do not match"
+@@ -504,10 +506,10 @@
+                                   unsigned int ctrl,
+ 				  struct cracklib_options *opt,
+                                   const char *pass_old,
+-                                  const char *pass_new)
++                                  const char *pass_new,
++                                  const char *user)
+ {
+     const char *msg = NULL;
+-    const char *user;
+     int retval;
+ 
+     if (pass_new == NULL || (pass_old && !strcmp(pass_old,pass_new))) {
+@@ -525,13 +527,6 @@
+      */
+     msg = password_check(opt, pass_old,pass_new);
+     if (!msg) {
+-	retval = pam_get_item(pamh, PAM_USER, (const void **)&user);
+-	if (retval != PAM_SUCCESS || user == NULL) {
+-	    if (ctrl & PAM_DEBUG_ARG) {
+-		_pam_log(LOG_ERR,"Can not get username");
+-        	return PAM_AUTHTOK_ERR;
+-	    }
+-	}
+ 	msg = check_old_password(user, pass_new);
+     }
+ 
+@@ -605,8 +600,17 @@
+         struct pam_response *resp;
+         const char *cracklib_dictpath = CRACKLIB_DICTPATH;
+         char prompt[BUFSIZ];
++		struct spwd *sp;
++		char *username;
+ 
+ 	D(("do update"));
++	retval = pam_get_item(pamh, PAM_USER, (const void **)&username);
++	if (retval != PAM_SUCCESS || username == NULL) {
++	    if (ctrl & PAM_DEBUG_ARG) {
++		_pam_log(LOG_ERR,"Can not get username");
++        	return PAM_AUTHTOK_ERR;
++	    }
++	}
+         retval = pam_get_item(pamh, PAM_OLDAUTHTOK,
+                               (const void **)&oldtoken);
+         if (retval != PAM_SUCCESS) {
+@@ -616,6 +620,36 @@
+             retval = PAM_SUCCESS;
+         }
+ 
++	//[RK]Dec/04/07
++	// ask for the old password when PAM_OLDAUTHOK is empty
++	if ((oldtoken == NULL)&&(getuid() || (flags & PAM_ENFORCE_PASSWORD_STRENGTH) || (flags & PAM_CHANGE_EXPIRED_AUTHTOK))) {
++        sp = getspnam(username);
++		if (!sp || *sp->sp_pwdp != '!') {
++            memset(prompt,0,sizeof(prompt));
++            snprintf(prompt,sizeof(prompt),PROMPT0);
++            pmsg[0] = &msg[0];
++            msg[0].msg_style = PAM_PROMPT_ECHO_OFF;
++            msg[0].msg = prompt;
++
++            resp = NULL;
++            retval = converse(pamh, ctrl, 1, pmsg, &resp);
++            if (resp != NULL) {
++                if (retval == PAM_SUCCESS) {     /* a good conversation */
++                    oldtoken = x_strdup(resp[0].resp);
++                    if ((oldtoken == NULL) || (strlen(oldtoken)==0)){
++                        retval = PAM_AUTHTOK_RECOVER_ERR;
++                    } else {
++			pam_set_item (pamh, PAM_OLDAUTHTOK, (void *)oldtoken);
++		    }
++                }
++	        _pam_drop_reply(resp, 1);
++            }
++	    if (retval != PAM_SUCCESS) {
++		return(retval);
++	    }
++		}
++	}
++	
+         do {
+         /*
+          * make sure nothing inappropriate gets returned
+@@ -636,7 +670,7 @@
+          * set PAM_AUTHTOK and return
+          */
+ 
+-	if (options.use_authtok == 1) {
++	{
+ 	    const char *item = NULL;
+ 
+ 	    retval = pam_get_item(pamh, PAM_AUTHTOK, (const void **) &item);
+@@ -645,14 +679,25 @@
+ 		_pam_log(LOG_ALERT
+ 			,"pam_get_item returned error to pam_cracklib"
+ 			);
+-	    } else if (item != NULL) {      /* we have a password! */
+-		token1 = x_strdup(item);
+-		item = NULL;
+-	    } else {
+-		retval = PAM_AUTHTOK_RECOVER_ERR;         /* didn't work */
++			return(retval);
+ 	    }
++		if (item != NULL) {      /* we have a password! */
++			token1 = x_strdup(item);
++			item = NULL;
++        	options.retry_times = 1;
++		}
++	}
+ 
++	if (options.use_authtok == 1) {
++	    if (token1 == NULL) {
++		return PAM_AUTHTOK_RECOVER_ERR;         /* didn't work */
++	    }
+ 	} else {
++		if (token1) {
++			options.use_authtok = 2;
++		}
++	}
++	    if (token1 == NULL) {
+             /* Prepare to ask the user for the first time */
+             memset(prompt,0,sizeof(prompt));
+             snprintf(prompt,sizeof(prompt),PROMPT1,
+@@ -698,22 +743,22 @@
+             bzero(remark,sizeof(remark));
+ 	    D(("against cracklib"));
+             if ((crack_msg = FascistCheck(token1, cracklib_dictpath))) {
+-                if (ctrl && PAM_DEBUG_ARG)
+-                    _pam_log(LOG_DEBUG,"bad password: %s",crack_msg);
+                 snprintf(remark,sizeof(remark),"BAD PASSWORD: %s", crack_msg);
+                 make_remark(pamh, ctrl, PAM_ERROR_MSG, remark);
+-                if (getuid() || (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
++                if (getuid() || (flags & PAM_ENFORCE_PASSWORD_STRENGTH) || (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
+                     retval = PAM_AUTHTOK_ERR;
+                 else
+                     retval = PAM_SUCCESS;
++                if (ctrl && PAM_DEBUG_ARG)
++                    _pam_log(LOG_DEBUG,"flag=%x retval=%d, bad password: %s",flags,retval,crack_msg);
+             } else {
+                 /* check it for strength too... */
+ 		D(("for strength"));
+                 if (oldtoken) {
+                     retval = _pam_unix_approve_pass(pamh,ctrl,&options,
+-                                               oldtoken,token1);
++                                               oldtoken,token1,username);
+                     if (retval != PAM_SUCCESS) {
+-                        if (getuid() || (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
++                        if (getuid() || (flags & PAM_ENFORCE_PASSWORD_STRENGTH) || (flags & PAM_CHANGE_EXPIRED_AUTHTOK))
+ 			    retval = PAM_AUTHTOK_ERR;
+ 			else
+ 			    retval = PAM_SUCCESS;
+@@ -809,6 +854,9 @@
+         }
+ 
+         } while (options.retry_times--);
++        if (ctrl && PAM_DEBUG_ARG)
++           _pam_log(LOG_DEBUG,"retval=%d",retval);
++	return (retval);
+ 
+     } else {
+         if (ctrl & PAM_DEBUG_ARG)
+Index: Linux-PAM-0.79/libpam_misc/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/libpam_misc/Makefile
++++ Linux-PAM-0.79/libpam_misc/Makefile
+@@ -95,9 +95,8 @@ ifndef FAKEROOT
+ else
+ 	$(LDCONFIG) -n $(FAKEROOT)$(libdir)
+ endif
+-  ifneq ($(DYNTYPE),"sl")
+-	( cd $(FAKEROOT)$(libdir) ; rm -f $(LIBNAMED) ; ln -s $(LIBNAMEDNAME) $(LIBNAMED) )
+-  endif
++	ln -s $(LIBNAMEDFULL) $(FAKEROOT)$(libdir)/$(LIBNAMED)
++	ln -s $(LIBNAMEDFULL) $(FAKEROOT)$(libdir)/$(LIBNAMEDNAME)
+ endif
+ ifeq ($(STATIC_LIBPAM),yes)
+ 	$(INSTALL) -m 644 $(LIBNAMEDSTATIC) $(FAKEROOT)$(libdir)
+Index: Linux-PAM-0.79/libpam/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/libpam/Makefile
++++ Linux-PAM-0.79/libpam/Makefile
+@@ -135,15 +135,13 @@ ifdef MEMORY_DEBUG
+ endif
+ ifeq ($(DYNAMIC_LIBPAM),yes)
+ 	$(INSTALL) -m $(SHLIBMODE) $(LIBPAM) $(FAKEROOT)$(libdir)/$(LIBPAMFULL)
++	ln -sf $(LIBPAMFULL) $(FAKEROOT)$(libdir)/$(LIBPAM) 
++	ln -sf $(LIBPAMFULL) $(FAKEROOT)$(libdir)/$(LIBPAMNAME) 
+ ifndef FAKEROOT
+ 	$(LDCONFIG)
+ else
+ 	$(LDCONFIG) -n $(FAKEROOT)$(libdir)
+ endif
+-  ifneq ($(DYNTYPE),"sl")
+-	( cd $(FAKEROOT)$(libdir) ; rm -f $(LIBPAM) ; \
+-	  ln -sf $(LIBPAMNAME) $(LIBPAM) )
+-  endif
+ endif
+ ifeq ($(STATIC_LIBPAM),yes)
+ 	$(INSTALL) -m 644 $(LIBPAMSTATIC) $(FAKEROOT)$(libdir)
+Index: Linux-PAM-0.79/libpamc/Makefile
+===================================================================
+--- Linux-PAM-0.79.orig/libpamc/Makefile
++++ Linux-PAM-0.79/libpamc/Makefile
+@@ -88,14 +88,13 @@ install: all
+ ifeq ($(DYNAMIC_LIBPAM),yes)
+ 	$(MKDIR) $(FAKEROOT)$(libdir)
+ 	$(INSTALL) -m $(SHLIBMODE) $(LIBNAMED) $(FAKEROOT)$(libdir)/$(LIBNAMEDFULL)
++	ln -sf $(LIBNAMEDFULL) $(LIBNAMED)
++	ln -sf $(LIBNAMEDNAME) $(LIBNAMED)
+ ifndef FAKEROOT
+ 	$(LDCONFIG)
+ else
+ 	$(LDCONFIG) -n $(FAKEROOT)$(libdir)
+ endif
+-  ifneq ($(DYNTYPE),"sl")
+-	( cd $(FAKEROOT)$(libdir) ; rm -f $(LIBNAMED) ; ln -s $(LIBNAMEDNAME) $(LIBNAMED) )
+-  endif
+ endif
+ ifeq ($(STATIC_LIBPAM),yes)
+ 	$(INSTALL) -m 644 $(LIBNAMEDSTATIC) $(FAKEROOT)$(libdir)

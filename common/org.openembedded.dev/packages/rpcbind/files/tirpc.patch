@@ -1,0 +1,39 @@
+diff -r -u -N rpcbind-0.1.4.orig/src/Makefile.am rpcbind-0.1.4/src/Makefile.am
+--- rpcbind-0.1.4.orig/src/Makefile.am	2004-11-15 08:38:02.000000000 -0500
++++ rpcbind-0.1.4/src/Makefile.am	2007-06-01 11:19:57.000000000 -0400
+@@ -1,4 +1,4 @@
+-INCLUDES = -I$(srcdir)/tirpc -DPORTMAP -DINET6 -DVERSION="\"$(VERSION)\"" \
++INCLUDES = -I${TIRPCDIR} -DPORTMAP -DINET6 -DVERSION="\"$(VERSION)\"" \
+                                                 -D_GNU_SOURCE -Wall -pipe
+ 
+ bin_PROGRAMS = rpcbind rpcinfo
+@@ -16,7 +16,7 @@
+ 
+ rpcbind_LDFLAGS = -lpthread -ltirpc
+ rpcbind_LDADD = $(LIB_TIRPC)
+-AM_CPPFLAGS = -I/usr/include/tirpc -DCHECK_LOCAL -DPORTMAP \
++AM_CPPFLAGS = -I${TIRPCDIR} -DCHECK_LOCAL -DPORTMAP \
+                        -DFACILITY=LOG_MAIL -DSEVERITY=LOG_INFO
+ ##                     -DRPCBIND_DEBUG -DSVC_RUN_DEBUG -DDEBUG_RMTCALL \
+ ##                     -DND_DEBUG -DBIND_DEBUG
+diff -r -u -N rpcbind-0.1.4.orig/src/Makefile.in rpcbind-0.1.4/src/Makefile.in
+--- rpcbind-0.1.4.orig/src/Makefile.in	2004-11-16 11:39:32.000000000 -0500
++++ rpcbind-0.1.4/src/Makefile.in	2007-06-01 11:20:19.000000000 -0400
+@@ -145,7 +145,7 @@
+ sharedstatedir = @sharedstatedir@
+ sysconfdir = @sysconfdir@
+ target_alias = @target_alias@
+-INCLUDES = -I$(srcdir)/tirpc -DPORTMAP -DINET6 -DVERSION="\"$(VERSION)\"" \
++INCLUDES = -I$(TIRPCDIR) -DPORTMAP -DINET6 -DVERSION="\"$(VERSION)\"" \
+                                                 -D_GNU_SOURCE -Wall -pipe
+ 
+ rpcbind_SOURCES = check_bound.c rpcbind.c \
+@@ -159,7 +159,7 @@
+ rpcinfo_LDADD = $(LIB_TIRPC)
+ rpcbind_LDFLAGS = -lpthread -ltirpc
+ rpcbind_LDADD = $(LIB_TIRPC)
+-AM_CPPFLAGS = -I/usr/include/tirpc -DCHECK_LOCAL -DPORTMAP \
++AM_CPPFLAGS = -I${TIRPCDIR} -DCHECK_LOCAL -DPORTMAP \
+                        -DFACILITY=LOG_MAIL -DSEVERITY=LOG_INFO
+ 
+ all: all-am

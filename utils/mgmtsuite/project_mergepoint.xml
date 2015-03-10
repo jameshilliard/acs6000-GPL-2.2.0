@@ -1,0 +1,2987 @@
+<?xml version="1.0"?>
+<Project manager="Benny" name="Mergepoint52xx">
+	<Description>
+    MergePoint Project definition file.
+	</Description>
+	<Server type="svn">
+		<Local>
+      svn://172.26.24.5/avocent-gsp
+		</Local>
+		<Remote>
+      https://fre-svn.corp.avocent.com/svn/avocent-gsp
+		</Remote>
+		<SvnSync>
+      http://172.26.24.5/cgi-bin/websvnsync.cgi
+		</SvnSync>
+	</Server>
+	<Modules>
+		<Module owner="">
+      bitbake 
+		</Module>
+		<Module owner="">
+      common/com.avocent.dev 
+		</Module>
+		<Module owners="">
+      common/org.openembedded.dev 
+		</Module>
+		<Module owners="Lynn.Lin">
+      projects/mergepoint 
+		</Module>
+		<Module owners="Liwei.Zhen">
+      sources/generic/lzma 
+		</Module>
+		<Module owners="Liwei.Zhen">
+      sources/generic/cmd-uboot 
+		</Module>
+		<Module owners="Liwei.Zhen">
+      sources/generic/cpkg-tool 
+		</Module>
+		<Module owners="">
+      utils 
+		</Module>
+		<Module owners="Lynn Lin">
+	  prebuilt/i686-linux/mergepoint-x86-share-ipk-repository
+		</Module>
+		<Module owners="Lynn Lin">
+	  prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/accouting
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/active-session
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/add-bmc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/alert-action
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/alertmgt
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/authentication
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/authorization
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-address
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-cmdstatus
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-core
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-helper
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-mapping
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-operation
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-output
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-parser
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-schema
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-sol
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avcclp-transport
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/avctutil
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/backup-restore
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cacp-provider
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cacp-para-check
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cacp_misc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cacpd_lib
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/caesar-status
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cdbc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cgi-export
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cgi-export-tcpdump
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cgi-exportlog
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cgi-upload
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/cli
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conf-file
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-client
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-filter
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-misc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-proto
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-server
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/conshare-spkcon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/console
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/data-transform
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/default-usraccount
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/device-util
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dhcp-mgmt
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/directcommand
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-alom
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-client
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-common
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-daemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-drac
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-drac5
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-dracmc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-hpbc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-ilo
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-ipmi
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-resultdisposal
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/discovery-utility
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/drac
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-adsap2
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-aidp
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-datalogging-control
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-datalogging-daemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-datalogging-event
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-file-transfer
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-firmware-image
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-global-param
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-minihttpd
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-plugin
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-plugin-old52xx
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-secure
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-soap-cgi
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-soap-client
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/dsview-trap-proc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/event-cfg
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/filter-nodecfg
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/firewall
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/global-const
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/group-action
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/idkeyvalue
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/ilo
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/im-client
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/im-daemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/im-libmsn
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/ip-name
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/license-mgmt
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/llconf
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/maxdevnum
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mgmtnode
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mgmtnode-daemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mgmtnode-dbagent
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mgmtnode-upgrade
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mgpshell
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mount-nfs
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/mp-error-msg
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/nativeip
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/notification
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/omssendmail
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/oobtool
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/osalog
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/osprovider
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/pcmcia-conf
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/provider
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/public
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/public-misc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/pxe-dhcpd
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/pxe-tftpboot
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/racadm
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/rmenush
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/role-mgmt
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sadd
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/schedule-action
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sendtrap
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/service-control
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/service-monitor
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sessionmanager
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sfcb
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sfcc
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/slp
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/smashprovider
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/snmpdconf
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/snmptrap
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/snmptrap-daemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sol-alert-notify
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sol-login
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/solbuf-conf
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/solonboot
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sp-provider
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/spprofile-driver
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/spprofile-exp
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/spprofile-template
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/sys-usermgmt
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/tcpredirect
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/terselib
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/timezone
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/trans-manager
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/user-group
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/util-keyvalue
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/util2db
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/vtlastscreen
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/webcgi
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/webdaemon
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/webgui
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/webuser
+		</Module>
+		<Module owners="Benny">
+      sources/mergepoint/xmlhelper
+		</Module>
+		<Module>
+	  sources/thirdparty/ACE
+		</Module>
+		<Module>
+	  sources/thirdparty/krb5
+		</Module>
+		<Module>
+	  sources/thirdparty/libssh
+		</Module>
+		<Module>
+	  sources/thirdparty/libyahoo2
+		</Module>
+		<Module>
+	  sources/thirdparty/mindterm
+		</Module>
+		<Module>
+	  sources/thirdparty/net-snmp
+		</Module>
+		<Module>
+	  sources/thirdparty/netkit-telnet
+		</Module>
+		<Module>
+	  sources/thirdparty/openldap
+		</Module>
+		<Module>
+	  sources/thirdparty/openssh
+		</Module>
+		<Module>
+	  sources/thirdparty/openssl
+		</Module>
+		<Module>
+	  sources/thirdparty/osasshd
+		</Module>
+		<Module>
+	  sources/thirdparty/procmail
+		</Module>
+		<Module>
+	  sources/thirdparty/readline
+		</Module>
+		<Module>
+	  sources/thirdparty/samba
+		</Module>
+		<Module>
+	  sources/thirdparty/sel
+		</Module>
+	</Modules>
+	<Tags>
+		<Tag Begin="Tue Mar 11 19:53:30 2008" Name="BLD_MGP_SHANGRILA_1_0_0_04">
+			<Comment>
+				release version 1.0.0,build version 04
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cpkg-tool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-para-check">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/sel">
+			</Module>
+		</Tag>
+		<Tag Begin="Mon Mar  3 14:08:31 2008" End="Tue Mar 04 11:54:33 2008" Name="branch_gsp_mergepoint_1_0_3" Status="deleted"/>
+		<Tag Begin="Mon Mar  3 14:08:31 2008" Name="BLD_MGP_SHANGRILA_1_0_0_03">
+			<Comment>
+				plugin release version three
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cpkg-tool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-para-check">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/sel">
+			</Module>
+		</Tag>
+		<Tag Begin="Tue Feb 26 17:46:27 2008" Name="BLD_MGP_SHANGRILA_1_0_0_02">
+			<Comment>
+				release version 2
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/sel">
+			</Module>
+		</Tag>
+		<Tag Begin="Tue Feb 26 12:20:22 2008" Name="BLD_MGP_SHANGRILA_1_0_0_01">
+			<Comment>
+				release version for dsview plug in
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/thirdparty/sel">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Nov 02 16:13:13 2007" Name="OS_MPG_PPC_1_0_2_2007110201">
+			<Comment>
+	1. dhcp server and client enable by Lynn.
+	2. added ntpdate by Lynn.
+	3. added tcpdump.
+	4. update deconfig for bridge.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Thu Nov 01 13:52:04 2007" Name="OS_MPG_PPC_1_0_2_20071102">
+			<Comment>
+	1. ntpdate added by Lynn.
+	2. IPv6 patch by Jessie.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Tue Oct 30 15:41:06 2007" Name="OS_MPG_PPC_1_0_2_20071030">
+			<Comment>
+	1. Jessie fixed AUX problem via patch linux-onboard.
+	2. Lynn update the bitbake and bbclasses for ipkg share functions.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Thu Oct 25 15:19:28 2007" End="Thu Oct 25 15:30:12 2007" Name="t1" Status="deleted">
+			<Comment/>
+			<Module RefTag="trunk" name="bitbake">
+			</Module>
+			<Module RefTag="trunk" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="trunk" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="trunk" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="trunk" name="projects/hebei">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="trunk" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="trunk" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Oct 19 10:09:52 2007" Name="OS_MPG_PPC_1_0_2_20071019">
+			<Comment>
+	update linux onboard kernel
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Oct 19 09:52:50 2007" Name="OS_MPG_PPC_1_0_2_20071019">
+			<Comment>
+	update linux-onboard
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Thu Oct 18 15:16:53 2007" Name="OS_MPG_PPC_1_0_2_2007101801">
+			<Comment>
+	fix the ssh status condition
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Thu Oct 18 10:16:13 2007" Name="OS_MPG_PPC_1_0_2_20071018">
+			<Comment>
+	update aspen-upg files
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Wed Oct 17 13:31:21 2007" Name="OS_MPG_PPC_1_0_2_20071017">
+			<Comment>
+	1 update aspen-upg-image files
+	2 make softlink cardctl to pccardctl
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Wed Oct 10 15:03:06 2007" Name="OS_MPG_PPC_1_0_2_2007101001">
+			<Comment>
+	1 use new ping version,fix iputils bug
+	2 add pcmica management
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Wed Oct 10 12:07:25 2007" Name="OS_MPG_PPC_1_0_2_20071010">
+			<Comment>
+	1 use new ping version ,fix iputils bug
+	2 add pcmcia management
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Sat Sep 29 17:10:24 2007" Name="OS_MPG_PPC_1_0_2_2007092901">
+			<Comment>
+	fix close off  automount 
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Sat Sep 29 14:10:19 2007" Name="OS_MPG_PPC_1_0_2_20070929">
+			<Comment>
+	update initscripts
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Sep 21 09:51:02 2007" Name="OS_MPG_PPC_1_0_2_20070921">
+			<Comment>
+	1. Update create_cf command, remove auto mount from udev.
+	2. Update xinetd and linux-onboard.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Tue Aug 14 16:29:59 2007" Name="OS_MPG_PPC_1_0_2_20070814">
+			<Comment>
+	1. Added networking restart in rcS.d.
+	2. Implment of new partition for create_cf.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Mon Aug 13 17:14:54 2007" Name="OS_MPG_PPC_1_0_2_20070813">
+			<Comment>
+	1. Disable os_ipname defaultlly.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Fri Aug 10 13:55:10 2007" Name="OS_MPG_PPC_1_0_2_20070810">
+			<Comment>
+	1. Upgrade re make the partitions for active and backup, decrease the active partition, enlarge backup partition, so the full active partition can be backed up.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+		<Tag Begin="Mon Aug 06 15:17:57 2007" Name="SCM_MGP_PPC_1_0_2_20070806">
+			<Comment>
+	1. For restore function, using a pre password and shadow file.
+			</Comment>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="bitbake">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="projects/hebei">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="branch_gsp_mergepoint_1_0_2" name="utils">
+			</Module>
+		</Tag>
+	</Tags>
+	<Branches>
+		<Branch Begin="Thu Mar 20 15:36:34 2008" Name="avocent-os-generic">
+			<Comment/>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="bitbake">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/cpkg-tool">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="utils">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp-para-check">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/sel">
+			</Module>
+		</Branch>
+		<Branch Begin="Fri Mar 14 15:54:24 2008" Name="branch_cisco_mergepoint_1_0_1">
+			<Comment>
+				create cisco branch based shangrila _1_0_0_04
+			</Comment>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="bitbake">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/generic/cpkg-tool">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="utils">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="prebuilt/i686-linux/mergepoint-x86-share-ipk-repository">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="prebuilt/powerpc-linux/mergepoint-ppc-share-ipk-repository">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/accouting">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/active-session">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/add-bmc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/alert-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/alertmgt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/authentication">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/authorization">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-address">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-cmdstatus">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-core">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-helper">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-mapping">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-operation">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-output">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-parser">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-schema">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-sol">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avcclp-transport">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/avctutil">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/backup-restore">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp-provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp-para-check">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacp_misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cacpd_lib">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/caesar-status">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cdbc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-export">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-export-tcpdump">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-exportlog">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cgi-upload">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/cli">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conf-file">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-filter">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-proto">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-server">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/conshare-spkcon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/console">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/data-transform">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/default-usraccount">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/device-util">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dhcp-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/directcommand">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-alom">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-common">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-drac">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-drac5">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-dracmc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-hpbc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-ilo">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-ipmi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-resultdisposal">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/discovery-utility">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/drac">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-adsap2">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-aidp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-control">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-datalogging-event">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-file-transfer">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-firmware-image">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-global-param">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-minihttpd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-plugin">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-plugin-old52xx">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-secure">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-soap-cgi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-soap-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/dsview-trap-proc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/event-cfg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/filter-nodecfg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/firewall">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/global-const">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/group-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/idkeyvalue">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/ilo">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-client">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/im-libmsn">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/ip-name">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/license-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/llconf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/maxdevnum">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-dbagent">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgmtnode-upgrade">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mgpshell">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mount-nfs">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/mp-error-msg">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/nativeip">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/notification">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/omssendmail">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/oobtool">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/osalog">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/osprovider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pcmcia-conf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/public">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/public-misc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pxe-dhcpd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/pxe-tftpboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/racadm">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/rmenush">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/role-mgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sadd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/schedule-action">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sendtrap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/service-control">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/service-monitor">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sessionmanager">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sfcb">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sfcc">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/slp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/smashprovider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmpdconf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmptrap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/snmptrap-daemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sol-alert-notify">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sol-login">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/solbuf-conf">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/solonboot">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sp-provider">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-driver">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-exp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/spprofile-template">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/sys-usermgmt">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/tcpredirect">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/terselib">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/timezone">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/trans-manager">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/user-group">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/util-keyvalue">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/util2db">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/vtlastscreen">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webcgi">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webdaemon">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webgui">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/webuser">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/mergepoint/xmlhelper">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/ACE">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/krb5">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/libssh">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/libyahoo2">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/mindterm">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/net-snmp">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/netkit-telnet">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openldap">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openssh">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/openssl">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/osasshd">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/procmail">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/readline">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/samba">
+			</Module>
+			<Module RefTag="BLD_MGP_SHANGRILA_1_0_0_04" name="sources/thirdparty/sel">
+			</Module>
+		</Branch>
+		<Branch Begin="Tue Nov 06 12:08:40 2007" Name="branch_aspen_patch_1_0_2">
+			<Comment>
+	1. Create a branch only for aspen patch, based on OS_MPG_PPC_1_0_2_20071019.
+			</Comment>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="bitbake">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="common/com.avocent.dev">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="common/org.openembedded.dev">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="projects/mergepoint">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="projects/hebei">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="sources/generic/lzma">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="sources/generic/cmd-uboot">
+			</Module>
+			<Module RefTag="OS_MPG_PPC_1_0_2_20071019" name="utils">
+			</Module>
+		</Branch>
+		<Branch Name="branch_gsp_mergepoint_1_0_2"/>
+	</Branches>
+</Project>
